@@ -100,12 +100,11 @@
   #filter-morning.filter-active { background: #e8a800; border-color: #e8a800; color: white; }
   #filter-noon.filter-active { background: #e07830; border-color: #e07830; color: white; }
 
-  .plan-cell { display: flex; gap: 2px; justify-content: center; align-items: center; padding: 3px 2px; }
-  .plan-btn { border: 1.5px solid var(--border); background: none; border-radius: 6px; font-size: 0.85rem; padding: 3px 4px; cursor: pointer; color: var(--sub); transition: all 0.12s; min-width: 22px; }
-  .plan-btn:active { opacity: 0.6; }
-  .plan-btn.plan-active-morning { background: var(--morning-bg); border-color: #e8a800; color: #8a6000; font-weight: 700; }
-  .plan-btn.plan-active-noon    { background: var(--noon-bg);    border-color: #e07830; color: #a04010; font-weight: 700; }
-  .plan-btn.plan-active-full    { background: var(--full-bg);    border-color: var(--accent); color: var(--accent); font-weight: 700; }
+  .plan-cell { display: flex; justify-content: center; align-items: center; padding: 2px; }
+  .plan-select { border: 1.5px solid var(--border); border-radius: 6px; font-size: 0.78rem; padding: 3px 2px; cursor: pointer; background: var(--surface); color: var(--text); width: 58px; text-align: center; }
+  .plan-select.plan-morning { background: var(--morning-bg); border-color: #e8a800; color: #8a6000; font-weight: 700; }
+  .plan-select.plan-noon    { background: var(--noon-bg);    border-color: #e07830; color: #a04010; font-weight: 700; }
+  .plan-select.plan-full    { background: var(--full-bg);    border-color: var(--accent); color: var(--accent); font-weight: 700; }
 </style>
 </head>
 <body>
@@ -385,14 +384,15 @@ function renderSummaryRows() {
     vals.forEach(v => {
       html += `<div class="summary-cell${v?' '+v:''}">${v?SYMBOLS[v]:''}</div>`;
     });
-    const plan = (state.plans && state.plans[key]) || null;
-    const planSyms = {morning:'△',noon:'▲',full:'⚪︎'};
-    const planTypes = ['morning','noon','full'];
-    let planHtml = '<div class="plan-cell">';
-    planTypes.forEach(t => {
-      planHtml += `<button class="plan-btn${plan===t?' plan-active-'+t:''}" onclick="selectPlan('${key}','${t}')">${planSyms[t]}</button>`;
-    });
-    planHtml += '</div>';
+    const plan = (state.plans && state.plans[key]) || '';
+    const planHtml = `<div class="plan-cell">
+      <select class="plan-select plan-${plan}" onchange="selectPlan('${key}',this.value)">
+        <option value="" ${plan===''?'selected':''}>―</option>
+        <option value="morning" ${plan==='morning'?'selected':''}>△ 朝</option>
+        <option value="noon" ${plan==='noon'?'selected':''}>▲ 昼</option>
+        <option value="full" ${plan==='full'?'selected':''}>⚪︎ 一日</option>
+      </select>
+    </div>`;
     html += `<div class="count-cell ${countCls}">${countTxt}</div>${planHtml}</div>`;
   });
 
@@ -403,7 +403,7 @@ function renderSummaryRows() {
 
 window.selectPlan = function(key, type) {
   if (!state.plans) state.plans = {};
-  state.plans[key] = state.plans[key] === type ? null : type;
+  state.plans[key] = type || null;
   set(dbRef, {
     names: state.names,
     schedules: state.schedules,
