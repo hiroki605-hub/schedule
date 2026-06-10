@@ -73,7 +73,7 @@
 
   /* 集計 */
   .summary-grid { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; margin-bottom: 5px; }
-  .summary-row { display: grid; grid-template-columns: 52px repeat(3,1fr) 40px; border-bottom: 1px solid var(--border); align-items: center; }
+  .summary-row { display: grid; grid-template-columns: 52px repeat(3,1fr) 40px 60px; border-bottom: 1px solid var(--border); align-items: center; }
   .summary-row:last-child { border-bottom: none; }
   .summary-row.header { background: #f0ede6; }
   .summary-row.header > div { padding: 6px 3px; font-size: 0.68rem; font-weight: 700; color: var(--sub); text-align: center; }
@@ -99,6 +99,13 @@
   .filter-btn.filter-active { background: var(--accent); color: white; border-color: var(--accent); }
   #filter-morning.filter-active { background: #e8a800; border-color: #e8a800; color: white; }
   #filter-noon.filter-active { background: #e07830; border-color: #e07830; color: white; }
+
+  .plan-cell { display: flex; gap: 2px; justify-content: center; align-items: center; padding: 3px 2px; }
+  .plan-btn { border: 1.5px solid var(--border); background: none; border-radius: 6px; font-size: 0.85rem; padding: 3px 4px; cursor: pointer; color: var(--sub); transition: all 0.12s; min-width: 22px; }
+  .plan-btn:active { opacity: 0.6; }
+  .plan-btn.plan-active-morning { background: var(--morning-bg); border-color: #e8a800; color: #8a6000; font-weight: 700; }
+  .plan-btn.plan-active-noon    { background: var(--noon-bg);    border-color: #e07830; color: #a04010; font-weight: 700; }
+  .plan-btn.plan-active-full    { background: var(--full-bg);    border-color: var(--accent); color: var(--accent); font-weight: 700; }
 </style>
 </head>
 <body>
@@ -169,7 +176,8 @@ function fmtDisp(arr) { return `${arr[1]+1}/${arr[2]}`; }
 // ローカル状態
 let state = {
   names: ['','',''],
-  schedules: [{},{},{}]
+  schedules: [{},{},{}],
+  plans: {}
 };
 
 // Firebase リアルタイム監視
@@ -195,7 +203,8 @@ function setSyncBar(type, msg) {
 async function pushToFirebase() {
   await set(dbRef, {
     names: state.names,
-    schedules: state.schedules
+    schedules: state.schedules,
+    plans: state.plans
   });
 }
 
@@ -361,7 +370,7 @@ function renderSummaryRows() {
       html += `<div class="month-header">${m}月</div>
         <div class="summary-grid">
         <div class="summary-row header">
-          <div>日付</div><div>${names[0]}</div><div>${names[1]}</div><div>${names[2]}</div><div>計</div>
+          <div>日付</div><div>${names[0]}</div><div>${names[1]}</div><div>${names[2]}</div><div>計</div><div>実施</div>
         </div>`;
       curMonth = m; gridOpen = true;
     }
@@ -376,13 +385,32 @@ function renderSummaryRows() {
     vals.forEach(v => {
       html += `<div class="summary-cell${v?' '+v:''}">${v?SYMBOLS[v]:''}</div>`;
     });
-    html += `<div class="count-cell ${countCls}">${countTxt}</div></div>`;
+    const plan = (state.plans && state.plans[key]) || null;
+    const planSyms = {morning:'△',noon:'▲',full:'⚪︎'};
+    const planTypes = ['morning','noon','full'];
+    let planHtml = '<div class="plan-cell">';
+    planTypes.forEach(t => {
+      planHtml += `<button class="plan-btn${plan===t?' plan-active-'+t:''}" onclick="selectPlan('${key}','${t}')">${planSyms[t]}</button>`;
+    });
+    planHtml += '</div>';
+    html += `<div class="count-cell ${countCls}">${countTxt}</div>${planHtml}</div>`;
   });
 
   if (gridOpen) html += '</div>';
   if (!html) html = '<p style="text-align:center;padding:30px;color:#aaa">該当する日がありません</p>';
   container.innerHTML = html;
 }
+
+window.selectPlan = function(key, type) {
+  if (!state.plans) state.plans = {};
+  state.plans[key] = state.plans[key] === type ? null : type;
+  set(dbRef, {
+    names: state.names,
+    schedules: state.schedules,
+    plans: state.plans
+  });
+  renderSummaryRows();
+};
 </script>
 </body>
 </html>
