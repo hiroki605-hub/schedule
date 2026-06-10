@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>スケジュール調整</title>
+<style>
+  :root {
+    --bg: #f7f5f0;
+    --surface: #ffffff;
+    --border: #e0dbd0;
+    --text: #2c2820;
+    --sub: #8a8070;
+    --accent: #4a7c59;
+    --accent-light: #e8f0eb;
+    --morning-bg: #fdf6dc;
+    --noon-bg: #fdeede;
+    --full-bg: #e8f0eb;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Hiragino Sans','Yu Gothic',sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  header { background: var(--accent); color: white; padding: 16px 20px 12px; text-align: center; }
+  header h1 { font-size: 1.2rem; font-weight: 700; }
+  header p { font-size: 0.75rem; margin-top: 3px; opacity: 0.85; }
+
+  .sync-bar { background: #fff8e1; border-bottom: 1px solid #ffe082; padding: 7px 14px; font-size: 0.75rem; color: #8a6d00; text-align: center; }
+  .sync-bar.ok { background: #e8f5e9; border-color: #a5d6a7; color: #2e7d32; }
+  .sync-bar.err { background: #fce4ec; border-color: #f48fb1; color: #880e4f; }
+
+  .tabs { display: flex; background: var(--surface); border-bottom: 2px solid var(--border); overflow-x: auto; }
+  .tab-btn { flex: 1; min-width: 70px; padding: 11px 6px; border: none; background: none; cursor: pointer; font-size: 0.82rem; color: var(--sub); font-weight: 600; border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; transition: all 0.15s; }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-btn .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--border); margin-right: 4px; vertical-align: middle; }
+  .tab-btn.filled .dot { background: var(--accent); }
+
+  .panel { display: none; padding: 14px; }
+  .panel.active { display: block; }
+
+  .name-row { display: flex; align-items: center; gap: 10px; background: var(--surface); border-radius: var(--radius); padding: 11px 13px; margin-bottom: 12px; border: 1px solid var(--border); }
+  .name-row label { font-size: 0.78rem; color: var(--sub); white-space: nowrap; }
+  .name-row input { flex: 1; border: none; outline: none; font-size: 0.93rem; font-weight: 700; color: var(--text); background: transparent; }
+
+  .legend { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; font-size: 0.73rem; color: var(--sub); }
+
+  .month-header { font-size: 0.82rem; font-weight: 700; color: var(--sub); letter-spacing: 0.08em; margin: 12px 0 5px 2px; }
+
+  .date-grid { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; margin-bottom: 5px; }
+  .grid-header { display: grid; grid-template-columns: 52px repeat(3,1fr); background: #f0ede6; border-bottom: 1px solid var(--border); }
+  .grid-header > div { padding: 5px 3px; font-size: 0.68rem; font-weight: 700; color: var(--sub); text-align: center; border-right: 1px solid var(--border); }
+  .grid-header > div:last-child { border-right: none; }
+
+  .date-row { display: grid; grid-template-columns: 52px repeat(3,1fr); border-bottom: 1px solid var(--border); align-items: stretch; }
+  .date-row:last-child { border-bottom: none; }
+  .date-row.weekend .date-label { color: #c0392b; }
+  .date-row.saturday .date-label { color: #2980b9; }
+
+  .date-label { padding: 7px 4px; font-size: 0.78rem; font-weight: 600; text-align: center; border-right: 1px solid var(--border); background: #faf9f7; display: flex; flex-direction: column; justify-content: center; line-height: 1.2; }
+  .date-label .wday { font-size: 0.62rem; color: var(--sub); margin-top: 1px; }
+  .date-row.weekend .date-label .wday { color: #c0392b; }
+  .date-row.saturday .date-label .wday { color: #2980b9; }
+
+  .cell-btn { border: none; background: none; cursor: pointer; padding: 5px 3px; font-size: 1.05rem; text-align: center; border-right: 1px solid var(--border); min-height: 36px; display: flex; align-items: center; justify-content: center; transition: background 0.1s; }
+  .cell-btn:last-child { border-right: none; }
+  .cell-btn:active { opacity: 0.7; }
+  .cell-btn.morning { background: var(--morning-bg); }
+  .cell-btn.noon    { background: var(--noon-bg); }
+  .cell-btn.full    { background: var(--full-bg); }
+
+  .save-btn { width: 100%; margin-top: 14px; padding: 12px; background: var(--accent); color: white; border: none; border-radius: var(--radius); font-size: 0.93rem; font-weight: 700; cursor: pointer; letter-spacing: 0.04em; transition: opacity 0.15s; }
+  .save-btn:active { opacity: 0.8; }
+
+  /* 集計 */
+  .summary-grid { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; margin-bottom: 5px; }
+  .summary-row { display: grid; grid-template-columns: 52px repeat(3,1fr) 40px; border-bottom: 1px solid var(--border); align-items: center; }
+  .summary-row:last-child { border-bottom: none; }
+  .summary-row.header { background: #f0ede6; }
+  .summary-row.header > div { padding: 6px 3px; font-size: 0.68rem; font-weight: 700; color: var(--sub); text-align: center; }
+  .summary-row.weekend .date-label { color: #c0392b; }
+  .summary-row.saturday .date-label { color: #2980b9; }
+  .summary-cell { font-size: 0.95rem; text-align: center; padding: 5px 2px; border-right: 1px solid var(--border); min-height: 34px; display: flex; align-items: center; justify-content: center; }
+  .summary-cell:last-child { border-right: none; }
+  .summary-cell.morning { background: var(--morning-bg); }
+  .summary-cell.noon    { background: var(--noon-bg); }
+  .summary-cell.full    { background: var(--full-bg); }
+  .count-cell { font-size: 0.72rem; text-align: center; padding: 4px 2px; font-weight: 700; border-right: none; }
+  .count-3 { color: var(--accent); background: var(--full-bg); }
+  .count-2 { color: #e07830; }
+  .count-1 { color: var(--sub); }
+  .note { font-size: 0.7rem; color: var(--sub); text-align: center; margin-top: 10px; line-height: 1.6; }
+
+  .loading { text-align: center; padding: 40px 20px; color: var(--sub); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📅 スケジュール調整</h1>
+  <p>7月中旬〜8月31日　3人共有</p>
+</header>
+<div class="sync-bar" id="syncBar">🔄 Firebase に接続中...</div>
+
+<div class="tabs">
+  <button class="tab-btn active" onclick="showTab(0)" id="tab0"><span class="dot"></span>メンバー1</button>
+  <button class="tab-btn" onclick="showTab(1)" id="tab1"><span class="dot"></span>メンバー2</button>
+  <button class="tab-btn" onclick="showTab(2)" id="tab2"><span class="dot"></span>メンバー3</button>
+  <button class="tab-btn" onclick="showTab(3)" id="tab3">📊 集計</button>
+</div>
+
+<div id="panel0" class="panel active"><div class="loading">読み込み中...</div></div>
+<div id="panel1" class="panel"><div class="loading">読み込み中...</div></div>
+<div id="panel2" class="panel"><div class="loading">読み込み中...</div></div>
+<div id="panel3" class="panel"><div class="loading">読み込み中...</div></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, onValue, set, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyB4EcKVsb7wuhjZrUeXEG8vi5c1_2yvGj0",
+  authDomain: "schedule-7db64.firebaseapp.com",
+  databaseURL: "https://schedule-7db64-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "schedule-7db64",
+  storageBucket: "schedule-7db64.firebasestorage.app",
+  messagingSenderId: "745424328407",
+  appId: "1:745424328407:web:4c8cb8ff701350381d8292"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+const WDAYS = ['日','月','火','水','木','金','土'];
+const SYMBOLS = { morning: '△', noon: '▲', full: '⚪︎' };
+
+// タイムゾーン問題を避けるため日付を数値で管理
+function getDates() {
+  const dates = [];
+  // [year, month(0-indexed), day] で管理
+  let y = 2026, m = 6, day = 15;
+  while (true) {
+    dates.push([y, m, day]);
+    // 翌日を計算
+    const d = new Date(y, m, day + 1);
+    y = d.getFullYear(); m = d.getMonth(); day = d.getDate();
+    if (y > 2026 || (y === 2026 && m > 7) || (y === 2026 && m === 7 && day > 31)) break;
+  }
+  return dates;
+}
+const DATES = getDates();
+
+function getWday(y, m, d) {
+  return new Date(y, m, d).getDay();
+}
+function fmtKey(arr) {
+  const [y,m,d] = arr;
+  return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+}
+function fmtDisp(arr) { return `${arr[1]+1}/${arr[2]}`; }
+
+// ローカル状態
+let state = {
+  names: ['','',''],
+  schedules: [{},{},{}]
+};
+
+// Firebase リアルタイム監視
+const dbRef = ref(db, 'schedule2025');
+onValue(dbRef, (snapshot) => {
+  const val = snapshot.val();
+  if (val) {
+    if (val.names) state.names = val.names;
+    if (val.schedules) state.schedules = val.schedules;
+  }
+  setSyncBar('ok', '✅ リアルタイム同期中');
+  rebuildAll();
+}, (err) => {
+  setSyncBar('err', '❌ 接続エラー: ' + err.message);
+});
+
+function setSyncBar(type, msg) {
+  const bar = document.getElementById('syncBar');
+  bar.textContent = msg;
+  bar.className = 'sync-bar ' + type;
+}
+
+async function pushToFirebase() {
+  await set(dbRef, {
+    names: state.names,
+    schedules: state.schedules
+  });
+}
+
+// タブ切替
+window.showTab = function(i) {
+  for (let j = 0; j < 4; j++) {
+    document.getElementById('panel'+j).classList.toggle('active', j===i);
+    document.getElementById('tab'+j).classList.toggle('active', j===i);
+  }
+  if (i === 3) renderSummary();
+};
+
+function rebuildAll() {
+  for (let i = 0; i < 3; i++) buildMemberPanel(i);
+  const summaryPanel = document.getElementById('panel3');
+  if (summaryPanel.classList.contains('active')) renderSummary();
+  updateTabLabels();
+}
+
+function updateTabLabels() {
+  for (let i = 0; i < 3; i++) {
+    const name = state.names[i] || `メンバー${i+1}`;
+    const tab = document.getElementById('tab'+i);
+    const hasSome = Object.values(state.schedules[i]||{}).some(v=>v);
+    tab.innerHTML = `<span class="dot"></span>${name}`;
+    if (hasSome) tab.classList.add('filled'); else tab.classList.remove('filled');
+  }
+}
+
+function buildMemberPanel(idx) {
+  const panel = document.getElementById('panel'+idx);
+  const sched = state.schedules[idx] || {};
+
+  let html = `
+    <div class="name-row">
+      <label>お名前</label>
+      <input type="text" id="name-${idx}" placeholder="名前を入力" value="${state.names[idx]||''}"
+        oninput="updateName(${idx},this.value)" />
+    </div>
+    <div class="legend">
+      <span>△ 朝なら行ける</span>
+      <span>▲ 昼なら行ける</span>
+      <span>⚪︎ 終日行ける</span>
+      <span style="opacity:.5">（空白=×）</span>
+    </div>`;
+
+  let curMonth = null;
+  let gridOpen = false;
+
+  DATES.forEach(arr => {
+    const [y,mo,day] = arr;
+    const m = mo+1;
+    const key = fmtKey(arr);
+    const val = sched[key] || null;
+    const wd = getWday(y,mo,day);
+    const wdCls = wd===0?'weekend':wd===6?'saturday':'';
+
+    if (m !== curMonth) {
+      if (gridOpen) html += '</div>';
+      html += `<div class="month-header">${m}月</div>
+        <div class="date-grid">
+        <div class="grid-header"><div>日付</div><div>△朝</div><div>▲昼</div><div>⚪︎終日</div></div>`;
+      curMonth = m; gridOpen = true;
+    }
+
+    html += `<div class="date-row ${wdCls}">
+      <div class="date-label">${fmtDisp(arr)}<span class="wday">${WDAYS[wd]}</span></div>
+      <button class="cell-btn${val==='morning'?' morning':''}" onclick="selectCell(${idx},'${key}','morning')">
+        ${val==='morning'?'△':'　'}</button>
+      <button class="cell-btn${val==='noon'?' noon':''}" onclick="selectCell(${idx},'${key}','noon')">
+        ${val==='noon'?'▲':'　'}</button>
+      <button class="cell-btn${val==='full'?' full':''}" onclick="selectCell(${idx},'${key}','full')">
+        ${val==='full'?'⚪︎':'　'}</button>
+    </div>`;
+  });
+
+  if (gridOpen) html += '</div>';
+  html += `<button class="save-btn" onclick="saveMember(${idx})">💾 この内容を保存・共有する</button>`;
+
+  panel.innerHTML = html;
+}
+
+window.updateName = function(idx, val) {
+  state.names[idx] = val;
+};
+
+window.selectCell = function(idx, key, type) {
+  if (!state.schedules[idx]) state.schedules[idx] = {};
+  const cur = state.schedules[idx][key];
+  state.schedules[idx][key] = cur === type ? null : type;
+  // ボタンだけ更新（再描画なし）
+  const types = ['morning','noon','full'];
+  types.forEach(t => {
+    const btns = document.querySelectorAll(`#panel${idx} .date-row`);
+    btns.forEach(row => {
+      // key照合はdata属性なし→全ボタン再描画より軽い方法でやる
+    });
+  });
+  // シンプルにパネル再描画
+  buildMemberPanel(idx);
+};
+
+window.saveMember = function(idx) {
+  pushToFirebase().then(() => {
+    alert(`${state.names[idx]||'メンバー'+(idx+1)} の予定を保存しました！\n他の人の画面にもすぐ反映されます🎉`);
+    updateTabLabels();
+  }).catch(e => {
+    alert('保存エラー: ' + e.message);
+  });
+};
+
+function renderSummary() {
+  const panel = document.getElementById('panel3');
+  const names = state.names.map((n,i)=>n||`メンバー${i+1}`);
+
+  let html = `<div class="legend" style="margin-bottom:12px">
+    <span>△ 朝</span><span>▲ 昼</span><span>⚪︎ 終日</span>
+  </div>`;
+
+  let curMonth = null;
+  let gridOpen = false;
+
+  DATES.forEach(arr => {
+    const [y,mo,day] = arr;
+    const m = mo+1;
+    const key = fmtKey(arr);
+    const wd = getWday(y,mo,day);
+    const wdCls = wd===0?'weekend':wd===6?'saturday':'';
+    const vals = state.schedules.map(s=>(s&&s[key])||null);
+
+    if (m !== curMonth) {
+      if (gridOpen) html += '</div>';
+      html += `<div class="month-header">${m}月</div>
+        <div class="summary-grid">
+        <div class="summary-row header">
+          <div>日付</div><div>${names[0]}</div><div>${names[1]}</div><div>${names[2]}</div><div>計</div>
+        </div>`;
+      curMonth = m; gridOpen = true;
+    }
+
+    const fullCount = vals.filter(v=>v==='full').length;
+    const anyCount  = vals.filter(v=>v).length;
+    const countCls  = fullCount===3?'count-3':fullCount===2?'count-2':anyCount>=1?'count-1':'';
+    const countTxt  = fullCount===3?'⚪︎3':fullCount>0?`⚪︎${fullCount}`:anyCount>0?`△${anyCount}`:'';
+
+    html += `<div class="summary-row ${wdCls}">
+      <div class="date-label">${fmtDisp(arr)}<span class="wday">${WDAYS[wd]}</span></div>`;
+    vals.forEach(v => {
+      html += `<div class="summary-cell${v?' '+v:''}">${v?SYMBOLS[v]:''}</div>`;
+    });
+    html += `<div class="count-cell ${countCls}">${countTxt}</div></div>`;
+  });
+
+  if (gridOpen) html += '</div>';
+  html += `<p class="note">⚪︎3 = 3人全員が終日OK（緑）<br>⚪︎2 = 2人が終日OK　△n = n人が何らか参加可</p>`;
+  panel.innerHTML = html;
+}
+</script>
+</body>
+</html>
