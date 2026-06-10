@@ -91,6 +91,14 @@
   .note { font-size: 0.7rem; color: var(--sub); text-align: center; margin-top: 10px; line-height: 1.6; }
 
   .loading { text-align: center; padding: 40px 20px; color: var(--sub); font-size: 0.9rem; }
+
+  .filter-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 10px 0 14px; }
+  .filter-label { font-size: 0.75rem; color: var(--sub); white-space: nowrap; }
+  .filter-btn { padding: 6px 12px; border-radius: 20px; border: 1.5px solid var(--border); background: var(--surface); font-size: 0.8rem; cursor: pointer; color: var(--sub); font-weight: 600; transition: all 0.15s; white-space: nowrap; }
+  .filter-btn:active { opacity: 0.7; }
+  .filter-btn.filter-active { background: var(--accent); color: white; border-color: var(--accent); }
+  #filter-morning.filter-active { background: #e8a800; border-color: #e8a800; color: white; }
+  #filter-noon.filter-active { background: #e07830; border-color: #e07830; color: white; }
 </style>
 </head>
 <body>
@@ -299,14 +307,39 @@ window.saveMember = function(idx) {
   });
 };
 
+let summaryFilter = 'all';
+
+window.setSummaryFilter = function(f) {
+  summaryFilter = f;
+  ['all','morning','noon','full'].forEach(k => {
+    const btn = document.getElementById('filter-'+k);
+    if (btn) btn.classList.toggle('filter-active', k===f);
+  });
+  renderSummaryRows();
+};
+
 function renderSummary() {
   const panel = document.getElementById('panel3');
   const names = state.names.map((n,i)=>n||`メンバー${i+1}`);
+  panel.innerHTML = `
+    <div class="filter-bar">
+      <span class="filter-label">絞り込み：</span>
+      <button id="filter-all"     class="filter-btn filter-active" onclick="setSummaryFilter('all')">すべて</button>
+      <button id="filter-morning" class="filter-btn" onclick="setSummaryFilter('morning')">△ 朝だけ</button>
+      <button id="filter-noon"    class="filter-btn" onclick="setSummaryFilter('noon')">▲ 昼だけ</button>
+      <button id="filter-full"    class="filter-btn" onclick="setSummaryFilter('full')">⚪︎ 一日</button>
+    </div>
+    <div id="summary-rows"></div>
+    <p class="note">⚪︎3 = 3人全員が終日OK（緑）<br>⚪︎2 = 2人が終日OK　△n = n人が何らか参加可</p>
+  `;
+  renderSummaryRows();
+}
 
-  let html = `<div class="legend" style="margin-bottom:12px">
-    <span>△ 朝</span><span>▲ 昼</span><span>⚪︎ 終日</span>
-  </div>`;
-
+function renderSummaryRows() {
+  const names = state.names.map((n,i)=>n||`メンバー${i+1}`);
+  const container = document.getElementById('summary-rows');
+  if (!container) return;
+  let html = '';
   let curMonth = null;
   let gridOpen = false;
 
@@ -317,6 +350,11 @@ function renderSummary() {
     const wd = getWday(y,mo,day);
     const wdCls = wd===0?'weekend':wd===6?'saturday':'';
     const vals = state.schedules.map(s=>(s&&s[key])||null);
+
+    if (summaryFilter !== 'all') {
+      const match = vals.some(v => v === summaryFilter);
+      if (!match) return;
+    }
 
     if (m !== curMonth) {
       if (gridOpen) html += '</div>';
@@ -342,8 +380,8 @@ function renderSummary() {
   });
 
   if (gridOpen) html += '</div>';
-  html += `<p class="note">⚪︎3 = 3人全員が終日OK（緑）<br>⚪︎2 = 2人が終日OK　△n = n人が何らか参加可</p>`;
-  panel.innerHTML = html;
+  if (!html) html = '<p style="text-align:center;padding:30px;color:#aaa">該当する日がありません</p>';
+  container.innerHTML = html;
 }
 </script>
 </body>
