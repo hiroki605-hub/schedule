@@ -184,7 +184,7 @@ function getStudentList(){return Object.values(DB.students).sort((a,b)=>a.cls.lo
 
 // ─── 状態 ──────────────────────────────────────────
 let S = {
-  page:"home", selId:null, scores:{},
+  page:"home", selId:null, scores:{}, stuPreviewId:null,
   expanded:null, filterCls:"all",
   addOpen:false, bulkOpen:false,
   delConf:null, classModal:false,
@@ -352,7 +352,8 @@ function vTeacher(){
       +'<div style="text-align:right">'
       +'<div id="sum-pts" style="font-size:22px;font-weight:700">'+total+'<span style="font-size:12px;color:#888;font-weight:400">/88</span></div>'
       +'<div id="sum-count" style="font-size:11px;color:#888">'+doneSk+'/11種目</div>'
-      +'</div></div>';
+      +'</div></div>'
+      +'<button onclick="openStuPreview(''+sel.id+'')" style="width:100%;margin-bottom:12px;font-size:13px;padding:8px;background:#f0f4ff;border:1px solid #c5d8fd;color:#1a56c4;border-radius:8px">👤 生徒の見る画面を確認する</button>';
 
     panel+='<div style="background:#FEF3E8;border:1px solid #f6c89b;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:#b45309">'
       +'<span class="'+(sel.gender==="女子"?"tag-f":"tag-m")+'" style="margin-right:6px">'+sel.gender+'</span>'
@@ -475,7 +476,59 @@ function vTeacher(){
       +'</div></div></div>';
   }
 
-  return '<div style="display:flex;height:calc(100vh - 36px)">'+sb+panel+'</div>'+bulkModal+clsModal+resetModal+multiDelModal;
+  // 生徒プレビューモーダル
+  let stuPreviewModal="";
+  if(S.stuPreviewId){
+    const ps=DB.students[S.stuPreviewId];
+    if(ps){
+      const psc=DB.scores[ps.id]||{};
+      const psk=SKILLS[ps.grade];
+      const pt=calcTotal(psc,psk);
+      const pg=calcGrade(pt);
+      const pd=psk.filter(sk=>psc[sk.id+"_d"]!==undefined||psc[sk.id+"_k"]!==undefined).length;
+      const pgTag='<span class="'+(ps.gender==="女子"?"tag-f":"tag-m")+'" style="font-size:13px">'+ps.gender+'</span>';
+      let pm='<div style="max-width:640px;margin:0 auto;padding:1rem">'
+        +'<div style="display:flex;align-items:center;gap:8px;border-bottom:1px solid #e8d0c0;padding-bottom:12px;margin-bottom:14px">'
+        +'<h2 style="font-size:16px;font-weight:700;margin:0;flex:1;display:flex;align-items:center;gap:8px">'+ps.name+' さん '+pgTag+'</h2>'
+        +'<span style="font-size:12px;color:#888">※ 生徒が見る画面のプレビュー</span>'
+        +'</div>'
+        +'<div class="summary-box">'
+        +'<div class="grade-circle" style="'+gcStyle(pg)+'">'+pg+'</div>'
+        +'<div style="flex:1"><div style="font-size:24px;font-weight:700">'+pt+'<span style="font-size:14px;color:#888;font-weight:400"> / 88点</span></div>'
+        +'<div style="font-size:12px;color:#888;margin-top:2px">'+pd+'/11種目評価済み</div>'
+        +'</div></div>';
+      [...new Set(psk.map(s=>s.cat))].forEach(cat=>{
+        const catSk=psk.filter(s=>s.cat===cat);
+        pm+='<span class="cat-label cat-'+cat.replace("技","")+'">'+cat+'</span><div class="score-grid">';
+        catSk.forEach(sk=>{
+          const d=psc[sk.id+"_d"],k=psc[sk.id+"_k"];
+          const st=skillTotal(psc,sk),hasAny=(d!==undefined||k!==undefined);
+          pm+='<div class="score-card" style="opacity:'+(hasAny?1:.55)+'">'
+            +'<div style="font-size:11px;color:#888;margin-bottom:4px">'+(psk.indexOf(sk)+1)+'. '+sk.name+'</div>';
+          if(hasAny){
+            pm+='<div style="font-size:20px;font-weight:700;color:#E67E22;margin-bottom:4px">'+st+'<span style="font-size:12px;color:#888;font-weight:400">/8点</span></div>'
+              +'<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px">';
+            if(d) pm+='<span style="font-size:11px;background:#FEF3E8;color:#b45309;padding:1px 6px;border-radius:10px">'+sk.l1+'：'+d.pts+'点</span>';
+            if(k) pm+='<span style="font-size:11px;background:#e8f0fe;color:#1a56c4;padding:1px 6px;border-radius:10px">'+sk.l2+'：'+k.pts+'点</span>';
+            pm+='</div>';
+            if(d) pm+='<div style="font-size:11px;background:#FEF3E8;border-radius:6px;padding:5px 7px;margin-bottom:4px"><b style="color:#b45309">'+sk.l1+'：</b>'+d.label+'</div>';
+            if(k) pm+='<div style="font-size:11px;background:#e8f0fe;border-radius:6px;padding:5px 7px"><b style="color:#1a56c4">'+sk.l2+'：</b>'+k.label+'</div>';
+          } else pm+='<div style="font-size:12px;color:#bbb">未評価</div>';
+          pm+='</div>';
+        });
+        pm+='</div>';
+      });
+      pm+='</div>';
+      stuPreviewModal='<div class="modal-overlay" onclick="if(event.target===this)closeStuPreview()">'
+        +'<div class="modal" style="max-width:680px;max-height:90vh">'
+        +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
+        +'<h3 style="font-size:15px;font-weight:700">👤 生徒画面プレビュー</h3>'
+        +'<button class="btn-icon" onclick="closeStuPreview()">✕</button></div>'
+        +pm
+        +'</div></div>';
+    }
+  }
+  return '<div style="display:flex;height:calc(100vh - 36px)">'+sb+panel+'</div>'+bulkModal+clsModal+resetModal+multiDelModal+stuPreviewModal;
 }
 
 // ─── STUDENT LOGIN ────────────────────────────────
@@ -531,13 +584,25 @@ function vStuView(){
     catSk.forEach(sk=>{
       const d=sc[sk.id+"_d"],k=sc[sk.id+"_k"];
       const st=skillTotal(sc,sk),hasAny=(d!==undefined||k!==undefined);
-      html+='<div class="score-card" style="opacity:'+(hasAny?1:.55)+'">'
-        +'<div style="font-size:11px;color:#888;margin-bottom:4px">'+(sk2.indexOf(sk)+1)+'. '+sk.name+'</div>';
+      const cardId='sc-detail-'+sk.id;
+      html+='<div class="score-card" style="opacity:'+(hasAny?1:.55)+';cursor:'+(hasAny?'pointer':'default')+'"'
+        +(hasAny?' onclick="toggleStuDetail(''+cardId+'')"':'')+' id="sc-'+sk.id+'">'
+        +'<div style="font-size:11px;color:#888;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center">'
+        +'<span>'+(sk2.indexOf(sk)+1)+'. '+sk.name+'</span>'
+        +(hasAny?'<span style="font-size:10px;color:#bbb">▼</span>':'')
+        +'</div>';
       if(hasAny){
         html+='<div style="font-size:20px;font-weight:700;color:#E67E22;margin-bottom:4px">'+st+'<span style="font-size:12px;color:#888;font-weight:400">/8点</span></div>'
-          +'<div style="display:flex;gap:4px;flex-wrap:wrap">';
+          +'<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px">';
         if(d) html+='<span style="font-size:11px;background:#FEF3E8;color:#b45309;padding:1px 6px;border-radius:10px">'+sk.l1+'：'+d.pts+'点</span>';
         if(k) html+='<span style="font-size:11px;background:#e8f0fe;color:#1a56c4;padding:1px 6px;border-radius:10px">'+sk.l2+'：'+k.pts+'点</span>';
+        html+='</div>';
+        // 詳細（デフォルト非表示）
+        html+='<div id="'+cardId+'" style="display:none;border-top:1px solid #ece0d8;padding-top:8px;margin-top:4px">';
+        if(d) html+='<div style="font-size:11px;background:#FEF3E8;border-radius:6px;padding:6px 8px;margin-bottom:5px">'
+          +'<b style="color:#b45309">'+sk.l1+' '+d.pts+'点：</b><span style="color:#555">'+d.label+'</span></div>';
+        if(k) html+='<div style="font-size:11px;background:#e8f0fe;border-radius:6px;padding:6px 8px">'
+          +'<b style="color:#1a56c4">'+sk.l2+' '+k.pts+'点：</b><span style="color:#555">'+k.label+'</span></div>';
         html+='</div>';
       } else html+='<div style="font-size:12px;color:#bbb">未評価</div>';
       html+='</div>';
@@ -579,6 +644,25 @@ function vStuView(){
 // ═══════════════════════════════════════════════════
 //  アクション
 // ═══════════════════════════════════════════════════
+window.toggleStuDetail = id=>{
+  const el=document.getElementById(id);
+  if(!el) return;
+  const open=el.style.display!=='none';
+  el.style.display=open?'none':'block';
+  // 矢印回転
+  const card=el.closest('.score-card');
+  if(card){const arr=card.querySelector('span[style*="bbb"]');if(arr)arr.textContent=open?'▼':'▲';}
+};
+
+window.openStuPreview = id=>{
+  S.stuPreviewId=id;
+  render();
+};
+window.closeStuPreview = ()=>{
+  S.stuPreviewId=null;
+  render();
+};
+
 window.goPage = p=>{ S.page=p; S.tErr=false; S.sErr=""; render(); };
 window.goTeacher = ()=>{ S.page="tlogin"; render(); };
 window.goSLogin = ()=>{ S.page="slogin"; S.sErr=""; render(); };
@@ -689,10 +773,22 @@ window.doBulkAdd = async ()=>{
   let count=0;
   for(let i=0;i<lines.length;i++){
     const parts=lines[i].split(/[\s　]+/);
-    let name,gStr;
-    if(parts.length>=2){name=parts.slice(0,-1).join("");gStr=parts[parts.length-1];}
-    else{const raw=lines[i];const m=raw.match(/^(.+?)[男女]$/);if(m){name=m[1];gStr=raw.slice(-1);}else{name=raw;gStr="男";}}
-    const gender=(gStr==="女"||gStr==="女子")?"女子":"男子";
+    // 性別判定: スペースあり「田中 花子 女」/ スペースなし「田中花子女」両対応
+    let name,gender;
+    if(parts.length>=2){
+      const last=parts[parts.length-1];
+      if(last==="女"||last==="女子"){gender="女子";name=parts.slice(0,-1).join("");}
+      else if(last==="男"||last==="男子"){gender="男子";name=parts.slice(0,-1).join("");}
+      else{// 最後の文字で判定
+        const raw2=lines[i];
+        gender=(raw2.endsWith("女")||raw2.endsWith("女子"))?"女子":"男子";
+        name=raw2.replace(/[男女]子?$/,"").replace(/\s+$/,"");
+      }
+    } else {
+      const raw2=lines[i];
+      gender=(raw2.endsWith("女")||raw2.endsWith("女子"))?"女子":"男子";
+      name=raw2.replace(/[男女]子?$/,"").trim();
+    }
     const num=String(start+i);
     const id=genId();
     await dbSet('students/'+id, {id,name,number:num,cls,grade:gradeFromCls(cls),gender,password:num,isDefault:true});
