@@ -192,7 +192,7 @@ function initApp(firebaseConfig) {
   function uniq(arr){var s={},r=[];arr.forEach(function(v){if(!s[v]){s[v]=1;r.push(v);}});return r;}
 
   var S = {
-    page:"home",selId:null,scores:{},
+    page:"home",selId:null,scores:{},stuExpanded:null,
     expanded:null,filterCls:"all",
     addOpen:false,bulkOpen:false,
     delConf:null,classModal:false,
@@ -223,8 +223,8 @@ function initApp(firebaseConfig) {
       +'<div style="background:#FEF3E8;border:1px solid #f6c89b;border-radius:8px;padding:8px 12px;margin-bottom:1.5rem;font-size:12px;color:#b45309">'
       +'📐 段数（男女別5段階・最大5点）＋ 見た目・着地（3段階・最大3点）＝ 各8点満点　11種目 計88点満点</div>'
       +'<div style="display:flex;flex-direction:column;gap:10px">'
-      +mBtn("📋","教師モード","生徒の評価を入力・管理する","goTeacher()")
-      +mBtn("👤","生徒モード","自分の評価結果を確認する","goSLogin()")
+      +mBtn("👤","生徒モード","自分の評価を入力する","goSLogin()")
+      +mBtn("📋","教師モード","生徒の結果を確認・管理する","goTeacher()")
       +'</div></div>';
   }
   function mBtn(ico,title,sub,fn){
@@ -311,7 +311,7 @@ function initApp(firebaseConfig) {
         +'</div></div>';
       panel+='<div style="background:#FEF3E8;border:1px solid #f6c89b;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:#b45309">'
         +'<span class="'+(sel.gender==="女子"?"tag-f":"tag-m")+'" style="margin-right:6px">'+sel.gender+'</span>'
-        +'の基準で表示中</div>';
+        +'の基準で表示中（確認のみ）</div>';
       uniq(skills.map(function(s){return s.cat;})).forEach(function(cat){
         var catSk=skills.filter(function(s){return s.cat===cat;});
         panel+='<span class="cat-label cat-'+cat.replace("技","")+'">'+cat+'</span><div style="margin-bottom:14px">';
@@ -468,16 +468,41 @@ function initApp(firebaseConfig) {
       catSk.forEach(function(sk){
         var d=sc[sk.id+"_d"],k=sc[sk.id+"_k"];
         var st=skillTotal(sc,sk),hasAny=(d!==undefined||k!==undefined);
-        html+='<div class="score-card" style="opacity:'+(hasAny?1:.55)+'">'
-          +'<div style="font-size:11px;color:#888;margin-bottom:4px">'+(sk2.indexOf(sk)+1)+'. '+sk.name+'</div>';
-        if(hasAny){
-          html+='<div style="font-size:20px;font-weight:700;color:#E67E22;margin-bottom:4px">'+st+'<span style="font-size:12px;color:#888;font-weight:400">/8点</span></div>'
-            +'<div style="display:flex;gap:4px;flex-wrap:wrap">';
-          if(d) html+='<span style="font-size:11px;background:#FEF3E8;color:#b45309;padding:1px 6px;border-radius:10px">'+sk.l1+'：'+d.pts+'点</span>';
-          if(k) html+='<span style="font-size:11px;background:#e8f0fe;color:#1a56c4;padding:1px 6px;border-radius:10px">'+sk.l2+'：'+k.pts+'点</span>';
-          html+='</div>';
-        } else html+='<div style="font-size:12px;color:#bbb">未評価</div>';
+        var isExp2=S.stuExpanded===sk.id;
+        html+='<div class="skill-row" id="srow-'+sk.id+'">'
+          +'<div class="skill-header" onclick="toggleStuExp(''+sk.id+'')" style="padding:8px 10px">'
+          +'<span style="font-size:11px;color:#aaa;min-width:16px">'+(sk2.indexOf(sk)+1)+'</span>'
+          +'<span style="flex:1;font-size:13px;font-weight:'+(hasAny?700:400)+'">'+sk.name+'</span>';
+        if(hasAny) html+='<span style="font-size:12px;font-weight:700;color:#E67E22;background:#FEF3E8;padding:2px 8px;border-radius:12px;border:1px solid #f6c89b">'+st+'/8点</span>';
+        else html+='<span style="font-size:11px;color:#bbb">未評価</span>';
+        html+='<span style="color:#bbb;margin-left:6px">'+(isExp2?'▲':'▼')+'</span></div>';
+        html+='<div id="sdetail-'+sk.id+'" class="skill-detail" style="display:'+(isExp2?'block':'none')+'">';
+        var p1s=s.gender==="女子"?sk.pf:sk.pm;
+        html+='<div class="score-section"><span class="section-label sl-dan">'+sk.l1+'（最大5点）'
+          +(s.gender==="女子"?'<span class="tag-f">女子</span>':'<span class="tag-m">男子</span>')+'</span>';
+        p1s.forEach(function(item){
+          var active=d&&d.pts===item.pts;
+          html+='<button class="score-btn '+danCls(s.gender,item.pts)+(active?' active':'')
+            +'" onclick="doStuScore(''+sk.id+'','d','+item.pts+',''+item.desc.replace(/'/g,"\'")+'')">'
+            +'<div class="pts-circle" style="'+danCircleStyle(s.gender,item.pts)+'">'+item.pts+'</div>'
+            +'<span style="flex:1;font-size:12px">'+item.desc+'</span>'
+            +(active?'<span style="color:#E67E22">✔</span>':"")
+            +'</button>';
+        });
         html+='</div>';
+        html+='<div class="score-section"><span class="section-label sl-kata">'+sk.l2+'（最大3点）</span>';
+        sk.p2.forEach(function(item){
+          var active=k&&k.pts===item.pts;
+          var kCls=item.pts===3?"sb-k3":item.pts===2?"sb-k2":"sb-k1";
+          html+='<button class="score-btn '+kCls+(active?' active':'')
+            +'" onclick="doStuScore(''+sk.id+'','k','+item.pts+',''+item.desc.replace(/'/g,"\'")+'')">'
+            +'<div class="pts-circle" style="'+kataCircleStyle(item.pts)+'">'+item.pts+'</div>'
+            +'<span style="flex:1;font-size:12px">'+item.desc+'</span>'
+            +(active?'<span style="color:#4A86E8">✔</span>':"")
+            +'</button>';
+        });
+        html+='</div>';
+        html+='</div></div>';
       });
       html+='</div>';
     });
@@ -512,6 +537,31 @@ function initApp(firebaseConfig) {
   }
 
   // アクション
+  window.toggleStuExp=function(id){
+    var det=document.getElementById("sdetail-"+id);
+    if(!det)return;
+    var open=det.style.display!=="none";
+    if(S.stuExpanded&&S.stuExpanded!==id){
+      var o=document.getElementById("sdetail-"+S.stuExpanded);
+      if(o)o.style.display="none";
+    }
+    if(open){det.style.display="none";S.stuExpanded=null;}
+    else{det.style.display="block";S.stuExpanded=id;}
+    // 矢印更新
+    var row=document.getElementById("srow-"+id);
+    if(row){var spans=row.querySelectorAll(".skill-header span");var last=spans[spans.length-1];if(last)last.textContent=open?'▼':'▲';}
+  };
+
+  window.doStuScore=function(skillId,part,pts,label){
+    var key=skillId+"_"+part;
+    var sc=DB.scores[S.logStu.id]||{};
+    sc[key]={pts:pts,label:label};
+    dbSet('scores/'+S.logStu.id+'/'+key,{pts:pts,label:label},function(){});
+    // ボタン更新
+    var prefix=part==="d"?"dbtn2-":"kbtn2-";
+    render({keepScroll:true});
+  };
+
   window.goPage=function(p){S.page=p;S.tErr=false;S.sErr="";render();};
   window.goTeacher=function(){S.page="tlogin";render();};
   window.goSLogin=function(){S.page="slogin";S.sErr="";render();};
