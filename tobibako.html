@@ -95,6 +95,9 @@ const TEACHER_PASS = "azaz1221";
 // ─── データ ───────────────────────────────────────────
 let DB = { classes: [], students: {}, scores: {} };
 
+// 初期表示（Firebase接続前にホーム画面を表示）
+render();
+
 const dbRef = ref(db, 'tobibako');
 onValue(dbRef, snap => {
   const val = snap.val() || {};
@@ -872,7 +875,6 @@ window.doResetAll = async ()=>{
   alert("✅ 全データを削除しました。");render();
 };
 
-render();
 </script>
 </body>
 </html>
