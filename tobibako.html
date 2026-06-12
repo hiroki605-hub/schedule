@@ -95,9 +95,6 @@ const TEACHER_PASS = "azaz1221";
 // ─── データ ───────────────────────────────────────────
 let DB = { classes: [], students: {}, scores: {} };
 
-// 初期表示（Firebase接続前にホーム画面を表示）
-render();
-
 const dbRef = ref(db, 'tobibako');
 onValue(dbRef, snap => {
   const val = snap.val() || {};
@@ -106,9 +103,14 @@ onValue(dbRef, snap => {
   DB.scores = val.scores || {};
   setSyncBar('ok', '✅ リアルタイム同期中');
   if (S.page === 'teacher' || S.page === 'stuview') render({keepScroll: true});
+  else if (S.page === 'home' || S.page === 'slogin') render();
 }, err2 => {
   setSyncBar('err', '❌ 接続エラー: ' + err2.message);
+  render();
 });
+
+// 初期表示
+render();
 
 function setSyncBar(type, msg) {
   const bar = document.getElementById('syncBar');
