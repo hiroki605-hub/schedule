@@ -407,7 +407,72 @@ function initApp(){
         +'<button onclick="closeResetModal()">キャンセル</button>'
         +'</div></div></div>';
     }
-    return '<div style="display:flex;height:calc(100vh - 33px)">'+sb+panel+'</div>'+bulkModal+clsModal+resetModal;
+    // 一覧モーダル
+    var rankingModal="";
+    if(S.rankingModal){
+      var rStudents=getStudents();
+      var rClsOpts='<option value="all">全クラス</option>'+DB.classes.map(function(c){return'<option value="'+c+'"'+(S.rankingFilterCls===c?' selected':'')+'>'+c+'</option>';}).join('');
+      var rList=S.rankingFilterCls==="all"?rStudents:rStudents.filter(function(s){return s.cls===S.rankingFilterCls;});
+      var tableRows="";
+      rList.forEach(function(s){
+        var sc=DB.scores[s.id]||{};
+        var skills=SKILLS[s.grade];
+        var total=calcTotal(sc,skills);
+        var grade=calcGrade(total);
+        var done=skills.filter(function(sk){return sc[sk.id+"_d"]!==undefined||sc[sk.id+"_k"]!==undefined;}).length;
+        // 各種目の点数
+        var skillCells="";
+        skills.forEach(function(sk){
+          var st=skillTotal(sc,sk);
+          var hasAny=(sc[sk.id+"_d"]!==undefined||sc[sk.id+"_k"]!==undefined);
+          skillCells+='<td style="text-align:center;padding:4px 6px;font-size:11px;border-right:1px solid #f0ede6;'+(hasAny?'':'color:#ccc')+'">'+(hasAny?st:'―')+'</td>';
+        });
+        var gcS=gcStyle(grade);
+        tableRows+='<tr style="border-bottom:1px solid #f0ede6;'+(done===11?'background:#fffef0':'')+'">'
+          +'<td style="padding:5px 8px;font-size:12px;white-space:nowrap;border-right:1px solid #f0ede6">'+s.cls+'</td>'
+          +'<td style="padding:5px 8px;font-size:12px;white-space:nowrap;border-right:1px solid #f0ede6">'+s.number+'</td>'
+          +'<td style="padding:5px 8px;font-size:13px;font-weight:600;white-space:nowrap;border-right:1px solid #f0ede6">'+s.name+'</td>'
+          +'<td style="padding:5px 8px;text-align:center;border-right:1px solid #f0ede6"><span class="'+(s.gender==="女子"?"tag-f":"tag-m")+'">'+s.gender+'</span></td>'
+          +skillCells
+          +'<td style="text-align:center;padding:5px 8px;font-size:14px;font-weight:700;border-right:1px solid #f0ede6">'+total+'</td>'
+          +'<td style="text-align:center;padding:5px 8px"><span style="'+gcS+';padding:2px 10px;border-radius:6px;font-weight:700;font-size:13px">'+grade+'</span></td>'
+          +'</tr>';
+      });
+      var skillHeaders="";
+      var sampleSkills=SKILLS[1];
+      sampleSkills.forEach(function(sk,i){
+        skillHeaders+='<th style="padding:5px 6px;font-size:10px;white-space:nowrap;border-right:1px solid #e0dbd0;font-weight:600;color:#888">'+(i+1)+'</th>';
+      });
+      rankingModal='<div class="modal-overlay" onclick="if(event.target===this)closeRankingModal()">'
+        +'<div style="background:#fff;border-radius:16px;padding:20px;width:95vw;max-width:1200px;max-height:90vh;overflow-y:auto">'
+        +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
+        +'<h3 style="font-size:16px;font-weight:700">📊 最終評価一覧</h3>'
+        +'<button class="btn-icon" onclick="closeRankingModal()">✕</button></div>'
+        +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">'
+        +'<select onchange="setRankingFilter(this.value)" style="width:auto">'+rClsOpts+'</select>'
+        +'<span style="font-size:12px;color:#888">'+rList.length+'人</span>'
+        +'<span style="font-size:11px;color:#aaa">　1〜7：基本技　8〜11：加点技</span>'
+        +'</div>'
+        +'<div style="overflow-x:auto">'
+        +'<table style="border-collapse:collapse;width:100%;font-size:12px">'
+        +'<thead><tr style="background:#f0ede6;border-bottom:2px solid #e0dbd0">'
+        +'<th style="padding:6px 8px;text-align:left;white-space:nowrap;border-right:1px solid #e0dbd0">クラス</th>'
+        +'<th style="padding:6px 8px;text-align:left;border-right:1px solid #e0dbd0">#</th>'
+        +'<th style="padding:6px 8px;text-align:left;white-space:nowrap;border-right:1px solid #e0dbd0">名前</th>'
+        +'<th style="padding:6px 8px;border-right:1px solid #e0dbd0">性別</th>'
+        +skillHeaders
+        +'<th style="padding:6px 8px;text-align:center;white-space:nowrap;border-right:1px solid #e0dbd0">合計</th>'
+        +'<th style="padding:6px 8px;text-align:center">評価</th>'
+        +'</tr></thead>'
+        +'<tbody>'+tableRows+'</tbody>'
+        +'</table></div>'
+        +'<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">'
+        +[["A","71点以上"],["B","53〜70点"],["C","35〜52点"],["D","34点以下"]].map(function(r){
+          return'<span class="badge b'+gradeOf(r[0])+'"><b>'+r[0]+'</b> '+r[1]+'</span>';
+        }).join('')
+        +'</div></div></div>';
+    }
+    return '<div style="display:flex;height:calc(100vh - 33px)">'+sb+panel+'</div>'+bulkModal+clsModal+resetModal+rankingModal;
   }
 
   // ─── 生徒ログイン ───
@@ -539,6 +604,10 @@ function initApp(){
   }
 
   // ─── アクション ───
+  window.openRankingModal=function(){S.rankingModal=true;render();};
+  window.closeRankingModal=function(){S.rankingModal=false;render();};
+  window.setRankingFilter=function(v){S.rankingFilterCls=v;render();};
+
   window.goPage=function(p){S.page=p;S.tErr=false;S.sErr="";render();};
   window.goTLogin=function(){S.page="tlogin";render();};
   window.goSLogin=function(){S.page="slogin";S.sErr="";render();};
