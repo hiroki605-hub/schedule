@@ -177,6 +177,7 @@ function initApp(){
     tErr:false,selId:null,tScores:{},tExpanded:null,
     filterCls:"all",addOpen:false,bulkOpen:false,
     delConf:null,classModal:false,resetModal:false,resetErr:"",
+    rankingModal:false,rankingFilterCls:"all",
     // 生徒
     logStu:null,stuScores:{},stuExpanded:null,
     sFilterCls:"",sErr:"",
@@ -256,6 +257,7 @@ function initApp(){
         +'<button class="btn-sm" onclick="toggleAdd()" style="flex:1">×</button>'
         +'</div></div>';
     }
+    sb+='<button onclick="openRankingModal()" style="background:#e8f0fe;border:1px solid #c5d8fd;color:#1a56c4;border-radius:8px;padding:7px;font-size:12px;font-weight:700;width:100%;cursor:pointer">📊 最終評価一覧</button>';
     var fOpts='<option value="all">全クラス</option>'+DB.classes.map(function(c){return'<option value="'+c+'"'+(S.filterCls===c?' selected':'')+'>'+c+'</option>';}).join('');
     sb+='<select onchange="setFilter(this.value)">'+fOpts+'</select>';
     if(!list.length) sb+='<p style="color:#aaa;font-size:12px">生徒を追加してください</p>';
