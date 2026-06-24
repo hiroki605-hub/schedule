@@ -449,7 +449,10 @@ function initApp(){
         +'<div style="background:#fff;border-radius:16px;padding:20px;width:95vw;max-width:1200px;max-height:90vh;overflow-y:auto">'
         +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
         +'<h3 style="font-size:16px;font-weight:700">📊 最終評価一覧</h3>'
-        +'<button class="btn-icon" onclick="closeRankingModal()">✕</button></div>'
+        +'<div style="display:flex;gap:8px;align-items:center">'
+        +'<button onclick="downloadCSV()" style="background:#1e6b2e;color:#fff;border-color:#1e6b2e;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">⬇ CSVダウンロード</button>'
+        +'<button class="btn-icon" onclick="closeRankingModal()">✕</button>'
+        +'</div></div>'
         +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">'
         +'<select onchange="setRankingFilter(this.value)" style="width:auto">'+rClsOpts+'</select>'
         +'<span style="font-size:12px;color:#888">'+rList.length+'人</span>'
@@ -606,6 +609,50 @@ function initApp(){
   }
 
   // ─── アクション ───
+  window.downloadCSV=function(){
+    var students=getStudents();
+    var rList=S.rankingFilterCls==="all"?students:students.filter(function(s){return s.cls===S.rankingFilterCls;});
+    var sampleSkills=SKILLS[1];
+    // ヘッダー行
+    var headers=["クラス","出席番号","名前","性別"];
+    sampleSkills.forEach(function(sk,i){headers.push((i+1)+"."+sk.name);});
+    headers.push("合計点","評価");
+    var rows=[headers];
+    rList.forEach(function(s){
+      var sc=DB.scores[s.id]||{};
+      var skills=SKILLS[s.grade];
+      var total=calcTotal(sc,skills);
+      var grade=calcGrade(total);
+      var row=[s.cls,s.number,s.name,s.gender];
+      skills.forEach(function(sk){
+        var hasAny=(sc[sk.id+"_d"]!==undefined||sc[sk.id+"_k"]!==undefined);
+        row.push(hasAny?skillTotal(sc,sk):"");
+      });
+      row.push(total,grade);
+      rows.push(row);
+    });
+    // CSV文字列生成
+    var csv="﻿"+rows.map(function(row){
+      return row.map(function(cell){
+        var s=String(cell==null?"":cell);
+        if(s.indexOf(",")>=0||s.indexOf('"')>=0||s.indexOf("\n")>=0){
+          s='"'+s.replace(/"/g,'""')+'"';
+        }
+        return s;
+      }).join(",");
+    }).join("\n");
+    // ダウンロード
+    var blob=new Blob([csv],{type:"text/csv;charset=utf-8;"});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement("a");
+    a.href=url;
+    a.download="跳び箱評価_"+(S.rankingFilterCls==="all"?"全クラス":S.rankingFilterCls)+".csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   window.openRankingModal=function(){S.rankingModal=true;render();};
   window.closeRankingModal=function(){S.rankingModal=false;render();};
   window.setRankingFilter=function(v){S.rankingFilterCls=v;render();};
