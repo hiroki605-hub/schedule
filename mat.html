@@ -134,6 +134,11 @@ function initApp(){
   var BASE_MAX={1:56,2:70,3:70};
 
   function gradeOf(c){if(!c)return"";if(c==="A"||c==="A+")return"a";if(c==="B"||c==="B+")return"b";if(c==="C")return"c";return"d";}
+  function curGradeColors(g){
+    if(g==="A"||g==="A+")return{fg:"#1e6b2e",bg:"#e6f4ea",border:"#b8e0c2"};
+    if(g==="B"||g==="B+")return{fg:"#1a56c4",bg:"#e8f0fe",border:"#c5d8fd"};
+    return{fg:"#8a6000",bg:"#fef7e0",border:"#f9e0a0"};
+  }
   function gcStyle(g){if(g==="A"||g==="A+")return"background:#e6f4ea;color:#1e6b2e";if(g==="B"||g==="B+")return"background:#e8f0fe;color:#1a56c4";if(g==="C")return"background:#fef7e0;color:#8a6000";return"background:#fce8e6;color:#a50e0e";}
   function calcTotal(sc,skills){return skills.reduce(function(s,sk){return s+(sc[sk.id]?sc[sk.id].pts:0);},0);}
   function calcGrade(t,yr){
@@ -372,10 +377,8 @@ function initApp(){
           +'<span style="font-size:11px;color:#aaa;min-width:20px;text-align:right">'+(skills.indexOf(sk)+1)+'</span>'
           +'<span style="flex:1;font-size:13px;font-weight:'+(cur?700:400)+'">'+sk.name+'</span>';
         if(cur){
-          html+='<span style="font-size:12px;font-weight:700;color:'+(cur.grade==="A"||cur.grade==="A+"?"#1e6b2e":cur.grade==="B"||cur.grade==="B+"?"#1a56c4":"#8a6000")'
-            +';background:'+(cur.grade==="A"||cur.grade==="A+"?"#e6f4ea":cur.grade==="B"||cur.grade==="B+"?"#e8f0fe":"#fef7e0")'
-            +';padding:2px 10px;border-radius:12px;border:1px solid '+(cur.grade==="A"||cur.grade==="A+"?"#b8e0c2":cur.grade==="B"||cur.grade==="B+"?"#c5d8fd":"#f9e0a0")'
-            +'">'+cur.grade+' ('+cur.pts+'点)</span>';
+          var gc=curGradeColors(cur.grade);
+          html+='<span style="font-size:12px;font-weight:700;color:'+gc.fg+';background:'+gc.bg+';padding:2px 10px;border-radius:12px;border:1px solid '+gc.border+'">'+cur.grade+' ('+cur.pts+'点)</span>';
         } else html+='<span style="font-size:11px;color:#bbb">未入力</span>';
         html+='<span style="color:#bbb;margin-left:6px">'+(isExp?'▲':'▼')+'</span></div>';
         html+='<div id="'+prefix+'detail-'+sk.id+'" class="skill-detail" style="display:'+(isExp?'block':'none')+'">';
