@@ -92,7 +92,8 @@ function initApp(){
   function dbSet(path,val,cb){db.ref('mat1/'+path).set(val,cb||function(){});}
   function dbRemove(path){db.ref('mat1/'+path).remove();}
 
-  // ─── 種目データ ───
+  // ─── 種目データ（Excelファイルに基づく正確なデータ）───
+  // 1年：14種目 合計56点
   var G1=[
     {id:"1_1",name:"前転",cat:"接転技群",A:3,B:2,C:1,cA:"スムーズに回転できる",cB:"脚がそろわない",cC:"手をつく・起き上がれない"},
     {id:"1_2",name:"開脚前転",cat:"接転技群",A:3,B:2,C:1,cA:"ひざが伸びて回転できる",cB:"ひざが曲がる",cC:"立ち上がれない"},
@@ -109,6 +110,7 @@ function initApp(){
     {id:"1_13",name:"片足正面水平立ち",cat:"平均立ち技群",A:3,B:2,C:1,cA:"10秒静止",cB:"5秒静止",cC:"3秒静止またはひざが曲がっている"},
     {id:"1_14",name:"Ｙ字バランス",cat:"平均立ち技群",A:3,B:2,C:1,cA:"10秒静止",cB:"5秒静止",cC:"3秒静止またはひざが曲がっている"},
   ];
+  // 2年：18種目（2年用データ）
   var G2=[
     {id:"2_1",name:"前転",cat:"接転技群",A:3,B:2,C:1,cA:"スムーズに回転できる",cB:"脚がそろわない",cC:"手をつく・起き上がれない"},
     {id:"2_2",name:"開脚前転",cat:"接転技群",A:3,B:2,C:1,cA:"ひざが伸びて回転できる",cB:"ひざが曲がる",cC:"立ち上がれない"},
@@ -129,7 +131,27 @@ function initApp(){
     {id:"2_17",name:"片足正面水平立ち",cat:"平均立ち技群",A:3,B:2,C:1,cA:"10秒静止",cB:"5秒静止",cC:"3秒静止またはひざが曲がっている"},
     {id:"2_18",name:"片足側面水平立ち",cat:"平均立ち技群",A:3,B:2,C:1,cA:"10秒静止",cB:"5秒静止",cC:"3秒静止またはひざが曲がっている"},
   ];
-  var G3=G2.map(function(sk){return Object.assign({},sk,{id:sk.id.replace(/^2_/,"3_")});});
+  // 3年：18種目（Excelの3年シートに基づく）
+  var G3=[
+    {id:"3_1",name:"前転",cat:"接転技群",A:3,B:2,C:1,cA:"スムーズに回転できる",cB:"脚がそろわない",cC:"手をつく・起き上がれない"},
+    {id:"3_2",name:"開脚前転",cat:"接転技群",A:3,B:2,C:1,cA:"ひざが伸びて回転できる",cB:"ひざが曲がる",cC:"立ち上がれない"},
+    {id:"3_3",name:"とび前転",cat:"接転技群",A:3,B:2,C:1,cA:"指定した距離を跳べていて足を揃えて回転できる",cB:"指定した距離を跳べないが足を揃えて回転できる",cC:"とんで回転できていない"},
+    {id:"3_4",name:"伸膝前転",cat:"接転技群",A:5,B:3,C:1,cA:"ひざが伸びて回転できる",cB:"ひざが曲がっている",cC:"立ち上がれない"},
+    {id:"3_5",name:"後転",cat:"接転技群",A:3,B:2,C:1,cA:"スムーズに回転できる",cB:"両手がうまくつかない・肘がつく",cC:"回転できない・起き上がれない"},
+    {id:"3_6",name:"開脚後転",cat:"接転技群",A:3,B:2,C:1,cA:"ひざが伸びて回転できる",cB:"ひざが曲がる",cC:"立ち上がれない"},
+    {id:"3_7",name:"伸膝後転",cat:"接転技群",A:4,B:3,C:1,cA:"ひざが伸びて回転できる",cB:"ひざが曲がっている",cC:"立ち上がれない"},
+    {id:"3_8",name:"倒立前転",cat:"接転技群",A:5,B:3,C:2,cA:"倒立を3秒耐えスムーズに回転できる",cB:"倒立を3秒耐えられず回転してしまう",cC:"ひざや肘が曲がる・スムーズに回転できない"},
+    {id:"3_9",name:"背支持倒立",cat:"接転技群",A:3,B:2,C:1,cA:"10秒耐えて足が真っすぐ天井を向いている",cB:"10秒耐えたが足があまり上がっていない",cC:"5秒以上で10秒耐えられない"},
+    {id:"3_10",name:"後転倒立",cat:"ほん転技群",A:5,B:3,C:1,cA:"後転からスムーズに倒立でき2秒以上静止",cB:"後転から倒立姿勢はできるがすぐ倒れる",cC:"倒立姿勢までいけない"},
+    {id:"3_11",name:"側方倒立回転",cat:"ほん転技群",A:5,B:3,C:1,cA:"一直線上に回転できる・ひざや肘が伸びている",cB:"ひざが曲がっている",cC:"脚があがらない"},
+    {id:"3_12",name:"側方倒立回転4分の1ひねり",cat:"ほん転技群",A:5,B:3,C:1,cA:"倒立状態で足を揃えスムーズに身体をひねれる",cB:"ひざが曲がっている・足が真上にあがらない",cC:"ひねることができない"},
+    {id:"3_13",name:"倒立ブリッジ",cat:"ほん転技群",A:3,B:2,C:1,cA:"倒立姿勢を経過しスムーズにできる",cB:"倒立姿勢を経過できるがブリッジを耐えられない",cC:"ひざや肘が曲がる・スムーズに回転できない"},
+    {id:"3_14",name:"前方倒立回転",cat:"ほん転技群",A:5,B:3,C:2,cA:"倒立姿勢を経過しスムーズに回転できる",cB:"倒立姿勢を経過し前にこけてしまう",cC:"倒立姿勢の後座ってしまう・後ろにこけてしまう"},
+    {id:"3_15",name:"倒立",cat:"平均立ち技群",A:5,B:3,C:1,cA:"5秒静止",cB:"3秒静止",cC:"補助倒立または壁倒立ができる"},
+    {id:"3_16",name:"三点倒立",cat:"平均立ち技群",A:4,B:2,C:1,cA:"8秒静止",cB:"3秒静止",cC:"1秒できる"},
+    {id:"3_17",name:"片足正面水平立ち",cat:"平均立ち技群",A:3,B:2,C:1,cA:"10秒静止",cB:"5秒静止",cC:"3秒静止またはひざが曲がっている"},
+    {id:"3_18",name:"片足側面水平立ち",cat:"平均立ち技群",A:3,B:2,C:1,cA:"10秒静止",cB:"5秒静止",cC:"3秒静止またはひざが曲がっている"},
+  ];
   var SKILLS={1:G1,2:G2,3:G3};
   var BASE_MAX={1:56,2:70,3:70};
 
@@ -229,7 +251,6 @@ function initApp(){
       sb+='<div style="background:#f5f8ff;border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:6px">'
         +'<input id="nName" placeholder="名前"><input id="nNum" placeholder="出席番号">'
         +'<select id="nCls">'+DB.classes.map(function(c){return'<option>'+c+'</option>';}).join('')+'</select>'
-        +'<select id="nGender"><option value="男子">男子</option><option value="女子">女子</option></select>'
         +'<div style="display:flex;gap:4px">'
         +'<button class="btn-primary btn-sm" onclick="doAddStu()" style="flex:1">追加</button>'
         +'<button class="btn-sm" onclick="toggleAdd()" style="flex:1">×</button>'
@@ -315,8 +336,7 @@ function initApp(){
     var html='<div style="max-width:680px;margin:0 auto;padding:1rem">'
       +'<div style="display:flex;align-items:center;gap:8px;border-bottom:1px solid #dde4f8;padding-bottom:12px;margin-bottom:14px">'
       +'<button onclick="goSLogin()" style="border:none;background:none;color:#888;font-size:20px;padding:4px">←</button>'
-      +'<h2 style="font-size:16px;font-weight:700;margin:0;flex:1;display:flex;align-items:center;gap:8px">'+s.name+' さん'
-      +' <span class="'+(s.gender==="女子"?"tag-f":"tag-m")+'">'+s.gender+'</span></h2>'
+      +'<h2 style="font-size:16px;font-weight:700;margin:0;flex:1">'+s.name+' さん</h2>'
       +'<button onclick="openPwModal()" style="font-size:12px;padding:6px 12px">🔑 PW変更</button>'
       +'</div>';
     if(s.isDefault)html+='<div style="background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:10px 14px;font-size:13px;color:#7a5c00;margin-bottom:12px">⚠️ 初期パスワード（出席番号）のままです。「PW変更」から変更してください。</div>';
@@ -354,8 +374,7 @@ function initApp(){
     var skillCount=SKILLS[s.grade].length;
     return '<div class="summary-box">'
       +'<div class="grade-circle" style="'+gcStyle(grade)+'">'+grade+'</div>'
-      +'<div style="flex:1"><div style="font-weight:700;font-size:16px;display:flex;align-items:center;gap:6px">'+s.name
-      +' <span class="'+(s.gender==="女子"?"tag-f":"tag-m")+'">'+s.gender+'</span></div>'
+      +'<div style="flex:1"><div style="font-weight:700;font-size:16px">'+s.name+'</div>'
       +'<div style="font-size:12px;color:#888">'+s.cls+' #'+s.number+'</div></div>'
       +'<div style="text-align:right">'
       +'<div style="font-size:22px;font-weight:700">'+total+'<span style="font-size:12px;color:#888;font-weight:400">/'+maxPts+'</span></div>'
@@ -441,9 +460,7 @@ function initApp(){
         +'<div><label style="font-size:12px;color:#888;display:block;margin-bottom:4px">開始番号</label>'
         +'<input type="number" id="bStart" value="1" min="1" style="max-width:120px"></div>'
         +'<div><label style="font-size:12px;color:#888;display:block;margin-bottom:6px">名簿入力（1行1人）</label>'
-        +'<div style="background:#f0f4ff;border:1px solid #c5d8fd;border-radius:8px;padding:8px 12px;font-size:12px;color:#1a3a6a;margin-bottom:8px">'
-        +'名前の後に「男」か「女」をつけてください<br>例：山田太郎男 / 鈴木花子女</div>'
-        +'<textarea id="bNames" rows="10" placeholder="山田太郎男&#10;鈴木花子女&#10;..." style="font-family:monospace;font-size:13px"></textarea></div>'
+        +'<textarea id="bNames" rows="10" placeholder="山田太郎&#10;鈴木花子&#10;..." style="font-family:monospace;font-size:13px"></textarea></div>'
         +'<p style="font-size:12px;color:#888">※ 初期パスワードは出席番号</p>'
         +'<div style="display:flex;gap:8px">'
         +'<button class="btn-primary" onclick="doBulkAdd()" style="flex:1">追加する</button>'
@@ -499,7 +516,6 @@ function initApp(){
           +'<td style="padding:5px 8px;font-size:12px;white-space:nowrap;border-right:1px solid #f0ede6">'+s.cls+'</td>'
           +'<td style="padding:5px 8px;font-size:12px;border-right:1px solid #f0ede6">'+s.number+'</td>'
           +'<td style="padding:5px 8px;font-size:13px;font-weight:600;white-space:nowrap;border-right:1px solid #f0ede6">'+s.name+'</td>'
-          +'<td style="padding:5px 8px;text-align:center;border-right:1px solid #f0ede6"><span class="'+(s.gender==="女子"?"tag-f":"tag-m")+'">'+s.gender+'</span></td>'
           +skillCells
           +'<td style="text-align:center;padding:5px 8px;font-size:14px;font-weight:700;border-right:1px solid #f0ede6">'+total+'</td>'
           +'<td style="text-align:center;padding:5px 8px"><span style="'+gcS+';padding:2px 10px;border-radius:6px;font-weight:700;font-size:13px">'+grade+'</span></td>'
@@ -527,7 +543,6 @@ function initApp(){
         +'<th style="padding:6px 8px;text-align:left;border-right:1px solid #dde4f8">クラス</th>'
         +'<th style="padding:6px 8px;border-right:1px solid #dde4f8">#</th>'
         +'<th style="padding:6px 8px;text-align:left;border-right:1px solid #dde4f8">名前</th>'
-        +'<th style="padding:6px 8px;border-right:1px solid #dde4f8">性別</th>'
         +skillHeaders
         +'<th style="padding:6px 8px;text-align:center;border-right:1px solid #dde4f8">合計</th>'
         +'<th style="padding:6px 8px;text-align:center">評価</th>'
@@ -574,7 +589,7 @@ function initApp(){
   window.closeRankingModal=function(){S.rankingModal=false;render();};
   window.setRankingFilter=function(v){S.rankingFilterCls=v;render();};
   window.pickStu=function(id){S.selId=id;S.tExpanded=null;S.tScores=DB.scores[id]||{};render();};
-  window.toggleGender=function(id,cur){dbSet('students/'+id+'/gender',cur==="男子"?"女子":"男子");};
+;
 
   window.toggleExpT=function(id){
     var det=document.getElementById("tdetail-"+id);if(!det)return;
@@ -620,10 +635,9 @@ function initApp(){
     var name=document.getElementById("nName").value.trim();
     var num=document.getElementById("nNum").value.trim();
     var cls=document.getElementById("nCls").value;
-    var gender=document.getElementById("nGender").value;
     if(!name||!num){alert("名前と出席番号を入力してください");return;}
     var id=genId();
-    dbSet('students/'+id,{id:id,name:name,number:num,cls:cls,grade:gradeFromCls(cls),gender:gender,password:num,isDefault:true},function(){S.addOpen=false;render();});
+    dbSet('students/'+id,{id:id,name:name,number:num,cls:cls,grade:gradeFromCls(cls),password:num,isDefault:true},function(){S.addOpen=false;render();});
   };
   window.doBulkAdd=function(){
     var cls=document.getElementById("bCls").value;
@@ -632,19 +646,9 @@ function initApp(){
     if(!lines.length){alert("名前を入力してください");return;}
     var count=0,total=lines.length;
     lines.forEach(function(line,i){
-      var parts=line.split(/[\s　]+/);
-      var name,gender;
-      if(parts.length>=2){
-        var last=parts[parts.length-1];
-        if(last==="女"||last==="女子"){gender="女子";name=parts.slice(0,-1).join("");}
-        else if(last==="男"||last==="男子"){gender="男子";name=parts.slice(0,-1).join("");}
-        else{gender=(line.endsWith("女")||line.endsWith("女子"))?"女子":"男子";name=line.replace(/[男女]子?$/,"").trim();}
-      } else {
-        gender=(line.endsWith("女")||line.endsWith("女子"))?"女子":"男子";
-        name=line.replace(/[男女]子?$/,"").trim();
-      }
+      var name=line.trim();
       var num=String(start+i);var id=genId();
-      dbSet('students/'+id,{id:id,name:name,number:num,cls:cls,grade:gradeFromCls(cls),gender:gender,password:num,isDefault:true},function(){
+      dbSet('students/'+id,{id:id,name:name,number:num,cls:cls,grade:gradeFromCls(cls),password:num,isDefault:true},function(){
         count++;if(count===total){S.bulkOpen=false;alert(count+"人を追加しました！");render();}
       });
     });
@@ -668,7 +672,7 @@ function initApp(){
   window.downloadCSV=function(){
     var students=getStudents();
     var rList=S.rankingFilterCls==="all"?students:students.filter(function(s){return s.cls===S.rankingFilterCls;});
-    var headers=["クラス","出席番号","名前","性別"];
+    var headers=["クラス","出席番号","名前"];
     SKILLS[1].forEach(function(sk,i){headers.push((i+1)+"."+sk.name);});
     headers.push("合計点","評価");
     var rows=[headers];
@@ -677,7 +681,7 @@ function initApp(){
       var skills=SKILLS[s.grade];
       var total=calcTotal(sc,skills);
       var grade=calcGrade(total,s.grade);
-      var row=[s.cls,s.number,s.name,s.gender];
+      var row=[s.cls,s.number,s.name];
       skills.forEach(function(sk){var cur=sc[sk.id];row.push(cur?cur.grade:"");});
       row.push(total,grade);rows.push(row);
     });
