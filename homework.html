@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>宿題提出状況</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif; background: #f4f6f8; color: #1a1a1a; min-height: 100vh; }
+header { background: #fff; border-bottom: 1px solid #e2e6ea; padding: 14px 24px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 100; }
+header h1 { font-size: 17px; font-weight: 600; flex:1; }
+.logo { width: 32px; height: 32px; background: #1D9E75; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 16px; }
+#syncBar { font-size: 11px; padding: 2px 8px; border-radius: 99px; background: #fef3c7; color: #92400e; }
+#syncBar.ok { background: #d1fae5; color: #065f46; }
+#syncBar.err { background: #fee2e2; color: #991b1b; }
+.content { max-width: 680px; margin: 0 auto; padding: 28px 16px; }
+.screen { display: none; }
+.screen.active { display: block; }
+#mode-screen { text-align: center; padding: 48px 0; }
+#mode-screen h2 { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+#mode-screen p  { font-size: 14px; color: #888; margin-bottom: 36px; }
+.mode-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 380px; margin: 0 auto; }
+.mode-btn { padding: 30px 16px; border-radius: 14px; border: 1.5px solid #e2e6ea; background: #fff; cursor: pointer; font-size: 15px; font-weight: 600; font-family: inherit; color: #1a1a1a; transition: all 0.15s; }
+.mode-btn:hover { border-color: #1D9E75; color: #1D9E75; background: #f0faf6; }
+.mode-btn .icon { font-size: 34px; display: block; margin-bottom: 10px; }
+.back-link { font-size: 13px; color: #1D9E75; cursor: pointer; margin-bottom: 20px; display: inline-flex; align-items: center; gap: 4px; }
+.back-link:hover { text-decoration: underline; }
+.card { background: #fff; border-radius: 12px; border: 1px solid #e2e6ea; padding: 20px; margin-bottom: 16px; }
+.card-title { font-size: 13px; font-weight: 600; color: #888; margin-bottom: 14px; letter-spacing: 0.05em; }
+label { font-size: 12px; color: #666; display: block; margin-bottom: 4px; }
+input[type=text], input[type=date], input[type=password], input[type=number] { width: 100%; padding: 9px 12px; border: 1px solid #dde1e7; border-radius: 8px; font-size: 14px; font-family: inherit; color: #1a1a1a; background: #fafbfc; outline: none; transition: border-color 0.15s; }
+input:focus { border-color: #1D9E75; background: #fff; }
+.btn { padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer; font-size: 14px; font-family: inherit; font-weight: 500; transition: all 0.15s; }
+.btn-primary { background: #1D9E75; color: #fff; }
+.btn-primary:hover { background: #17876A; }
+.btn-ghost { background: transparent; border: 1px solid #e2e6ea; color: #666; }
+.btn-ghost:hover { background: #f4f6f8; }
+.logout-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.empty { text-align: center; color: #aaa; padding: 40px 0; font-size: 14px; }
+.error-msg   { color: #dc2626; font-size: 13px; margin-top: 8px; min-height: 20px; }
+.success-msg { color: #1D9E75; font-size: 13px; margin-top: 8px; min-height: 20px; }
+.hw-list-item { background: #fff; border-radius: 12px; border: 1px solid #e2e6ea; padding: 16px 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: all 0.15s; }
+.hw-list-item:hover { border-color: #1D9E75; background: #f0faf6; }
+.hw-list-item-left { flex: 1; }
+.hw-list-item-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+.hw-list-item-date  { font-size: 12px; color: #888; }
+.hw-list-item-badges { display: flex; gap: 8px; margin-top: 8px; }
+.mini-badge { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 99px; }
+.mini-badge.ok  { background: #d1fae5; color: #065f46; }
+.mini-badge.ng  { background: #fef3c7; color: #92400e; }
+.mini-badge.mis { background: #fee2e2; color: #991b1b; }
+.hw-list-item-arrow { font-size: 18px; color: #ccc; margin-left: 12px; }
+.detail-header { background: #fff; border-radius: 12px; border: 1px solid #e2e6ea; padding: 18px 20px; margin-bottom: 16px; }
+.detail-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+.detail-date  { font-size: 13px; color: #888; }
+.hw-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 16px; }
+.stat { background: #fff; border-radius: 12px; border: 1px solid #e2e6ea; text-align: center; padding: 14px 0; }
+.stat-num   { font-size: 26px; font-weight: 700; }
+.stat-label { font-size: 11px; color: #888; margin-top: 3px; }
+.stat.ok .stat-num  { color: #1D9E75; }
+.stat.ng .stat-num  { color: #d97706; }
+.stat.mis .stat-num { color: #dc2626; }
+.student-list { background: #fff; border-radius: 12px; border: 1px solid #e2e6ea; overflow: hidden; }
+.student-row { display: flex; align-items: center; padding: 12px 18px; border-bottom: 1px solid #f0f2f5; gap: 12px; }
+.student-row:last-child { border-bottom: none; }
+.student-name { flex: 1; font-size: 14px; font-weight: 500; }
+.st-btn { width: 42px; height: 42px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; font-size: 21px; font-weight: 700; display: flex; align-items: center; justify-content: center; transition: transform 0.12s; }
+.st-btn:hover { transform: scale(1.12); }
+.st-btn.ok  { background: #d1fae5; border-color: #6ee7b7; color: #065f46; }
+.st-btn.ng  { background: #fef3c7; border-color: #fcd34d; color: #92400e; }
+.st-btn.mis { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
+.st-label { font-size: 12px; color: #888; width: 56px; }
+.del-btn { font-size: 12px; color: #aaa; border: none; background: none; cursor: pointer; padding: 4px 8px; border-radius: 6px; }
+.del-btn:hover { background: #fee2e2; color: #dc2626; }
+.pw-table { width: 100%; border-collapse: collapse; }
+.pw-table th { font-size: 12px; color: #888; font-weight: 600; text-align: left; padding: 6px 8px; border-bottom: 1px solid #e2e6ea; }
+.pw-table td { padding: 8px; border-bottom: 1px solid #f0f2f5; vertical-align: middle; }
+.pw-table tr:last-child td { border-bottom: none; }
+.pw-table input { padding: 6px 10px; font-size: 13px; border-radius: 6px; }
+.pw-save-btn { padding: 5px 12px; border-radius: 6px; border: none; background: #1D9E75; color: #fff; cursor: pointer; font-size: 12px; font-family: inherit; font-weight: 500; white-space: nowrap; }
+.pw-save-btn:hover { background: #17876A; }
+#student-login h2 { font-size: 17px; font-weight: 600; margin-bottom: 8px; margin-top: 4px; }
+#student-login p  { font-size: 14px; color: #888; margin-bottom: 28px; }
+.num-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 0 auto 20px; }
+.num-btn { padding: 20px 0; border-radius: 12px; border: 1.5px solid #e2e6ea; background: #fff; cursor: pointer; font-size: 18px; font-weight: 700; font-family: inherit; color: #1a1a1a; transition: all 0.15s; }
+.num-btn:hover { border-color: #1D9E75; color: #1D9E75; background: #f0faf6; }
+.summary-bar { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 16px; }
+.sum-card { background: #fff; border-radius: 12px; border: 1px solid #e2e6ea; padding: 14px; text-align: center; }
+.sum-num   { font-size: 26px; font-weight: 700; }
+.sum-label { font-size: 12px; color: #888; margin-top: 3px; }
+.sum-card.ok .sum-num  { color: #1D9E75; }
+.sum-card.ng .sum-num  { color: #d97706; }
+.sum-card.mis .sum-num { color: #dc2626; }
+.hw-student-row { display: flex; justify-content: space-between; align-items: center; padding: 13px 0; border-bottom: 1px solid #f0f2f5; }
+.hw-student-row:last-child { border-bottom: none; }
+.hw-student-title { font-size: 15px; font-weight: 500; }
+.hw-student-date  { font-size: 12px; color: #888; margin-top: 2px; }
+.status-badge { display: flex; align-items: center; gap: 8px; }
+.status-circle { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; }
+.status-circle.ok  { background: #d1fae5; color: #065f46; }
+.status-circle.ng  { background: #fef3c7; color: #92400e; }
+.status-circle.mis { background: #fee2e2; color: #991b1b; }
+.status-text { font-size: 13px; color: #666; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">✏</div>
+  <h1>宿題提出状況</h1>
+  <span id="syncBar">接続中...</span>
+</header>
+<div class="content">
+
+  <!-- モード選択 -->
+  <div id="mode-screen" class="screen active">
+    <h2>どちらですか？</h2>
+    <p>先生か児童かを選んでください</p>
+    <div class="mode-buttons">
+      <button class="mode-btn" onclick="showScreen('teacher-login')"><span class="icon">👩‍🏫</span>先生</button>
+      <button class="mode-btn" onclick="showScreen('student-login')"><span class="icon">🎒</span>児童</button>
+    </div>
+  </div>
+
+  <!-- 先生ログイン -->
+  <div id="teacher-login" class="screen">
+    <div style="max-width:360px;margin:0 auto;">
+      <span class="back-link" onclick="showScreen('mode-screen')">← もどる</span>
+      <h2 style="font-size:17px;font-weight:600;margin-bottom:20px;">先生としてログイン</h2>
+      <div class="card">
+        <div style="margin-bottom:12px;">
+          <label>パスワード</label>
+          <input type="password" id="teacher-pw-input" placeholder="パスワードを入力" onkeydown="if(event.key==='Enter')teacherLogin()" />
+        </div>
+        <button class="btn btn-primary" style="width:100%;" onclick="teacherLogin()">ログイン</button>
+        <div class="error-msg" id="teacher-login-error"></div>
+        <p style="font-size:12px;color:#aaa;margin-top:6px;text-align:center;">初期パスワード：1234</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 先生：宿題一覧 -->
+  <div id="teacher-main" class="screen">
+    <div class="logout-bar">
+      <span style="font-size:14px;font-weight:600;">宿題一覧</span>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost" style="font-size:13px;padding:6px 14px;" onclick="openTeacherSettings()">設定</button>
+        <button class="btn btn-ghost" style="font-size:13px;padding:6px 14px;" onclick="showScreen('mode-screen')">ログアウト</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">宿題を追加</div>
+      <div class="form-grid">
+        <div><label>日付</label><input type="date" id="hw-date" /></div>
+        <div><label>教科</label><input type="text" id="hw-subject" placeholder="例：算数" /></div>
+      </div>
+      <div style="margin-bottom:12px;"><label>宿題名</label><input type="text" id="hw-name" placeholder="例：プリント5枚" /></div>
+      <div style="text-align:right;"><button class="btn btn-primary" onclick="addHomework()">追加する</button></div>
+    </div>
+    <div style="font-size:13px;color:#aaa;margin-bottom:10px;">タップで詳細を確認</div>
+    <div id="hw-list"></div>
+  </div>
+
+  <!-- 先生：宿題詳細 -->
+  <div id="teacher-detail" class="screen">
+    <span class="back-link" onclick="showScreen('teacher-main')">← 一覧にもどる</span>
+    <div class="detail-header">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div>
+          <div class="detail-title" id="detail-title"></div>
+          <div class="detail-date"  id="detail-date"></div>
+        </div>
+        <button class="del-btn" id="detail-del-btn">削除</button>
+      </div>
+    </div>
+    <div class="hw-stats">
+      <div class="stat ok" ><div class="stat-num" id="det-ok">0</div><div class="stat-label">○ 合格</div></div>
+      <div class="stat ng" ><div class="stat-num" id="det-ng">0</div><div class="stat-label">△ やり直し</div></div>
+      <div class="stat mis"><div class="stat-num" id="det-mis">0</div><div class="stat-label">× 未提出</div></div>
+    </div>
+    <div class="student-list" id="detail-student-list"></div>
+  </div>
+
+  <!-- 先生：設定 -->
+  <div id="teacher-settings" class="screen">
+    <span class="back-link" onclick="showScreen('teacher-main')">← もどる</span>
+    <h2 style="font-size:17px;font-weight:600;margin-bottom:20px;">設定</h2>
+    <div class="card">
+      <div class="card-title">クラス人数設定</div>
+      <div style="margin-bottom:12px;">
+        <label>出席番号の最大人数（現在：<span id="current-count"></span>人）</label>
+        <input type="number" id="student-count-input" min="1" max="45" style="max-width:120px;" />
+      </div>
+      <button class="btn btn-primary" onclick="saveStudentCount()">人数を変更する</button>
+      <div class="success-msg" id="count-success"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">先生のパスワードを変更</div>
+      <div style="margin-bottom:10px;"><label>現在のパスワード</label><input type="password" id="t-pw-cur" placeholder="現在のパスワード" /></div>
+      <div style="margin-bottom:10px;"><label>新しいパスワード</label><input type="password" id="t-pw-new" placeholder="新しいパスワード" /></div>
+      <div style="margin-bottom:12px;"><label>新しいパスワード（確認）</label><input type="password" id="t-pw-conf" placeholder="もう一度入力" /></div>
+      <button class="btn btn-primary" style="width:100%;" onclick="changeTeacherPw()">変更する</button>
+      <div class="error-msg"   id="t-pw-error"></div>
+      <div class="success-msg" id="t-pw-success"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">児童のパスワード管理（リセット用）</div>
+      <p style="font-size:13px;color:#888;margin-bottom:14px;">児童がパスワードを忘れたときにここでリセットできます。</p>
+      <table class="pw-table">
+        <thead><tr><th>出席番号</th><th>パスワード</th><th></th></tr></thead>
+        <tbody id="student-pw-table"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 児童：番号選択 -->
+  <div id="student-login" class="screen">
+    <span class="back-link" onclick="showScreen('mode-screen')">← もどる</span>
+    <h2>出席番号を選んでください</h2>
+    <p>自分の番号だけ押してね</p>
+    <div class="num-grid" id="num-grid"></div>
+  </div>
+
+  <!-- 児童：PWログイン -->
+  <div id="student-pw-screen" class="screen">
+    <div style="max-width:360px;margin:0 auto;">
+      <span class="back-link" onclick="showScreen('student-login')">← もどる</span>
+      <h2 style="font-size:17px;font-weight:600;margin-bottom:6px;" id="student-pw-title"></h2>
+      <p style="font-size:14px;color:#888;margin-bottom:20px;">パスワードを入力してね</p>
+      <div class="card">
+        <div style="margin-bottom:12px;"><label>パスワード</label><input type="password" id="student-pw-input" placeholder="パスワードを入力" onkeydown="if(event.key==='Enter')studentLogin()" /></div>
+        <button class="btn btn-primary" style="width:100%;" onclick="studentLogin()">確認する</button>
+        <div class="error-msg" id="student-login-error"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 児童：提出状況 -->
+  <div id="student-main" class="screen">
+    <div class="logout-bar">
+      <span style="font-size:15px;font-weight:600;" id="student-main-title"></span>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost" style="font-size:13px;padding:6px 14px;" onclick="openStudentSettings()">設定</button>
+        <button class="btn btn-ghost" style="font-size:13px;padding:6px 14px;" onclick="showScreen('student-login')">ログアウト</button>
+      </div>
+    </div>
+    <div id="student-view"></div>
+  </div>
+
+  <!-- 児童：設定（パスワード変更） -->
+  <div id="student-settings" class="screen">
+    <div style="max-width:400px;margin:0 auto;">
+      <span class="back-link" onclick="showScreen('student-main')">← もどる</span>
+      <h2 style="font-size:17px;font-weight:600;margin-bottom:20px;" id="student-settings-title"></h2>
+      <div class="card">
+        <div class="card-title">パスワードを変更する</div>
+        <div style="margin-bottom:10px;"><label>今のパスワード</label><input type="password" id="s-pw-cur" placeholder="今のパスワード" /></div>
+        <div style="margin-bottom:10px;"><label>新しいパスワード</label><input type="password" id="s-pw-new" placeholder="新しいパスワード" /></div>
+        <div style="margin-bottom:12px;"><label>新しいパスワード（もう一度）</label><input type="password" id="s-pw-conf" placeholder="もう一度入力" /></div>
+        <button class="btn btn-primary" style="width:100%;" onclick="changeStudentPw()">変更する</button>
+        <div class="error-msg"   id="s-pw-error"></div>
+        <div class="success-msg" id="s-pw-success"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script>
+window.addEventListener('load', function() {
+  var s1 = document.createElement('script');
+  s1.src = 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js';
+  s1.onload = function() {
+    var s2 = document.createElement('script');
+    s2.src = 'https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js';
+    s2.onload = function() { initApp(); };
+    document.head.appendChild(s2);
+  };
+  document.head.appendChild(s1);
+});
+
+function initApp() {
+  var fbApp = firebase.initializeApp({
+    apiKey: "AIzaSyB4EcKVsb7wuhjZrUeXEG8vi5c1_2yvGj0",
+    authDomain: "schedule-7db64.firebaseapp.com",
+    databaseURL: "https://schedule-7db64-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "schedule-7db64",
+    storageBucket: "schedule-7db64.firebasestorage.app",
+    messagingSenderId: "745424328407",
+    appId: "1:745424328407:web:4c8cb8ff701350381d8292"
+  }, 'homework1');
+  var db = firebase.database(fbApp);
+  var ROOT = 'homework1';
+
+  var DB = {
+    homeworks: {},
+    submissions: {},
+    teacherPw: '1234',
+    studentPws: {},
+    studentCount: 6
+  };
+
+  var currentStudentNum = null;
+  var currentHwId = null;
+  var STATUS_CYCLE = ['mis','ok','ng'];
+  var STATUS_LABEL = { ok:'○', ng:'△', mis:'×' };
+  var STATUS_TEXT  = { ok:'合格', ng:'やり直し', mis:'未提出' };
+
+  function syncBar(type, msg) {
+    var b = document.getElementById('syncBar');
+    b.textContent = msg; b.className = type;
+  }
+  function dbSet(path, val, cb) { db.ref(ROOT+'/'+path).set(val, cb||function(){}); }
+  function dbRemove(path) { db.ref(ROOT+'/'+path).remove(); }
+
+  // Firebase リアルタイム監視
+  db.ref(ROOT).on('value', function(snap) {
+    var val = snap.val() || {};
+    DB.homeworks    = val.homeworks    || {};
+    DB.submissions  = val.submissions  || {};
+    DB.teacherPw    = val.teacherPw    || '1234';
+    DB.studentPws   = val.studentPws   || {};
+    DB.studentCount = val.studentCount || 6;
+
+    // 初期パスワード補完
+    var changed = false;
+    for (var i = 1; i <= DB.studentCount; i++) {
+      if (!DB.studentPws[i]) { DB.studentPws[i] = String(i); changed = true; }
+    }
+    if (changed) dbSet('studentPws', DB.studentPws);
+
+    syncBar('ok', '✅ 同期中');
+
+    // 表示中の画面を更新
+    var active = document.querySelector('.screen.active');
+    if (!active) return;
+    var id = active.id;
+    if (id === 'teacher-main') renderTeacherList();
+    else if (id === 'teacher-detail' && currentHwId) renderDetail(currentHwId);
+    else if (id === 'student-main' && currentStudentNum) renderStudentView(currentStudentNum);
+    else if (id === 'student-login') buildNumGrid();
+  }, function(err) {
+    syncBar('err', '❌ 接続エラー');
+  });
+
+  function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+    document.getElementById(id).classList.add('active');
+  }
+  window.showScreen = showScreen;
+
+  function getHwList() {
+    return Object.values(DB.homeworks).sort(function(a,b){ return (b.id||0)-(a.id||0); });
+  }
+
+  function formatDate(d) {
+    if (!d) return '';
+    var parts = d.split('-');
+    return parseInt(parts[1]) + '月' + parseInt(parts[2]) + '日';
+  }
+
+  /* ── 先生 ── */
+  window.teacherLogin = function() {
+    var pw  = document.getElementById('teacher-pw-input').value;
+    var err = document.getElementById('teacher-login-error');
+    if (pw === DB.teacherPw) {
+      document.getElementById('teacher-pw-input').value = '';
+      err.textContent = '';
+      showScreen('teacher-main');
+      renderTeacherList();
+    } else { err.textContent = 'パスワードが違います'; }
+  };
+
+  window.changeTeacherPw = function() {
+    var cur  = document.getElementById('t-pw-cur').value;
+    var nw   = document.getElementById('t-pw-new').value;
+    var conf = document.getElementById('t-pw-conf').value;
+    var err  = document.getElementById('t-pw-error');
+    var suc  = document.getElementById('t-pw-success');
+    err.textContent = ''; suc.textContent = '';
+    if (cur !== DB.teacherPw) { err.textContent = '現在のパスワードが違います'; return; }
+    if (!nw)                  { err.textContent = '新しいパスワードを入力してください'; return; }
+    if (nw !== conf)          { err.textContent = '新しいパスワードが一致しません'; return; }
+    dbSet('teacherPw', nw);
+    document.getElementById('t-pw-cur').value = '';
+    document.getElementById('t-pw-new').value = '';
+    document.getElementById('t-pw-conf').value = '';
+    suc.textContent = 'パスワードを変更しました';
+  };
+
+  window.saveStudentCount = function() {
+    var val = parseInt(document.getElementById('student-count-input').value);
+    if (!val || val < 1 || val > 45) { alert('1〜45の数字を入力してください'); return; }
+    // 新しい人数分のパスワード初期化
+    var newPws = Object.assign({}, DB.studentPws);
+    for (var i = 1; i <= val; i++) {
+      if (!newPws[i]) newPws[i] = String(i);
+    }
+    dbSet('studentCount', val);
+    dbSet('studentPws', newPws);
+    document.getElementById('count-success').textContent = val + '人に変更しました！';
+    setTimeout(function(){ document.getElementById('count-success').textContent = ''; }, 2000);
+  };
+
+  window.openTeacherSettings = function() {
+    ['t-pw-error','t-pw-success'].forEach(function(id){ document.getElementById(id).textContent = ''; });
+    document.getElementById('current-count').textContent = DB.studentCount;
+    document.getElementById('student-count-input').value = DB.studentCount;
+    renderStudentPwTable();
+    showScreen('teacher-settings');
+  };
+
+  function renderStudentPwTable() {
+    var tbody = document.getElementById('student-pw-table');
+    var rows = '';
+    for (var n = 1; n <= DB.studentCount; n++) {
+      rows += '<tr>'
+        + '<td style="font-size:14px;font-weight:500;padding-left:4px;">' + n + '番</td>'
+        + '<td><input type="text" id="spw-' + n + '" value="' + (DB.studentPws[n]||String(n)) + '" /></td>'
+        + '<td><button class="pw-save-btn" onclick="saveStudentPw(' + n + ')">保存</button></td>'
+        + '</tr>';
+    }
+    tbody.innerHTML = rows;
+  }
+
+  window.saveStudentPw = function(n) {
+    var val = document.getElementById('spw-' + n).value.trim();
+    if (!val) { alert('パスワードを入力してください'); return; }
+    dbSet('studentPws/' + n, val);
+    var btn = document.querySelector('[onclick="saveStudentPw(' + n + ')"]');
+    btn.textContent = '✓ 保存済み';
+    btn.style.background = '#6ee7b7';
+    setTimeout(function(){ btn.textContent = '保存'; btn.style.background = ''; }, 1500);
+  };
+
+  window.addHomework = function() {
+    var date    = document.getElementById('hw-date').value;
+    var subject = document.getElementById('hw-subject').value.trim();
+    var name    = document.getElementById('hw-name').value.trim();
+    if (!name) { alert('宿題名を入力してください'); return; }
+    var id = Date.now();
+    var hw = { id: id, date: date, subject: subject, name: name };
+    // 初期状態は全員「未提出」
+    var initSub = {};
+    for (var i = 1; i <= DB.studentCount; i++) initSub[i] = 'mis';
+    dbSet('homeworks/' + id, hw);
+    dbSet('submissions/' + id, initSub);
+    document.getElementById('hw-date').value = '';
+    document.getElementById('hw-subject').value = '';
+    document.getElementById('hw-name').value = '';
+  };
+
+  window.deleteHomework = function(id) {
+    if (!confirm('この宿題を削除しますか？')) return;
+    dbRemove('homeworks/' + id);
+    dbRemove('submissions/' + id);
+    showScreen('teacher-main');
+  };
+
+  function renderTeacherList() {
+    var el = document.getElementById('hw-list');
+    var list = getHwList();
+    if (list.length === 0) { el.innerHTML = '<div class="empty">宿題がまだありません</div>'; return; }
+    el.innerHTML = list.map(function(hw) {
+      var sub = DB.submissions[hw.id] || {};
+      var nums = [];
+      for (var i = 1; i <= DB.studentCount; i++) nums.push(i);
+      var okCount  = nums.filter(function(n){ return sub[n]==='ok'; }).length;
+      var ngCount  = nums.filter(function(n){ return sub[n]==='ng'; }).length;
+      var misCount = nums.filter(function(n){ return sub[n]==='mis'; }).length;
+      var title = [hw.subject, hw.name].filter(Boolean).join('　');
+      return '<div class="hw-list-item" onclick="openDetail(' + hw.id + ')">'
+        + '<div class="hw-list-item-left">'
+        + '<div class="hw-list-item-title">' + title + '</div>'
+        + '<div class="hw-list-item-date">' + formatDate(hw.date) + '</div>'
+        + '<div class="hw-list-item-badges">'
+        + '<span class="mini-badge ok">○ ' + okCount + '</span>'
+        + '<span class="mini-badge ng">△ ' + ngCount + '</span>'
+        + '<span class="mini-badge mis">× ' + misCount + '</span>'
+        + '</div></div>'
+        + '<div class="hw-list-item-arrow">›</div></div>';
+    }).join('');
+  }
+
+  window.openDetail = function(hwId) {
+    currentHwId = hwId;
+    var hw = DB.homeworks[hwId];
+    if (!hw) return;
+    document.getElementById('detail-title').textContent = [hw.subject, hw.name].filter(Boolean).join('　');
+    document.getElementById('detail-date').textContent  = formatDate(hw.date);
+    document.getElementById('detail-del-btn').onclick   = function(){ window.deleteHomework(hwId); };
+    renderDetail(hwId);
+    showScreen('teacher-detail');
+  };
+
+  window.cycleStatus = function(hwId, num) {
+    var cur = (DB.submissions[hwId] || {})[num] || 'mis';
+    var idx = STATUS_CYCLE.indexOf(cur);
+    var next = STATUS_CYCLE[(idx+1) % STATUS_CYCLE.length];
+    dbSet('submissions/' + hwId + '/' + num, next);
+  };
+
+  function renderDetail(hwId) {
+    var nums = [];
+    for (var i = 1; i <= DB.studentCount; i++) nums.push(i);
+    var sub  = DB.submissions[hwId] || {};
+    document.getElementById('det-ok').textContent  = nums.filter(function(n){ return sub[n]==='ok'; }).length;
+    document.getElementById('det-ng').textContent  = nums.filter(function(n){ return sub[n]==='ng'; }).length;
+    document.getElementById('det-mis').textContent = nums.filter(function(n){ return sub[n]==='mis'; }).length;
+    document.getElementById('detail-student-list').innerHTML = nums.map(function(n) {
+      var st = sub[n] || 'mis';
+      return '<div class="student-row">'
+        + '<span class="student-name">' + n + '番</span>'
+        + '<button class="st-btn ' + st + '" onclick="cycleStatus(' + hwId + ',' + n + ')">' + STATUS_LABEL[st] + '</button>'
+        + '<span class="st-label">' + STATUS_TEXT[st] + '</span>'
+        + '</div>';
+    }).join('');
+  }
+
+  /* ── 児童 ── */
+  function buildNumGrid() {
+    var grid = document.getElementById('num-grid');
+    grid.innerHTML = '';
+    for (var i = 1; i <= DB.studentCount; i++) {
+      (function(num) {
+        var btn = document.createElement('button');
+        btn.className = 'num-btn';
+        btn.textContent = num + '番';
+        btn.onclick = function(){ goToStudentPw(num); };
+        grid.appendChild(btn);
+      })(i);
+    }
+  }
+
+  function goToStudentPw(num) {
+    currentStudentNum = num;
+    document.getElementById('student-pw-title').textContent = num + '番';
+    document.getElementById('student-pw-input').value = '';
+    document.getElementById('student-login-error').textContent = '';
+    showScreen('student-pw-screen');
+  }
+
+  window.studentLogin = function() {
+    var pw  = document.getElementById('student-pw-input').value;
+    var err = document.getElementById('student-login-error');
+    if (pw === (DB.studentPws[currentStudentNum] || String(currentStudentNum))) {
+      document.getElementById('student-pw-input').value = '';
+      err.textContent = '';
+      document.getElementById('student-main-title').textContent = currentStudentNum + '番';
+      showScreen('student-main');
+      renderStudentView(currentStudentNum);
+    } else { err.textContent = 'パスワードが違います'; }
+  };
+
+  window.openStudentSettings = function() {
+    document.getElementById('student-settings-title').textContent = currentStudentNum + '番　パスワード設定';
+    ['s-pw-error','s-pw-success'].forEach(function(id){ document.getElementById(id).textContent = ''; });
+    ['s-pw-cur','s-pw-new','s-pw-conf'].forEach(function(id){ document.getElementById(id).value = ''; });
+    showScreen('student-settings');
+  };
+
+  window.changeStudentPw = function() {
+    var cur  = document.getElementById('s-pw-cur').value;
+    var nw   = document.getElementById('s-pw-new').value;
+    var conf = document.getElementById('s-pw-conf').value;
+    var err  = document.getElementById('s-pw-error');
+    var suc  = document.getElementById('s-pw-success');
+    err.textContent = ''; suc.textContent = '';
+    if (cur !== (DB.studentPws[currentStudentNum]||String(currentStudentNum))) { err.textContent = '今のパスワードが違います'; return; }
+    if (!nw)           { err.textContent = '新しいパスワードを入力してください'; return; }
+    if (nw !== conf)   { err.textContent = '新しいパスワードが一致しません'; return; }
+    dbSet('studentPws/' + currentStudentNum, nw);
+    ['s-pw-cur','s-pw-new','s-pw-conf'].forEach(function(id){ document.getElementById(id).value = ''; });
+    suc.textContent = 'パスワードを変更しました！';
+  };
+
+  function renderStudentView(num) {
+    var el = document.getElementById('student-view');
+    var list = getHwList();
+    if (list.length === 0) { el.innerHTML = '<div class="empty">宿題はまだありません</div>'; return; }
+    var rows = list.map(function(hw) {
+      return { hw: hw, st: (DB.submissions[hw.id] || {})[num] || 'mis' };
+    });
+    var okCount  = rows.filter(function(r){ return r.st==='ok'; }).length;
+    var ngCount  = rows.filter(function(r){ return r.st==='ng'; }).length;
+    var misCount = rows.filter(function(r){ return r.st==='mis'; }).length;
+    el.innerHTML = '<div class="summary-bar">'
+      + '<div class="sum-card ok"><div class="sum-num">' + okCount + '</div><div class="sum-label">○ 合格</div></div>'
+      + '<div class="sum-card ng"><div class="sum-num">' + ngCount + '</div><div class="sum-label">△ やり直し</div></div>'
+      + '<div class="sum-card mis"><div class="sum-num">' + misCount + '</div><div class="sum-label">× 未提出</div></div>'
+      + '</div>'
+      + '<div class="card" style="padding:0 20px;">'
+      + rows.map(function(r) {
+        return '<div class="hw-student-row">'
+          + '<div>'
+          + '<div class="hw-student-title">' + [r.hw.subject, r.hw.name].filter(Boolean).join('　') + '</div>'
+          + '<div class="hw-student-date">' + formatDate(r.hw.date) + '</div>'
+          + '</div>'
+          + '<div class="status-badge">'
+          + '<div class="status-circle ' + r.st + '">' + STATUS_LABEL[r.st] + '</div>'
+          + '<span class="status-text">' + STATUS_TEXT[r.st] + '</span>'
+          + '</div></div>';
+      }).join('')
+      + '</div>';
+  }
+
+  // 最初に番号グリッドを構築
+  buildNumGrid();
+}
+</script>
+</body>
+</html>
