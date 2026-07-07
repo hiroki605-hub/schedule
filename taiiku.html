@@ -228,7 +228,8 @@
 <script>
 (function(){
   const $app = document.getElementById('app');
-  const CLASS_NAMES = ['1組','2組','3組'];
+
+  function rosterKey(grade, cls){ return grade+'|'+cls; }
 
   let state = {
     mode: 'student', // 'student' | 'teacher'
@@ -237,6 +238,7 @@
     loading: true,
     // student flow
     s_templateId: null,
+    s_grade: null,
     s_class: null,
     s_entry: null,
     s_ratings: {},
@@ -247,11 +249,16 @@
     modal: null,
     // teacher: template editor
     editingTemplate: null, // object being edited, or null
+    editingReflectionGrade: null, // どの学年の感想を編集中か
     // teacher: roster editor
-    rosterClass: '1組',
+    rosterGrade: null,
+    rosterClass: null,
     rosterDraft: '',
+    newGradeDraft: '',
+    newClassDraft: '',
     // teacher: responses view
     r_templateId: null,
+    r_gradeFilter: 'all',
     r_classFilter: 'all',
     r_responses: [],
     r_loading: false,
@@ -262,8 +269,24 @@
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
   function defaultConfig(){
+    const grades = ['1年','2年','3年'];
+    const classesByGrade = {};
+    const rosters = {};
+    grades.forEach(g=>{
+      classesByGrade[g] = ['1組','2組','3組'];
+      classesByGrade[g].forEach(c=>{ rosters[rosterKey(g,c)] = []; });
+    });
+    const reflectionsByGrade = {};
+    grades.forEach(g=>{
+      reflectionsByGrade[g] = [
+        {id:'f1', label:'感想①：今日の練習で「特に意識したこと」や「うまくできた動き」を詳しく', hint:'腕の角度、かかとの軸、列を揃える意識など、具体的に書こう'},
+        {id:'f2', label:'感想②：集団としてより美しく動くための「これからの課題」や「目標」を', hint:'次の授業で意識したいポイントや、周りを見て気づいたことを書こう'},
+      ];
+    });
     return {
       teacherPassword: null,
+      grades: grades,
+      classesByGrade: classesByGrade,
       templates: [{
         id: uid(),
         name: 'ラジオ体操',
@@ -285,23 +308,32 @@
             ]
           }
         ],
-        reflections: [
-          {id:'f1', label:'感想①：今日の練習で「特に意識したこと」や「うまくできた動き」を詳しく', hint:'腕の角度、かかとの軸、列を揃える意識など、具体的に書こう'},
-          {id:'f2', label:'感想②：集団としてより美しく動くための「これからの課題」や「目標」を', hint:'次の授業で意識したいポイントや、周りを見て気づいたことを書こう'},
-        ]
+        reflectionsByGrade: reflectionsByGrade
       }],
-      rosters: {'1組':[], '2組':[], '3組':[]}
+      rosters: rosters
     };
   }
 
-  // 旧バージョン（フラットな ratings 配列）のテンプレートを新しい ratingGroups 構造へ移行
-  function migrateTemplate(t){
+  // 旧バージョンのテンプレート構造を新構造へ移行
+  function migrateTemplate(t, grades){
     if(!t.ratingGroups){
       t.ratingGroups = [
         {id:'taido', name:'主体的に取り組む態度', items:[]},
         {id:'shikou', name:'思考・判断', items: t.ratings || []},
       ];
       delete t.ratings;
+    }
+    if(!t.reflectionsByGrade){
+      const base = t.reflections || [{id:'f1',label:'感想①',hint:''},{id:'f2',label:'感想②',hint:''}];
+      t.reflectionsByGrade = {};
+      grades.forEach(g=>{ t.reflectionsByGrade[g] = JSON.parse(JSON.stringify(base)); });
+      delete t.reflections;
+    } else {
+      const existingKeys = Object.keys(t.reflectionsByGrade);
+      const fallback = existingKeys.length ? t.reflectionsByGrade[existingKeys[0]] : [{id:'f1',label:'感想①',hint:''}];
+      grades.forEach(g=>{
+        if(!t.reflectionsByGrade[g]) t.reflectionsByGrade[g] = JSON.parse(JSON.stringify(fallback));
+      });
     }
     return t;
   }
@@ -316,9 +348,37 @@
       state.config = val || defaultConfig();
       if(!val){ await saveConfig(); }
       if(state.config.teacherPassword === undefined) state.config.teacherPassword = null;
-      if(!state.config.rosters) state.config.rosters = {'1組':[], '2組':[], '3組':[]};
       if(!state.config.templates) state.config.templates = [];
-      state.config.templates.forEach(migrateTemplate);
+
+      // 学年・クラス構造がない旧データを移行
+      if(!state.config.grades) state.config.grades = ['1年','2年','3年'];
+      if(!state.config.classesByGrade){
+        const oldClasses = Object.keys(state.config.rosters||{}).filter(k=>!k.includes('|'));
+        state.config.classesByGrade = {};
+        state.config.grades.forEach(g=>{
+          state.config.classesByGrade[g] = oldClasses.length ? oldClasses.slice() : ['1組','2組','3組'];
+        });
+      }
+      if(!state.config.rosters) state.config.rosters = {};
+      const looksOld = Object.keys(state.config.rosters).some(k=>!k.includes('|'));
+      if(looksOld){
+        const firstGrade = state.config.grades[0];
+        const migrated = {};
+        Object.keys(state.config.rosters).forEach(cls=>{
+          migrated[rosterKey(firstGrade, cls)] = state.config.rosters[cls];
+        });
+        state.config.rosters = migrated;
+      }
+      state.config.grades.forEach(g=>{
+        (state.config.classesByGrade[g]||[]).forEach(c=>{
+          const k = rosterKey(g,c);
+          if(!state.config.rosters[k]) state.config.rosters[k] = [];
+        });
+      });
+
+      state.config.templates.forEach(t=>migrateTemplate(t, state.config.grades));
+      state.rosterGrade = state.config.grades[0];
+      state.rosterClass = (state.config.classesByGrade[state.rosterGrade]||[])[0] || null;
     }catch(e){
       state.config = defaultConfig();
       try{ await saveConfig(); }catch(e2){ /* Firebaseに書き込めない場合はメモリ上のみで続行 */ }
@@ -468,6 +528,30 @@
         </div>
       </div>`;
     }
+    if(m.kind === 'confirmDeleteGrade'){
+      return `<div class="modal-overlay">
+        <div class="modal-card">
+          <h3>学年を削除しますか？</h3>
+          <p class="sub">「${esc(m.grade)}」のクラス・名簿データが削除されます（すでに送信された回答データ自体は残ります）。</p>
+          <div class="row" style="margin-top:14px;">
+            <button class="btn ghost" data-act="modal_cancel">キャンセル</button>
+            <button class="btn danger" data-act="modal_confirm_delete_grade">削除する</button>
+          </div>
+        </div>
+      </div>`;
+    }
+    if(m.kind === 'confirmDeleteClass'){
+      return `<div class="modal-overlay">
+        <div class="modal-card">
+          <h3>クラスを削除しますか？</h3>
+          <p class="sub">「${esc(m.grade)} ${esc(m.cls)}」の名簿データが削除されます（すでに送信された回答データ自体は残ります）。</p>
+          <div class="row" style="margin-top:14px;">
+            <button class="btn ghost" data-act="modal_cancel">キャンセル</button>
+            <button class="btn danger" data-act="modal_confirm_delete_class">削除する</button>
+          </div>
+        </div>
+      </div>`;
+    }
     return '';
   }
 
@@ -477,15 +561,26 @@
       return `
         <div class="card done-screen">
           <div class="stamp">送信完了</div>
-          <p style="color:var(--muted);">お疲れさま！次の人に交代してね。</p>
-          <button class="btn yellow" data-act="s_reset_next">次の人へわたす</button>
+          <p style="color:var(--muted);">回答ありがとうございました。この画面はもう閉じて大丈夫です。</p>
+          <button class="btn ghost" data-act="s_reset_next">別の記録でもう一度回答する</button>
         </div>
       `;
     }
-    const tpl = state.config.templates.find(t=>t.id===state.s_templateId);
 
     let html = `<div class="card">
-      <h2>① 種目を選ぶ</h2>
+      <h2>① 学年を選ぶ</h2>
+      <select data-act="s_pick_grade">
+        <option value="">-- 選択 --</option>
+        ${state.config.grades.map(g=>`<option value="${esc(g)}" ${g===state.s_grade?'selected':''}>${esc(g)}</option>`).join('')}
+      </select>
+    </div>`;
+
+    if(!state.s_grade) return html;
+
+    const tpl = state.config.templates.find(t=>t.id===state.s_templateId);
+
+    html += `<div class="card">
+      <h2>② 種目を選ぶ</h2>
       <p class="sub">今日の授業で取り組んだ種目を選んでください</p>
       <select data-act="s_pick_template">
         <option value="">-- 選択 --</option>
@@ -495,16 +590,17 @@
 
     if(!tpl) return html;
 
-    const roster = state.config.rosters[state.s_class] || [];
+    const classes = state.config.classesByGrade[state.s_grade] || [];
+    const roster = state.config.rosters[rosterKey(state.s_grade, state.s_class)] || [];
 
     html += `<div class="card">
-      <h2>② クラス・出席番号</h2>
+      <h2>③ クラス・出席番号</h2>
       <div class="row">
         <div>
           <label class="field-label">クラス</label>
           <select data-act="s_pick_class">
             <option value="">-- 選択 --</option>
-            ${CLASS_NAMES.map(c=>`<option value="${c}" ${c===state.s_class?'selected':''}>${c}</option>`).join('')}
+            ${classes.map(c=>`<option value="${esc(c)}" ${c===state.s_class?'selected':''}>${esc(c)}</option>`).join('')}
           </select>
         </div>
         <div>
@@ -515,12 +611,13 @@
           </select>
         </div>
       </div>
-      ${state.s_class && roster.length===0 ? '<p class="hint" style="color:var(--red);">このクラスの名簿がまだ登録されていません（先生モード→名簿管理）</p>':''}
+      ${state.s_class && roster.length===0 ? '<p class="hint" style="color:var(--red);">このクラスの名簿がまだ登録されていません（先生モード→学年・クラス管理）</p>':''}
     </div>`;
 
     if(state.s_class && state.s_entry){
+      const refs = tpl.reflectionsByGrade[state.s_grade] || Object.values(tpl.reflectionsByGrade)[0] || [];
       html += `<div class="card">
-        <h2>③ 自己評価① 主体的に取り組む態度</h2>
+        <h2>④ 自己評価① 主体的に取り組む態度</h2>
         <p class="sub">できていたら5、まだまだなら1</p>
         ${tpl.ratingGroups[0].items.map(r=>`
           <div class="rating-block">
@@ -534,7 +631,7 @@
       </div>
 
       <div class="card">
-        <h2>④ 自己評価② 思考・判断</h2>
+        <h2>⑤ 自己評価② 思考・判断</h2>
         <p class="sub">できていたら5、まだまだなら1</p>
         ${tpl.ratingGroups[1].items.map(r=>`
           <div class="rating-block">
@@ -548,8 +645,8 @@
       </div>
 
       <div class="card">
-        <h2>⑤ 感想・振り返り</h2>
-        ${tpl.reflections.map(f=>`
+        <h2>⑥ 感想・振り返り</h2>
+        ${refs.map(f=>`
           <div style="margin-bottom:16px;">
             <label class="field-label">${esc(f.label)}</label>
             <textarea data-act="s_reflect" data-fid="${f.id}" placeholder="${esc(f.hint)}">${esc(state.s_reflections[f.id]||'')}</textarea>
@@ -564,11 +661,12 @@
 
   async function submitStudent(){
     const tpl = state.config.templates.find(t=>t.id===state.s_templateId);
-    if(!tpl || !state.s_class || !state.s_entry) return;
+    if(!tpl || !state.s_grade || !state.s_class || !state.s_entry) return;
     const allRatingItems = [...tpl.ratingGroups[0].items, ...tpl.ratingGroups[1].items];
     const missingRating = allRatingItems.some(r=>!state.s_ratings[r.id]);
     if(missingRating){ toast('すべての評価項目を選んでください'); return; }
-    const missingReflect = tpl.reflections.some(f=>!(state.s_reflections[f.id]||'').trim());
+    const refs = tpl.reflectionsByGrade[state.s_grade] || [];
+    const missingReflect = refs.some(f=>!(state.s_reflections[f.id]||'').trim());
     if(missingReflect){ toast('感想をすべて記入してください'); return; }
 
     state.s_submitting = true; render();
@@ -576,6 +674,7 @@
       const resp = {
         id: uid(),
         templateId: tpl.id,
+        grade: state.s_grade,
         className: state.s_class,
         entry: state.s_entry,
         ratings: {...state.s_ratings},
@@ -648,7 +747,9 @@
   }
 
   function resetStudentForNext(){
-    // keep template & class, clear entry/ratings/reflections for quick rotation
+    state.s_templateId = null;
+    state.s_grade = null;
+    state.s_class = null;
     state.s_entry = null;
     state.s_ratings = {};
     state.s_reflections = {};
@@ -660,7 +761,7 @@
   function renderTeacher(){
     let html = `<div class="tabs">
       <button class="${state.teacherTab==='templates'?'active':''}" data-act="tteam" data-val="templates">種目をつくる</button>
-      <button class="${state.teacherTab==='roster'?'active':''}" data-act="tteam" data-val="roster">名簿管理</button>
+      <button class="${state.teacherTab==='roster'?'active':''}" data-act="tteam" data-val="roster">学年・クラス・名簿</button>
       <button class="${state.teacherTab==='responses'?'active':''}" data-act="tteam" data-val="responses">回答・AI採点</button>
       <button style="margin-left:auto;" data-act="change_pass">🔒 パスコード変更</button>
     </div>`;
@@ -671,13 +772,17 @@
   }
 
   function blankTemplate(){
+    const reflectionsByGrade = {};
+    (state.config.grades||['1年']).forEach(g=>{
+      reflectionsByGrade[g] = [{id:uid(),label:'',hint:''}];
+    });
     return {
       id: uid(), name:'', createdAt: Date.now(),
       ratingGroups:[
         {id:'taido', name:'主体的に取り組む態度', items:[{id:uid(),label:'',hint:''}]},
         {id:'shikou', name:'思考・判断', items:[{id:uid(),label:'',hint:''}]},
       ],
-      reflections:[{id:uid(),label:'',hint:''}]
+      reflectionsByGrade: reflectionsByGrade
     };
   }
 
@@ -714,8 +819,11 @@
         `).join('')}
         <button class="btn ghost sm" data-act="add_rating" data-group="1" style="margin-bottom:18px;">＋ 表現の評価項目を追加</button>
 
-        <label class="field-label">感想・記述式の項目</label>
-        ${t.reflections.map((f,i)=>`
+        <label class="field-label">感想・記述式の項目（学年ごとに内容を変えられます）</label>
+        <div class="row" style="margin-bottom:10px;">
+          ${state.config.grades.map(g=>`<button class="btn ${g===state.editingReflectionGrade?'yellow':'ghost'} sm" data-act="pick_edit_ref_grade" data-val="${esc(g)}">${esc(g)}</button>`).join('')}
+        </div>
+        ${(t.reflectionsByGrade[state.editingReflectionGrade]||[]).map((f,i)=>`
           <div class="item-row">
             <div class="fields">
               <input type="text" data-act="edit_ref_label" data-idx="${i}" value="${esc(f.label)}" placeholder="設問（例：今日意識したこと）">
@@ -724,7 +832,7 @@
             <button class="btn danger sm" data-act="del_ref" data-idx="${i}">削除</button>
           </div>
         `).join('')}
-        <button class="btn ghost sm" data-act="add_ref" style="margin-bottom:20px;">＋ 感想項目を追加</button>
+        <button class="btn ghost sm" data-act="add_ref" style="margin-bottom:20px;">＋ ${esc(state.editingReflectionGrade)}の感想項目を追加</button>
 
         <div class="row">
           <button class="btn yellow" data-act="save_template">保存する</button>
@@ -741,7 +849,7 @@
           <div class="tpl-item">
             <div>
               <div class="name">${esc(t.name)||'（名称未設定）'}</div>
-              <div class="meta">態度${t.ratingGroups[0].items.length}項目・表現${t.ratingGroups[1].items.length}項目・感想${t.reflections.length}項目</div>
+              <div class="meta">態度${t.ratingGroups[0].items.length}項目・判断${t.ratingGroups[1].items.length}項目・感想${(t.reflectionsByGrade[state.config.grades[0]]||[]).length}問（学年ごとに内容変更可）</div>
             </div>
             <div class="row" style="flex:none; gap:6px;">
               <button class="btn ghost sm" data-act="edit_tpl" data-id="${t.id}">編集</button>
@@ -755,13 +863,47 @@
   }
 
   function renderRosterTab(){
-    const list = state.config.rosters[state.rosterClass]||[];
-    return `<div class="card">
-      <h2>名簿管理</h2>
-      <p class="sub">「出席番号 名前」の形式で1行ずつ貼り付けてください（例：3 佐藤花子）</p>
-      <div class="row" style="margin-bottom:10px;">
-        ${CLASS_NAMES.map(c=>`<button class="btn ${c===state.rosterClass?'yellow':'ghost'} sm" data-act="pick_roster_class" data-val="${c}">${c}</button>`).join('')}
+    const grades = state.config.grades;
+    const classes = state.config.classesByGrade[state.rosterGrade] || [];
+    const key = rosterKey(state.rosterGrade, state.rosterClass);
+    const list = state.config.rosters[key] || [];
+    return `
+    <div class="card">
+      <h2>学年・クラス管理</h2>
+      <p class="sub">学年やクラスは自由に追加・削除できます</p>
+
+      <label class="field-label">学年</label>
+      <div class="row" style="margin-bottom:8px;">
+        ${grades.map(g=>`
+          <div style="display:flex; gap:4px; flex:none;">
+            <button class="btn ${g===state.rosterGrade?'yellow':'ghost'} sm" data-act="pick_roster_grade" data-val="${esc(g)}">${esc(g)}</button>
+            <button class="btn danger sm" data-act="del_grade" data-val="${esc(g)}" title="この学年を削除">×</button>
+          </div>
+        `).join('')}
       </div>
+      <div class="row" style="margin-bottom:18px;">
+        <input type="text" id="newGradeInput" placeholder="新しい学年名（例：4年）">
+        <button class="btn ghost sm" data-act="add_grade">＋学年を追加</button>
+      </div>
+
+      <label class="field-label">クラス（${esc(state.rosterGrade)}）</label>
+      <div class="row" style="margin-bottom:8px;">
+        ${classes.map(c=>`
+          <div style="display:flex; gap:4px; flex:none;">
+            <button class="btn ${c===state.rosterClass?'yellow':'ghost'} sm" data-act="pick_roster_class" data-val="${esc(c)}">${esc(c)}</button>
+            <button class="btn danger sm" data-act="del_class" data-val="${esc(c)}" title="このクラスを削除">×</button>
+          </div>
+        `).join('')}
+      </div>
+      <div class="row">
+        <input type="text" id="newClassInput" placeholder="新しいクラス名（例：4組）">
+        <button class="btn ghost sm" data-act="add_class">＋クラスを追加</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>名簿（${esc(state.rosterGrade)} ${esc(state.rosterClass||'')}）</h2>
+      <p class="sub">「出席番号 名前」の形式で1行ずつ貼り付けてください（例：3 佐藤花子）</p>
       <textarea id="rosterTextarea" rows="10" placeholder="1 山田太郎&#10;2 鈴木花子&#10;3 佐藤次郎">${esc(state.rosterDraft!==null && state.rosterDraft!=='' ? state.rosterDraft : list.join('\n'))}</textarea>
       <div class="row" style="margin-top:10px;">
         <button class="btn yellow" data-act="save_roster">この名簿を保存（${list.length}名 登録中）</button>
@@ -771,6 +913,7 @@
 
   function renderResponsesTab(){
     const tplOptions = state.config.templates.map(t=>`<option value="${t.id}" ${t.id===state.r_templateId?'selected':''}>${esc(t.name)}</option>`).join('');
+    const classOptionsForFilter = state.r_gradeFilter!=='all' ? (state.config.classesByGrade[state.r_gradeFilter]||[]) : [];
     let body = `<div class="card">
       <h2>回答一覧・AI採点</h2>
       <p class="sub">感想の記述を「思考・判断」「主体的に取り組む態度」の観点でAIが下書き採点します（最終判断は先生がご確認ください）</p>
@@ -779,9 +922,13 @@
           <option value="">-- 種目を選択 --</option>
           ${tplOptions}
         </select>
-        <select data-act="pick_r_class">
-          <option value="all" ${state.r_classFilter==='all'?'selected':''}>すべてのクラス</option>
-          ${CLASS_NAMES.map(c=>`<option value="${c}" ${c===state.r_classFilter?'selected':''}>${c}</option>`).join('')}
+        <select data-act="pick_r_grade">
+          <option value="all" ${state.r_gradeFilter==='all'?'selected':''}>すべての学年</option>
+          ${state.config.grades.map(g=>`<option value="${esc(g)}" ${g===state.r_gradeFilter?'selected':''}>${esc(g)}</option>`).join('')}
+        </select>
+        <select data-act="pick_r_class" ${state.r_gradeFilter==='all'?'disabled':''}>
+          <option value="all">すべてのクラス</option>
+          ${classOptionsForFilter.map(c=>`<option value="${esc(c)}" ${c===state.r_classFilter?'selected':''}>${esc(c)}</option>`).join('')}
         </select>
       </div>
     </div>`;
@@ -796,8 +943,9 @@
     }
     const tpl = state.config.templates.find(t=>t.id===state.r_templateId);
     let rows = state.r_responses;
-    if(state.r_classFilter!=='all') rows = rows.filter(r=>r.className===state.r_classFilter);
-    rows = rows.slice().sort((a,b)=>a.className.localeCompare(b.className) || a.entry.localeCompare(b.entry,'ja'));
+    if(state.r_gradeFilter!=='all') rows = rows.filter(r=>r.grade===state.r_gradeFilter);
+    if(state.r_gradeFilter!=='all' && state.r_classFilter!=='all') rows = rows.filter(r=>r.className===state.r_classFilter);
+    rows = rows.slice().sort((a,b)=>(a.grade||'').localeCompare(b.grade||'') || a.className.localeCompare(b.className) || a.entry.localeCompare(b.entry,'ja'));
 
     const ungraded = rows.filter(r=>!r.aiScore).length;
     const allRatingItems = [...tpl.ratingGroups[0].items, ...tpl.ratingGroups[1].items];
@@ -812,23 +960,24 @@
       <div style="overflow-x:auto;">
       <table>
         <thead><tr>
-          <th>クラス</th><th>出席番号・氏名</th>
+          <th>学年</th><th>クラス</th><th>出席番号・氏名</th>
           ${tpl.ratingGroups[0].items.map(r=>`<th>[態度]${esc(r.label)}</th>`).join('')}
           ${tpl.ratingGroups[1].items.map(r=>`<th>[判断]${esc(r.label)}</th>`).join('')}
           <th>感想（抜粋）</th>
-          <th>AI採点(0-10)</th>
-          <th>文字数B(0-8)</th>
-          <th>合計(0-18)</th>
+          <th>AI採点</th>
+          <th>文字数B</th>
+          <th>合計</th>
           <th></th>
         </tr></thead>
         <tbody>
         ${rows.map(r=>`
           <tr>
+            <td>${esc(r.grade||'-')}</td>
             <td>${esc(r.className)}</td>
             <td>${esc(r.entry)}</td>
             ${allRatingItems.map(rt=>`<td class="mono">${r.ratings[rt.id]||'-'}</td>`).join('')}
             <td style="max-width:220px;">${esc(Object.values(r.reflections)[0]||'').slice(0,40)}…</td>
-            <td>${r.aiScore ? `<span class="mono" title="${esc(r.aiScore.comment)}">${r.aiScore.ai}</span>` : '<span class="pending">未採点</span>'}</td>
+            <td>${r.aiScore ? `<span class="mono">${r.aiScore.ai}</span>` : '<span class="pending">未採点</span>'}</td>
             <td class="mono">${r.aiScore ? r.aiScore.bonus : '-'}</td>
             <td>${renderScoreCell(r)}</td>
             <td>
@@ -836,7 +985,7 @@
                 `<button class="btn ghost sm" data-act="grade_one" data-id="${r.id}">${r.aiScore?'再採点':'AI採点'}</button>`}
             </td>
           </tr>
-        `).join('') || `<tr><td colspan="10" class="empty">回答がまだありません</td></tr>`}
+        `).join('') || `<tr><td colspan="12" class="empty">回答がまだありません</td></tr>`}
         </tbody>
       </table>
       </div>
@@ -846,20 +995,19 @@
 
   function renderScoreCell(r){
     if(!r.aiScore) return '<span class="pending">未採点</span>';
-    const total = r.aiScore.total;
+    const n = (r.aiScore.aiPerItem||[1]).length || 1;
+    const max = n*9;
+    const pct = max>0 ? r.aiScore.total/max : 0;
     let cls = 's1';
-    if(total >= 15) cls='s5';
-    else if(total >= 12) cls='s4';
-    else if(total >= 8) cls='s3';
-    else if(total >= 4) cls='s2';
-    return `<span class="score-pill ${cls}" title="${esc(r.aiScore.comment)}">${total}</span>`;
+    if(pct>=0.8) cls='s5';
+    else if(pct>=0.65) cls='s4';
+    else if(pct>=0.45) cls='s3';
+    else if(pct>=0.25) cls='s2';
+    return `<span class="score-pill ${cls}">${r.aiScore.total}</span>`;
   }
 
-  // ---------- AI grading via Anthropic API ----------
-  // 以前使っていたGAS+Geminiの採点ロジックと同じ基準・同じ配点方式に合わせている。
-  // ・感想①②それぞれの文字数から「記述量ボーナス」を算出（各0〜4点、合計0〜8点）
-  // ・感想①②をまとめてAIが0〜10点で採点（内容の深さ・具体性・意欲）
-  // ・合計スコア = AI採点(0〜10) + 記述量ボーナス(0〜8) → 最大18点
+  // ---------- AI grading via Gemini ----------
+  // 感想は何問あってもOK。1問ずつ「内容(0-5点)」と「文字数ボーナス(0-4点)」を算出し、合計する。
   function calcLengthBonus(text){
     const len = (text||'').trim().length;
     if(len >= 100) return 4;
@@ -870,29 +1018,32 @@
   }
 
   async function gradeResponse(tpl, resp){
-    const refIds = tpl.reflections.map(f=>f.id);
-    const text1 = resp.reflections[refIds[0]] || '';
-    const text2 = resp.reflections[refIds[1]] || '';
-    const lengthBonus = calcLengthBonus(text1) + calcLengthBonus(text2);
+    const refs = (tpl.reflectionsByGrade && tpl.reflectionsByGrade[resp.grade])
+      || (tpl.reflectionsByGrade ? Object.values(tpl.reflectionsByGrade)[0] : [])
+      || [];
+    const texts = refs.map(f => resp.reflections[f.id] || '');
+    const bonusPerItem = texts.map(t => calcLengthBonus(t));
+    const totalBonus = bonusPerItem.reduce((a,b)=>a+b, 0);
+
+    const listText = texts.map((t,i)=>`感想${i+1}：${t}`).join('\n');
 
     const prompt = `あなたは中学校の体育の先生です。生徒が書いた【集団行動】の感想を採点してください。
-感想①：${text1}
-感想②：${text2}
+${listText}
 
-【重要】感想①と②をそれぞれ5点満点で採点し、合計【0〜10点】の数字のみ返してください。
+【重要】感想をひとつずつ5点満点で採点してください。感想が${texts.length}個あるので、${texts.length}個の整数（各0〜5点）を半角カンマ区切りで返してください。それ以外の文字は一切含めないでください。
 
 ■採点基準（思考・判断 ＆ 主体的な態度）
 ・自分の動きの課題を見つけ、どう修正すべきか具体的に考えられているか。
 ・集団の美しさを高めるための工夫や、周りと合わせるための判断ができているか。
 ・規律を守り、意欲的に取り組もうとする姿勢が文章から伝わるか。
 
-■ルール
+■ルール（各感想ごとの目安）
 1〜2点：記述が非常に短い、または内容が抽象的。
 3点：一般的な感想。
 4点：自分や集団の課題を具体的に分析し、工夫した点が書けている。
 5点：動きのポイントを深く理解し、高い意欲と深い分析が両立している。
 
-数字のみ返答例：「7」`;
+出力例（感想が2個の場合）："4,3"`;
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
     const response = await fetch(url, {
@@ -901,11 +1052,18 @@
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
     });
     const json = await response.json();
-    const aiScore = parseInt(json.candidates[0].content.parts[0].text.trim());
+    const raw = (json.candidates[0].content.parts[0].text || '').trim();
+    let aiPerItem = raw.split(/[,、\s]+/).map(s=>parseInt(s)).filter(n=>!isNaN(n));
+    while(aiPerItem.length < texts.length) aiPerItem.push(0);
+    aiPerItem = aiPerItem.slice(0, texts.length);
+    const totalAi = aiPerItem.reduce((a,b)=>a+b, 0);
+
     return {
-      ai: aiScore,
-      bonus: lengthBonus,
-      total: aiScore + lengthBonus,
+      aiPerItem: aiPerItem,
+      bonusPerItem: bonusPerItem,
+      ai: totalAi,
+      bonus: totalBonus,
+      total: totalAi + totalBonus,
       comment: ''
     };
   }
@@ -946,25 +1104,26 @@
   function exportCsv(){
     const tpl = state.config.templates.find(t=>t.id===state.r_templateId);
     if(!tpl) return;
-    const allRatingItems = [...tpl.ratingGroups[0].items, ...tpl.ratingGroups[1].items];
-    const headers = ['クラス','出席番号・氏名', ...allRatingItems.map(r=>r.label), ...tpl.reflections.map(f=>f.label), 'AI採点(0-10)','文字数ボーナス(0-8)','合計(0-18)','AI講評'];
+    const taidoIds = tpl.ratingGroups[0].items.map(i=>i.id);
+    const shikouIds = tpl.ratingGroups[1].items.map(i=>i.id);
+    const headers = ['学年','クラス','出席番号・氏名','主体的に取り組む態度(合計)','思考・判断(合計)','感想AI採点(内容)','文字数加点','総合計'];
     const lines = [headers.join(',')];
     state.r_responses.forEach(r=>{
+      const taidoTotal = taidoIds.reduce((s,id)=> s + (r.ratings[id]||0), 0);
+      const shikouTotal = shikouIds.reduce((s,id)=> s + (r.ratings[id]||0), 0);
       const row = [
-        r.className, r.entry,
-        ...allRatingItems.map(rt=>r.ratings[rt.id]||''),
-        ...tpl.reflections.map(f=>`"${(r.reflections[f.id]||'').replace(/"/g,'""')}"`),
+        r.grade||'', r.className, r.entry,
+        taidoTotal, shikouTotal,
         r.aiScore?r.aiScore.ai:'',
         r.aiScore?r.aiScore.bonus:'',
         r.aiScore?r.aiScore.total:'',
-        r.aiScore?`"${(r.aiScore.comment||'').replace(/"/g,'""')}"`:'',
       ];
       lines.push(row.join(','));
     });
     const blob = new Blob(["\uFEFF"+lines.join('\n')], {type:'text/csv'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = `${tpl.name}_回答一覧.csv`;
+    a.href = url; a.download = `${tpl.name}_集計.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -991,8 +1150,8 @@
     if(act==='edit_name') t.name = el.value;
     else if(act==='edit_rating_label') t.ratingGroups[g].items[idx].label = el.value;
     else if(act==='edit_rating_hint') t.ratingGroups[g].items[idx].hint = el.value;
-    else if(act==='edit_ref_label') t.reflections[idx].label = el.value;
-    else if(act==='edit_ref_hint') t.reflections[idx].hint = el.value;
+    else if(act==='edit_ref_label') t.reflectionsByGrade[state.editingReflectionGrade][idx].label = el.value;
+    else if(act==='edit_ref_hint') t.reflectionsByGrade[state.editingReflectionGrade][idx].hint = el.value;
   }
 
   async function handleAction(act, el){
@@ -1007,6 +1166,10 @@
         break;
 
       // student
+      case 's_pick_grade':
+        state.s_grade = el.value || null;
+        state.s_class = null; state.s_entry = null;
+        render(); break;
       case 's_pick_template':
         state.s_templateId = el.value || null;
         state.s_ratings = {}; state.s_reflections = {};
@@ -1031,9 +1194,12 @@
 
       // templates
       case 'new_tpl':
-        state.editingTemplate = blankTemplate(); render(); break;
+        state.editingTemplate = blankTemplate();
+        state.editingReflectionGrade = state.config.grades[0];
+        render(); break;
       case 'edit_tpl':
         state.editingTemplate = JSON.parse(JSON.stringify(state.config.templates.find(t=>t.id===el.dataset.id)));
+        state.editingReflectionGrade = state.config.grades[0];
         render(); break;
       case 'del_tpl': {
         const t = state.config.templates.find(t=>t.id===el.dataset.id);
@@ -1048,11 +1214,16 @@
         if(grp.items.length<=1){ toast('評価項目は各カテゴリ最低1つ必要です'); return; }
         grp.items.splice(parseInt(el.dataset.idx),1); render(); break;
       }
+      case 'pick_edit_ref_grade':
+        state.editingReflectionGrade = el.dataset.val; render(); break;
       case 'add_ref':
-        state.editingTemplate.reflections.push({id:uid(),label:'',hint:''}); render(); break;
-      case 'del_ref':
-        if(state.editingTemplate.reflections.length<=1){ toast('感想項目は最低1つ必要です'); return; }
-        state.editingTemplate.reflections.splice(parseInt(el.dataset.idx),1); render(); break;
+        if(!state.editingTemplate.reflectionsByGrade[state.editingReflectionGrade]) state.editingTemplate.reflectionsByGrade[state.editingReflectionGrade] = [];
+        state.editingTemplate.reflectionsByGrade[state.editingReflectionGrade].push({id:uid(),label:'',hint:''}); render(); break;
+      case 'del_ref': {
+        const arr = state.editingTemplate.reflectionsByGrade[state.editingReflectionGrade];
+        if(!arr || arr.length<=1){ toast('感想項目は各学年最低1つ必要です'); return; }
+        arr.splice(parseInt(el.dataset.idx),1); render(); break;
+      }
       case 'save_template': {
         const t = state.editingTemplate;
         if(!t.name.trim()){ toast('種目名を入力してください'); return; }
@@ -1067,14 +1238,63 @@
       case 'cancel_edit':
         state.editingTemplate = null; render(); break;
 
-      // roster
+      // 学年・クラス・名簿
+      case 'pick_roster_grade':
+        state.rosterGrade = el.dataset.val;
+        state.rosterClass = (state.config.classesByGrade[state.rosterGrade]||[])[0] || null;
+        state.rosterDraft='';
+        render(); break;
       case 'pick_roster_class':
         state.rosterClass = el.dataset.val; state.rosterDraft='';
         render(); break;
+      case 'add_grade': {
+        const val = (document.getElementById('newGradeInput').value||'').trim();
+        if(!val){ toast('学年名を入力してください'); return; }
+        if(state.config.grades.includes(val)){ toast('その学年は既にあります'); return; }
+        state.config.grades.push(val);
+        state.config.classesByGrade[val] = ['1組','2組','3組'];
+        state.config.classesByGrade[val].forEach(c=>{ state.config.rosters[rosterKey(val,c)] = []; });
+        state.config.templates.forEach(t=>{
+          if(!t.reflectionsByGrade) t.reflectionsByGrade = {};
+          if(!t.reflectionsByGrade[val]) t.reflectionsByGrade[val] = [{id:uid(),label:'',hint:''}];
+        });
+        await saveConfig();
+        state.rosterGrade = val;
+        state.rosterClass = state.config.classesByGrade[val][0];
+        toast('学年を追加しました');
+        render();
+        break;
+      }
+      case 'del_grade': {
+        if(state.config.grades.length<=1){ toast('学年は最低1つ必要です'); return; }
+        state.modal = {kind:'confirmDeleteGrade', grade: el.dataset.val};
+        render();
+        break;
+      }
+      case 'add_class': {
+        const val = (document.getElementById('newClassInput').value||'').trim();
+        if(!val){ toast('クラス名を入力してください'); return; }
+        const arr = state.config.classesByGrade[state.rosterGrade];
+        if(arr.includes(val)){ toast('そのクラスは既にあります'); return; }
+        arr.push(val);
+        state.config.rosters[rosterKey(state.rosterGrade,val)] = [];
+        await saveConfig();
+        state.rosterClass = val;
+        toast('クラスを追加しました');
+        render();
+        break;
+      }
+      case 'del_class': {
+        const arr = state.config.classesByGrade[state.rosterGrade];
+        if(arr.length<=1){ toast('クラスは各学年最低1つ必要です'); return; }
+        state.modal = {kind:'confirmDeleteClass', grade: state.rosterGrade, cls: el.dataset.val};
+        render();
+        break;
+      }
       case 'save_roster': {
         const ta = document.getElementById('rosterTextarea');
         const names = ta.value.split('\n').map(s=>s.trim()).filter(Boolean);
-        state.config.rosters[state.rosterClass] = names;
+        state.config.rosters[rosterKey(state.rosterGrade, state.rosterClass)] = names;
         await saveConfig();
         state.rosterDraft='';
         toast('名簿を保存しました');
@@ -1094,6 +1314,8 @@
           stopRealtimeResponses();
         }
         render(); break;
+      case 'pick_r_grade':
+        state.r_gradeFilter = el.value; state.r_classFilter='all'; render(); break;
       case 'pick_r_class':
         state.r_classFilter = el.value; render(); break;
       case 'grade_one':
@@ -1118,6 +1340,33 @@
         state.modal = null;
         render();
         break;
+      case 'modal_confirm_delete_grade': {
+        const g = state.modal.grade;
+        state.config.grades = state.config.grades.filter(x=>x!==g);
+        delete state.config.classesByGrade[g];
+        Object.keys(state.config.rosters).forEach(k=>{ if(k.indexOf(g+'|')===0) delete state.config.rosters[k]; });
+        state.config.templates.forEach(t=>{ if(t.reflectionsByGrade) delete t.reflectionsByGrade[g]; });
+        await saveConfig();
+        if(state.rosterGrade===g){
+          state.rosterGrade = state.config.grades[0];
+          state.rosterClass = (state.config.classesByGrade[state.rosterGrade]||[])[0] || null;
+        }
+        state.modal = null;
+        render();
+        break;
+      }
+      case 'modal_confirm_delete_class': {
+        const g = state.modal.grade, c = state.modal.cls;
+        state.config.classesByGrade[g] = (state.config.classesByGrade[g]||[]).filter(x=>x!==c);
+        delete state.config.rosters[rosterKey(g,c)];
+        await saveConfig();
+        if(state.rosterGrade===g && state.rosterClass===c){
+          state.rosterClass = (state.config.classesByGrade[g]||[])[0] || null;
+        }
+        state.modal = null;
+        render();
+        break;
+      }
     }
   }
 
