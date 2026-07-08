@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>集団行動 振り返りひろば</title>
+<title>各種目 振り返り入力アプリ</title>
 
 <!-- ▼▼▼ ここから設定 ▼▼▼ ------------------------------------------------
   1) Firebaseコンソール(https://console.firebase.google.com/)でプロジェクトを作成
@@ -444,9 +444,9 @@
     }
     $app.innerHTML = `
       <header class="top">
-        <div class="eyebrow">TAIIKU · シュウダンコウドウ</div>
-        <h1>集団行動 振り返りひろば</h1>
-        <p>キレ・揃える意識・正しい姿勢 ── 今日の動きを、自分の言葉でふり返る</p>
+        <div class="eyebrow">TAIIKU · シンタイイクカ</div>
+        <h1>各種目 振り返り入力アプリ</h1>
+        <p>今日取り組んだ種目を選んで、自分の動きを自分の言葉でふり返る</p>
       </header>
       <div class="lanes"></div>
       <div class="modeswitch">
@@ -1027,7 +1027,7 @@
 
     const listText = texts.map((t,i)=>`感想${i+1}：${t}`).join('\n');
 
-    const prompt = `あなたは中学校の体育の先生です。生徒が書いた【集団行動】の感想を採点してください。
+    const prompt = `あなたは中学校の体育の先生です。生徒が書いた【${tpl.name}】の感想を採点してください。
 ${listText}
 
 【重要】感想をひとつずつ5点満点で採点してください。感想が${texts.length}個あるので、${texts.length}個の整数（各0〜5点）を半角カンマ区切りで返してください。それ以外の文字は一切含めないでください。
