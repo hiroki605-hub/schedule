@@ -186,6 +186,7 @@ onValue(dbRef, (snapshot) => {
   if (val) {
     if (val.names) state.names = val.names;
     if (val.schedules) state.schedules = val.schedules;
+    if (val.plans) state.plans = val.plans;
   }
   setSyncBar('ok', '✅ リアルタイム同期中');
   rebuildAll();
