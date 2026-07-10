@@ -1025,6 +1025,15 @@
 
     const ungraded = rows.filter(r=>!r.aiScore).length;
     const allRatingItems = [...tpl.ratingGroups[0].items, ...tpl.ratingGroups[1].items];
+    const refCount = (tpl.reflections||[]).length || 1;
+    const maxAi = refCount * 5;
+    const maxBonus = refCount * 4;
+    const maxTotal = refCount * 9;
+
+    function shortLabel(s){
+      s = s || '';
+      return s.length > 8 ? esc(s.slice(0,8)) + '…' : esc(s);
+    }
 
     body += `<div class="card">
       <div class="row" style="margin-bottom:12px; align-items:center;">
@@ -1040,12 +1049,12 @@
         <thead><tr>
           <th><input type="checkbox" data-act="toggle_select_all" ${allSelected?'checked':''}></th>
           <th>学年</th><th>クラス</th><th>出席番号・氏名</th>
-          ${tpl.ratingGroups[0].items.map(r=>`<th>[態度]${esc(r.label)}</th>`).join('')}
-          ${tpl.ratingGroups[1].items.map(r=>`<th>[判断]${esc(r.label)}</th>`).join('')}
+          ${tpl.ratingGroups[0].items.map(r=>`<th title="${esc(r.label)}">[態度]${shortLabel(r.label)}</th>`).join('')}
+          ${tpl.ratingGroups[1].items.map(r=>`<th title="${esc(r.label)}">[判断]${shortLabel(r.label)}</th>`).join('')}
           <th>感想（抜粋）</th>
-          <th>AI採点</th>
-          <th>文字数B</th>
-          <th>合計</th>
+          <th>AI採点（${maxAi}点満点）</th>
+          <th>文字数B（${maxBonus}点満点）</th>
+          <th>合計（${maxTotal}点満点）</th>
           <th></th>
         </tr></thead>
         <tbody>
@@ -1055,11 +1064,11 @@
             <td>${esc(r.grade||'-')}</td>
             <td>${esc(r.className)}</td>
             <td>${esc(r.entry)}</td>
-            ${allRatingItems.map(rt=>`<td class="mono">${r.ratings[rt.id]||'-'}</td>`).join('')}
+            ${allRatingItems.map(rt=>`<td class="mono" title="${esc(rt.label)}">${r.ratings[rt.id]||'-'}</td>`).join('')}
             <td style="max-width:220px;">${esc(Object.values(r.reflections)[0]||'').slice(0,40)}…</td>
-            <td>${r.aiScore ? `<span class="mono">${r.aiScore.ai}</span>` : '<span class="pending">未採点</span>'}</td>
-            <td class="mono">${r.aiScore ? r.aiScore.bonus : '-'}</td>
-            <td>${renderScoreCell(r)}</td>
+            <td>${r.aiScore ? `<span class="mono">${r.aiScore.ai} / ${maxAi}</span>` : '<span class="pending">未採点</span>'}</td>
+            <td class="mono">${r.aiScore ? `${r.aiScore.bonus} / ${maxBonus}` : '-'}</td>
+            <td>${renderScoreCell(r, maxTotal)}</td>
             <td style="white-space:nowrap;">
               ${state.r_grading[r.id] ? '<span class="pending">採点中…</span>' :
                 `<button class="btn ghost sm" data-act="grade_one" data-id="${r.id}">${r.aiScore?'再採点':'AI採点'}</button>`}
@@ -1074,17 +1083,17 @@
     return body;
   }
 
-  function renderScoreCell(r){
+  function renderScoreCell(r, maxTotal){
     if(!r.aiScore) return '<span class="pending">未採点</span>';
     const n = (r.aiScore.aiPerItem||[1]).length || 1;
-    const max = n*9;
+    const max = maxTotal || (n*9);
     const pct = max>0 ? r.aiScore.total/max : 0;
     let cls = 's1';
     if(pct>=0.8) cls='s5';
     else if(pct>=0.65) cls='s4';
     else if(pct>=0.45) cls='s3';
     else if(pct>=0.25) cls='s2';
-    return `<span class="score-pill ${cls}">${r.aiScore.total}</span>`;
+    return `<span class="score-pill ${cls}">${r.aiScore.total} / ${max}</span>`;
   }
 
   // ---------- AI grading via Gemini ----------
