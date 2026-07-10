@@ -262,6 +262,7 @@
     r_loading: false,
     r_grading: {}, // responseId -> true while grading
     r_selected: {}, // responseId -> true (削除用チェック状態)
+    rubricGenerating: false,
     r_visibleIds: [], // 直近の表示行のid一覧（全選択・全件削除に使用）
   };
 
@@ -888,8 +889,11 @@
         <button class="btn ghost sm" data-act="add_ref" style="margin-bottom:20px;">＋ 感想項目を追加</button>
 
         <label class="field-label">AI採点基準（この種目の「思考・判断」「主体的な態度」の観点）</label>
+        <div class="row" style="margin-bottom:8px;">
+          <button class="btn ghost sm" data-act="auto_gen_rubric" ${state.rubricGenerating?'disabled':''}>${state.rubricGenerating?'生成中…':'✨ 感想のヒントから自動生成'}</button>
+        </div>
         <textarea data-act="edit_rubric" style="min-height:110px; margin-bottom:6px;" placeholder="この種目ならではの採点基準を書いてください">${esc(t.aiRubric||'')}</textarea>
-        <p class="hint" style="margin-top:0 0 20px;">感想をAIが採点する際に使う基準文です。種目の内容に合わせて自由に書き換えてください（例：走り高跳びなら「助走のリズムや踏切位置について具体的に振り返れているか」など）。</p>
+        <p class="hint" style="margin-top:0 0 20px;">感想の設問・ヒントの内容を読み取って、上のボタンでAIに基準文を作らせることもできます。生成後も自由に書き換えられます。</p>
 
         <div class="row" style="margin-top:20px;">
           <button class="btn yellow" data-act="save_template">保存する</button>
@@ -1092,6 +1096,40 @@
     if(len >= 50) return 2;
     if(len >= 25) return 1;
     return 0;
+  }
+
+  // 感想の設問・ヒントの内容から、その種目ならではのAI採点基準文を自動生成する
+  async function generateRubricFromHints(t){
+    const refs = t.reflections || [];
+    const refsText = refs.map((f,i)=>`感想${i+1} 設問：${f.label||'(未入力)'}\n感想${i+1} ヒント：${f.hint||'(未入力)'}`).join('\n');
+
+    const prompt = `あなたは中学校保健体育科の教員です。以下は「${t.name || '（種目名未設定）'}」という種目の振り返りシートで、生徒に書かせる感想の設問とヒントです。
+
+${refsText}
+
+この設問・ヒントの内容から、生徒の感想を採点する際に使う「AI採点基準」を作成してください。
+観点は「思考・判断」と「主体的に取り組む態度」です。
+
+■出力ルール
+・箇条書きで2〜4個
+・各項目は「・」で始める1文
+・この種目・この設問ならではの具体的な視点を盛り込むこと（他の種目にも当てはまるような一般論にしない）
+・出力は箇条書きの本文のみ。前置きや説明、見出し、コードブロックの記号は一切つけない
+
+出力例（走り高跳びの場合）：
+・助走のリズムと踏切位置について、具体的な数値や感覚を交えて分析できているか。
+・記録を伸ばすための次回の目標が、動作の改善点と結びついているか。
+・練習に意欲的に取り組み、仲間の跳躍からも学ぼうとする姿勢が伝わるか。`;
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const response = await fetch(url, {
+      method: "post",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+    });
+    const json = await response.json();
+    const raw = (json.candidates[0].content.parts[0].text || '').trim();
+    return raw.replace(/```/g,'').trim();
   }
 
   async function gradeResponse(tpl, resp){
@@ -1310,6 +1348,26 @@ ${rubric}
         const arr = state.editingTemplate.reflections;
         if(arr.length<=1){ toast('感想項目は最低1つ必要です'); return; }
         arr.splice(parseInt(el.dataset.idx),1); render(); break;
+      }
+      case 'auto_gen_rubric': {
+        const t = state.editingTemplate;
+        const hasContent = (t.reflections||[]).some(f=>(f.label||'').trim() || (f.hint||'').trim());
+        if(!hasContent){ toast('先に感想の設問かヒントを入力してください'); return; }
+        state.rubricGenerating = true; render();
+        try{
+          const rubric = await generateRubricFromHints(t);
+          if(rubric){
+            t.aiRubric = rubric;
+            toast('AI採点基準を生成しました（内容は自由に編集できます）');
+          } else {
+            toast('生成に失敗しました。もう一度お試しください');
+          }
+        }catch(e){
+          toast('生成に失敗しました。もう一度お試しください');
+        }
+        state.rubricGenerating = false;
+        render();
+        break;
       }
       case 'save_template': {
         const t = state.editingTemplate;
