@@ -249,13 +249,11 @@
     modal: null,
     // teacher: template editor
     editingTemplate: null, // object being edited, or null
-    editingReflectionGrade: null, // どの学年の感想を編集中か
+    tpl_gradeFilter: 'all', // 種目一覧の学年フィルタ
     // teacher: roster editor
     rosterGrade: null,
     rosterClass: null,
     rosterDraft: '',
-    newGradeDraft: '',
-    newClassDraft: '',
     // teacher: responses view
     r_templateId: null,
     r_gradeFilter: 'all',
@@ -263,10 +261,16 @@
     r_responses: [],
     r_loading: false,
     r_grading: {}, // responseId -> true while grading
+    r_selected: {}, // responseId -> true (削除用チェック状態)
+    r_visibleIds: [], // 直近の表示行のid一覧（全選択・全件削除に使用）
   };
 
   function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  const DEFAULT_AI_RUBRIC = `・自分の動きの課題を見つけ、どう修正すべきか具体的に考えられているか。
+・より上手く（美しく／正確に／安全に）行うための工夫や、判断ができているか。
+・規律を守り、意欲的に取り組もうとする姿勢が文章から伝わるか。`;
 
   function defaultConfig(){
     const grades = ['1年','2年','3年'];
@@ -276,13 +280,6 @@
       classesByGrade[g] = ['1組','2組','3組'];
       classesByGrade[g].forEach(c=>{ rosters[rosterKey(g,c)] = []; });
     });
-    const reflectionsByGrade = {};
-    grades.forEach(g=>{
-      reflectionsByGrade[g] = [
-        {id:'f1', label:'感想①：今日の練習で「特に意識したこと」や「うまくできた動き」を詳しく', hint:'腕の角度、かかとの軸、列を揃える意識など、具体的に書こう'},
-        {id:'f2', label:'感想②：集団としてより美しく動くための「これからの課題」や「目標」を', hint:'次の授業で意識したいポイントや、周りを見て気づいたことを書こう'},
-      ];
-    });
     return {
       teacherPassword: null,
       grades: grades,
@@ -291,6 +288,7 @@
         id: uid(),
         name: 'ラジオ体操',
         createdAt: Date.now(),
+        targetGrade: grades[0],
         ratingGroups: [
           {
             id:'taido', name:'主体的に取り組む態度',
@@ -308,34 +306,65 @@
             ]
           }
         ],
-        reflectionsByGrade: reflectionsByGrade
+        reflections: [
+          {id:'f1', label:'感想①：今日の練習で「特に意識したこと」や「うまくできた動き」を詳しく', hint:'腕の角度、かかとの軸、列を揃える意識など、具体的に書こう'},
+          {id:'f2', label:'感想②：集団としてより美しく動くための「これからの課題」や「目標」を', hint:'次の授業で意識したいポイントや、周りを見て気づいたことを書こう'},
+        ],
+        aiRubric: DEFAULT_AI_RUBRIC
       }],
       rosters: rosters
     };
   }
 
-  // 旧バージョンのテンプレート構造を新構造へ移行
-  function migrateTemplate(t, grades){
-    if(!t.ratingGroups){
-      t.ratingGroups = [
-        {id:'taido', name:'主体的に取り組む態度', items:[]},
+  // 旧バージョン（reflectionsByGrade等）のテンプレート構造を「1種目=1学年」構造へ移行
+  // ・reflectionsByGradeを持つ種目は、学年ごとに別々の種目として分割する
+  function migrateConfigTemplates(cfg){
+    const grades = cfg.grades && cfg.grades.length ? cfg.grades : ['1年'];
+    const oldList = cfg.templates || [];
+    const needsMigration = oldList.some(t => !t.targetGrade);
+    if(!needsMigration){
+      // 既に新構造。aiRubricが無ければ補うだけ
+      oldList.forEach(t=>{ if(t.aiRubric===undefined) t.aiRubric = DEFAULT_AI_RUBRIC; });
+      return false;
+    }
+    const newList = [];
+    oldList.forEach(t=>{
+      if(t.targetGrade){
+        if(t.aiRubric===undefined) t.aiRubric = DEFAULT_AI_RUBRIC;
+        newList.push(t);
+        return;
+      }
+      const ratingGroups = t.ratingGroups || [
+        {id:'taido', name:'主体的に取り組む態度', items: []},
         {id:'shikou', name:'思考・判断', items: t.ratings || []},
       ];
-      delete t.ratings;
-    }
-    if(!t.reflectionsByGrade){
-      const base = t.reflections || [{id:'f1',label:'感想①',hint:''},{id:'f2',label:'感想②',hint:''}];
-      t.reflectionsByGrade = {};
-      grades.forEach(g=>{ t.reflectionsByGrade[g] = JSON.parse(JSON.stringify(base)); });
-      delete t.reflections;
-    } else {
-      const existingKeys = Object.keys(t.reflectionsByGrade);
-      const fallback = existingKeys.length ? t.reflectionsByGrade[existingKeys[0]] : [{id:'f1',label:'感想①',hint:''}];
-      grades.forEach(g=>{
-        if(!t.reflectionsByGrade[g]) t.reflectionsByGrade[g] = JSON.parse(JSON.stringify(fallback));
-      });
-    }
-    return t;
+      if(t.reflectionsByGrade){
+        Object.keys(t.reflectionsByGrade).forEach(g=>{
+          newList.push({
+            id: uid(),
+            name: t.name,
+            createdAt: t.createdAt || Date.now(),
+            targetGrade: g,
+            ratingGroups: JSON.parse(JSON.stringify(ratingGroups)),
+            reflections: JSON.parse(JSON.stringify(t.reflectionsByGrade[g] || [])),
+            aiRubric: DEFAULT_AI_RUBRIC
+          });
+        });
+      } else {
+        const refs = t.reflections || [{id:'f1',label:'感想①',hint:''},{id:'f2',label:'感想②',hint:''}];
+        newList.push({
+          id: t.id || uid(),
+          name: t.name,
+          createdAt: t.createdAt || Date.now(),
+          targetGrade: grades[0],
+          ratingGroups: JSON.parse(JSON.stringify(ratingGroups)),
+          reflections: JSON.parse(JSON.stringify(refs)),
+          aiRubric: DEFAULT_AI_RUBRIC
+        });
+      }
+    });
+    cfg.templates = newList;
+    return true;
   }
 
   let db = null; // firebase.initializeApp後にセット
@@ -376,7 +405,8 @@
         });
       });
 
-      state.config.templates.forEach(t=>migrateTemplate(t, state.config.grades));
+      const migrated = migrateConfigTemplates(state.config);
+      if(migrated){ await saveConfig(); }
       state.rosterGrade = state.config.grades[0];
       state.rosterClass = (state.config.classesByGrade[state.rosterGrade]||[])[0] || null;
     }catch(e){
@@ -407,6 +437,12 @@
   // AI採点結果も対象の回答だけをピンポイントで更新する
   async function saveAiScoreOnly(templateId, responseId, aiScore){
     await db.ref('responses/'+templateId+'/'+responseId+'/aiScore').set(aiScore);
+  }
+  // 回答の削除（複数まとめても1回のリクエストで実行）
+  async function deleteResponses(templateId, ids){
+    const updates = {};
+    ids.forEach(id=>{ updates[id] = null; });
+    await db.ref('responses/'+templateId).update(updates);
   }
 
   // ==== 回答一覧のリアルタイム購読（Firebaseのプッシュ更新） ====
@@ -532,7 +568,7 @@
       return `<div class="modal-overlay">
         <div class="modal-card">
           <h3>学年を削除しますか？</h3>
-          <p class="sub">「${esc(m.grade)}」のクラス・名簿データが削除されます（すでに送信された回答データ自体は残ります）。</p>
+          <p class="sub">「${esc(m.grade)}」のクラス・名簿データと、この学年専用の種目テンプレートが削除されます（すでに送信された回答データ自体は残ります）。</p>
           <div class="row" style="margin-top:14px;">
             <button class="btn ghost" data-act="modal_cancel">キャンセル</button>
             <button class="btn danger" data-act="modal_confirm_delete_grade">削除する</button>
@@ -548,6 +584,18 @@
           <div class="row" style="margin-top:14px;">
             <button class="btn ghost" data-act="modal_cancel">キャンセル</button>
             <button class="btn danger" data-act="modal_confirm_delete_class">削除する</button>
+          </div>
+        </div>
+      </div>`;
+    }
+    if(m.kind === 'confirmDeleteResponses'){
+      return `<div class="modal-overlay">
+        <div class="modal-card">
+          <h3>回答を削除しますか？</h3>
+          <p class="sub">${esc(m.label)}を完全に削除します。この操作は取り消せません。</p>
+          <div class="row" style="margin-top:14px;">
+            <button class="btn ghost" data-act="modal_cancel">キャンセル</button>
+            <button class="btn danger" data-act="modal_confirm_delete_responses">削除する</button>
           </div>
         </div>
       </div>`;
@@ -577,15 +625,17 @@
 
     if(!state.s_grade) return html;
 
-    const tpl = state.config.templates.find(t=>t.id===state.s_templateId);
+    const gradeTemplates = state.config.templates.filter(t=>t.targetGrade===state.s_grade);
+    const tpl = gradeTemplates.find(t=>t.id===state.s_templateId);
 
     html += `<div class="card">
       <h2>② 種目を選ぶ</h2>
       <p class="sub">今日の授業で取り組んだ種目を選んでください</p>
       <select data-act="s_pick_template">
         <option value="">-- 選択 --</option>
-        ${state.config.templates.map(t=>`<option value="${t.id}" ${t.id===state.s_templateId?'selected':''}>${esc(t.name)}</option>`).join('')}
+        ${gradeTemplates.map(t=>`<option value="${t.id}" ${t.id===state.s_templateId?'selected':''}>${esc(t.name)}</option>`).join('')}
       </select>
+      ${gradeTemplates.length===0 ? '<p class="hint" style="color:var(--red);">この学年に登録されている種目がまだありません（先生モード→種目をつくる）</p>':''}
     </div>`;
 
     if(!tpl) return html;
@@ -615,7 +665,7 @@
     </div>`;
 
     if(state.s_class && state.s_entry){
-      const refs = tpl.reflectionsByGrade[state.s_grade] || Object.values(tpl.reflectionsByGrade)[0] || [];
+      const refs = tpl.reflections || [];
       html += `<div class="card">
         <h2>④ 自己評価① 主体的に取り組む態度</h2>
         <p class="sub">できていたら5、まだまだなら1</p>
@@ -665,7 +715,7 @@
     const allRatingItems = [...tpl.ratingGroups[0].items, ...tpl.ratingGroups[1].items];
     const missingRating = allRatingItems.some(r=>!state.s_ratings[r.id]);
     if(missingRating){ toast('すべての評価項目を選んでください'); return; }
-    const refs = tpl.reflectionsByGrade[state.s_grade] || [];
+    const refs = tpl.reflections || [];
     const missingReflect = refs.some(f=>!(state.s_reflections[f.id]||'').trim());
     if(missingReflect){ toast('感想をすべて記入してください'); return; }
 
@@ -772,17 +822,16 @@
   }
 
   function blankTemplate(){
-    const reflectionsByGrade = {};
-    (state.config.grades||['1年']).forEach(g=>{
-      reflectionsByGrade[g] = [{id:uid(),label:'',hint:''}];
-    });
+    const defaultGrade = state.rosterGrade || (state.config.grades||['1年'])[0];
     return {
       id: uid(), name:'', createdAt: Date.now(),
+      targetGrade: defaultGrade,
       ratingGroups:[
         {id:'taido', name:'主体的に取り組む態度', items:[{id:uid(),label:'',hint:''}]},
         {id:'shikou', name:'思考・判断', items:[{id:uid(),label:'',hint:''}]},
       ],
-      reflectionsByGrade: reflectionsByGrade
+      reflections:[{id:uid(),label:'',hint:''}],
+      aiRubric: DEFAULT_AI_RUBRIC
     };
   }
 
@@ -791,7 +840,14 @@
       const t = state.editingTemplate;
       return `<div class="card">
         <h2>種目の編集</h2>
-        <p class="sub">評価項目・感想欄は種目ごとに自由に設定できます</p>
+        <p class="sub">評価項目・感想欄・AI採点基準は種目ごとに自由に設定できます</p>
+
+        <label class="field-label">対象学年</label>
+        <select data-act="edit_target_grade" style="margin-bottom:16px;">
+          ${state.config.grades.map(g=>`<option value="${esc(g)}" ${g===t.targetGrade?'selected':''}>${esc(g)}</option>`).join('')}
+        </select>
+        <p class="hint" style="margin:-10px 0 16px;">この種目は選んだ学年の生徒にだけ表示されます（他の学年のプルダウンには出ません）</p>
+
         <label class="field-label">種目名</label>
         <input type="text" data-act="edit_name" value="${esc(t.name)}" placeholder="例：集団行動、大縄跳び、器械体操 など" style="margin-bottom:16px;">
 
@@ -817,13 +873,10 @@
             <button class="btn danger sm" data-act="del_rating" data-group="1" data-idx="${i}">削除</button>
           </div>
         `).join('')}
-        <button class="btn ghost sm" data-act="add_rating" data-group="1" style="margin-bottom:18px;">＋ 表現の評価項目を追加</button>
+        <button class="btn ghost sm" data-act="add_rating" data-group="1" style="margin-bottom:18px;">＋ 判断の評価項目を追加</button>
 
-        <label class="field-label">感想・記述式の項目（学年ごとに内容を変えられます）</label>
-        <div class="row" style="margin-bottom:10px;">
-          ${state.config.grades.map(g=>`<button class="btn ${g===state.editingReflectionGrade?'yellow':'ghost'} sm" data-act="pick_edit_ref_grade" data-val="${esc(g)}">${esc(g)}</button>`).join('')}
-        </div>
-        ${(t.reflectionsByGrade[state.editingReflectionGrade]||[]).map((f,i)=>`
+        <label class="field-label">感想・記述式の項目（${esc(t.targetGrade)}）</label>
+        ${t.reflections.map((f,i)=>`
           <div class="item-row">
             <div class="fields">
               <input type="text" data-act="edit_ref_label" data-idx="${i}" value="${esc(f.label)}" placeholder="設問（例：今日意識したこと）">
@@ -832,27 +885,42 @@
             <button class="btn danger sm" data-act="del_ref" data-idx="${i}">削除</button>
           </div>
         `).join('')}
-        <button class="btn ghost sm" data-act="add_ref" style="margin-bottom:20px;">＋ ${esc(state.editingReflectionGrade)}の感想項目を追加</button>
+        <button class="btn ghost sm" data-act="add_ref" style="margin-bottom:20px;">＋ 感想項目を追加</button>
 
-        <div class="row">
+        <label class="field-label">AI採点基準（この種目の「思考・判断」「主体的な態度」の観点）</label>
+        <textarea data-act="edit_rubric" style="min-height:110px; margin-bottom:6px;" placeholder="この種目ならではの採点基準を書いてください">${esc(t.aiRubric||'')}</textarea>
+        <p class="hint" style="margin-top:0 0 20px;">感想をAIが採点する際に使う基準文です。種目の内容に合わせて自由に書き換えてください（例：走り高跳びなら「助走のリズムや踏切位置について具体的に振り返れているか」など）。</p>
+
+        <div class="row" style="margin-top:20px;">
           <button class="btn yellow" data-act="save_template">保存する</button>
           <button class="btn ghost" data-act="cancel_edit">キャンセル</button>
         </div>
       </div>`;
     }
 
+    const filteredTemplates = state.tpl_gradeFilter==='all'
+      ? state.config.templates
+      : state.config.templates.filter(t=>t.targetGrade===state.tpl_gradeFilter);
+
     return `<div class="card">
       <h2>種目テンプレート</h2>
-      <p class="sub">種目ごとにフォームを作成。生徒はここで作った種目を選んで回答します</p>
+      <p class="sub">種目ごとにフォームを作成。生徒は自分の学年に登録された種目だけを選んで回答します</p>
+      <div class="row" style="margin-bottom:14px;">
+        <select data-act="pick_tpl_grade_filter">
+          <option value="all" ${state.tpl_gradeFilter==='all'?'selected':''}>すべての学年</option>
+          ${state.config.grades.map(g=>`<option value="${esc(g)}" ${g===state.tpl_gradeFilter?'selected':''}>${esc(g)}</option>`).join('')}
+        </select>
+      </div>
       <div class="tpl-list">
-        ${state.config.templates.map(t=>`
+        ${filteredTemplates.map(t=>`
           <div class="tpl-item">
             <div>
-              <div class="name">${esc(t.name)||'（名称未設定）'}</div>
-              <div class="meta">態度${t.ratingGroups[0].items.length}項目・判断${t.ratingGroups[1].items.length}項目・感想${(t.reflectionsByGrade[state.config.grades[0]]||[]).length}問（学年ごとに内容変更可）</div>
+              <div class="name">${esc(t.name)||'（名称未設定）'} <span class="hint" style="font-weight:700;">［${esc(t.targetGrade)}］</span></div>
+              <div class="meta">態度${t.ratingGroups[0].items.length}項目・判断${t.ratingGroups[1].items.length}項目・感想${t.reflections.length}問</div>
             </div>
             <div class="row" style="flex:none; gap:6px;">
               <button class="btn ghost sm" data-act="edit_tpl" data-id="${t.id}">編集</button>
+              <button class="btn ghost sm" data-act="dup_tpl" data-id="${t.id}" title="内容をコピーして別学年用などに使う">複製</button>
               <button class="btn danger sm" data-act="del_tpl" data-id="${t.id}">削除</button>
             </div>
           </div>
@@ -947,19 +1015,26 @@
     if(state.r_gradeFilter!=='all' && state.r_classFilter!=='all') rows = rows.filter(r=>r.className===state.r_classFilter);
     rows = rows.slice().sort((a,b)=>(a.grade||'').localeCompare(b.grade||'') || a.className.localeCompare(b.className) || a.entry.localeCompare(b.entry,'ja'));
 
+    state.r_visibleIds = rows.map(r=>r.id);
+    const selectedCount = state.r_visibleIds.filter(id=>state.r_selected[id]).length;
+    const allSelected = rows.length>0 && selectedCount===rows.length;
+
     const ungraded = rows.filter(r=>!r.aiScore).length;
     const allRatingItems = [...tpl.ratingGroups[0].items, ...tpl.ratingGroups[1].items];
 
     body += `<div class="card">
       <div class="row" style="margin-bottom:12px; align-items:center;">
-        <div><strong>${rows.length}</strong> 件の回答（未採点 ${ungraded} 件）</div>
+        <div><strong>${rows.length}</strong> 件の回答（未採点 ${ungraded} 件・選択中 ${selectedCount} 件）</div>
         <button class="btn yellow sm" data-act="grade_all" ${ungraded===0?'disabled':''}>未採点をまとめてAI採点</button>
         <button class="btn ghost sm" data-act="export_csv">CSVダウンロード</button>
+        <button class="btn danger sm" data-act="delete_selected" ${selectedCount===0?'disabled':''}>選択した回答を削除</button>
+        <button class="btn danger sm" data-act="delete_all_filtered" ${rows.length===0?'disabled':''}>表示中を全件削除</button>
         <span class="hint" id="pollIndicator" style="align-self:center;">🔴 リアルタイム更新中</span>
       </div>
       <div style="overflow-x:auto;">
       <table>
         <thead><tr>
+          <th><input type="checkbox" data-act="toggle_select_all" ${allSelected?'checked':''}></th>
           <th>学年</th><th>クラス</th><th>出席番号・氏名</th>
           ${tpl.ratingGroups[0].items.map(r=>`<th>[態度]${esc(r.label)}</th>`).join('')}
           ${tpl.ratingGroups[1].items.map(r=>`<th>[判断]${esc(r.label)}</th>`).join('')}
@@ -972,6 +1047,7 @@
         <tbody>
         ${rows.map(r=>`
           <tr>
+            <td><input type="checkbox" data-act="toggle_select_resp" data-id="${r.id}" ${state.r_selected[r.id]?'checked':''}></td>
             <td>${esc(r.grade||'-')}</td>
             <td>${esc(r.className)}</td>
             <td>${esc(r.entry)}</td>
@@ -980,12 +1056,13 @@
             <td>${r.aiScore ? `<span class="mono">${r.aiScore.ai}</span>` : '<span class="pending">未採点</span>'}</td>
             <td class="mono">${r.aiScore ? r.aiScore.bonus : '-'}</td>
             <td>${renderScoreCell(r)}</td>
-            <td>
+            <td style="white-space:nowrap;">
               ${state.r_grading[r.id] ? '<span class="pending">採点中…</span>' :
                 `<button class="btn ghost sm" data-act="grade_one" data-id="${r.id}">${r.aiScore?'再採点':'AI採点'}</button>`}
+              <button class="btn danger sm" data-act="delete_one_resp" data-id="${r.id}">削除</button>
             </td>
           </tr>
-        `).join('') || `<tr><td colspan="12" class="empty">回答がまだありません</td></tr>`}
+        `).join('') || `<tr><td colspan="13" class="empty">回答がまだありません</td></tr>`}
         </tbody>
       </table>
       </div>
@@ -1018,30 +1095,27 @@
   }
 
   async function gradeResponse(tpl, resp){
-    const refs = (tpl.reflectionsByGrade && tpl.reflectionsByGrade[resp.grade])
-      || (tpl.reflectionsByGrade ? Object.values(tpl.reflectionsByGrade)[0] : [])
-      || [];
+    const refs = tpl.reflections || [];
     const texts = refs.map(f => resp.reflections[f.id] || '');
     const bonusPerItem = texts.map(t => calcLengthBonus(t));
     const totalBonus = bonusPerItem.reduce((a,b)=>a+b, 0);
 
     const listText = texts.map((t,i)=>`感想${i+1}：${t}`).join('\n');
+    const rubric = tpl.aiRubric && tpl.aiRubric.trim() ? tpl.aiRubric : DEFAULT_AI_RUBRIC;
 
     const prompt = `あなたは中学校の体育の先生です。生徒が書いた【${tpl.name}】の感想を採点してください。
 ${listText}
 
 【重要】感想をひとつずつ5点満点で採点してください。感想が${texts.length}個あるので、${texts.length}個の整数（各0〜5点）を半角カンマ区切りで返してください。それ以外の文字は一切含めないでください。
 
-■採点基準（思考・判断 ＆ 主体的な態度）
-・自分の動きの課題を見つけ、どう修正すべきか具体的に考えられているか。
-・集団の美しさを高めるための工夫や、周りと合わせるための判断ができているか。
-・規律を守り、意欲的に取り組もうとする姿勢が文章から伝わるか。
+■採点基準（この種目の「思考・判断」＆「主体的な態度」の観点）
+${rubric}
 
 ■ルール（各感想ごとの目安）
 1〜2点：記述が非常に短い、または内容が抽象的。
 3点：一般的な感想。
-4点：自分や集団の課題を具体的に分析し、工夫した点が書けている。
-5点：動きのポイントを深く理解し、高い意欲と深い分析が両立している。
+4点：自分の課題を具体的に分析し、工夫した点が書けている。
+5点：ポイントを深く理解し、高い意欲と深い分析が両立している。
 
 出力例（感想が2個の場合）："4,3"`;
 
@@ -1137,7 +1211,7 @@ ${listText}
       if(el.tagName==='TEXTAREA' && (act==='s_reflect')){
         el.addEventListener('input', (e)=>{ state.s_reflections[el.dataset.fid] = el.value; });
       }
-      if(el.tagName==='INPUT' && act && act.startsWith('edit_')){
+      if((el.tagName==='INPUT' || el.tagName==='TEXTAREA') && act && act.startsWith('edit_') && act!=='edit_target_grade'){
         el.addEventListener('input', (e)=>handleEditInput(act, el));
       }
     });
@@ -1150,8 +1224,9 @@ ${listText}
     if(act==='edit_name') t.name = el.value;
     else if(act==='edit_rating_label') t.ratingGroups[g].items[idx].label = el.value;
     else if(act==='edit_rating_hint') t.ratingGroups[g].items[idx].hint = el.value;
-    else if(act==='edit_ref_label') t.reflectionsByGrade[state.editingReflectionGrade][idx].label = el.value;
-    else if(act==='edit_ref_hint') t.reflectionsByGrade[state.editingReflectionGrade][idx].hint = el.value;
+    else if(act==='edit_ref_label') t.reflections[idx].label = el.value;
+    else if(act==='edit_ref_hint') t.reflections[idx].hint = el.value;
+    else if(act==='edit_rubric') t.aiRubric = el.value;
   }
 
   async function handleAction(act, el){
@@ -1168,7 +1243,9 @@ ${listText}
       // student
       case 's_pick_grade':
         state.s_grade = el.value || null;
+        state.s_templateId = null;
         state.s_class = null; state.s_entry = null;
+        state.s_ratings = {}; state.s_reflections = {};
         render(); break;
       case 's_pick_template':
         state.s_templateId = el.value || null;
@@ -1195,18 +1272,31 @@ ${listText}
       // templates
       case 'new_tpl':
         state.editingTemplate = blankTemplate();
-        state.editingReflectionGrade = state.config.grades[0];
         render(); break;
       case 'edit_tpl':
         state.editingTemplate = JSON.parse(JSON.stringify(state.config.templates.find(t=>t.id===el.dataset.id)));
-        state.editingReflectionGrade = state.config.grades[0];
         render(); break;
+      case 'dup_tpl': {
+        const orig = state.config.templates.find(t=>t.id===el.dataset.id);
+        if(!orig) return;
+        const copy = JSON.parse(JSON.stringify(orig));
+        copy.id = uid();
+        copy.createdAt = Date.now();
+        copy.name = copy.name + '（コピー）';
+        state.editingTemplate = copy;
+        render();
+        break;
+      }
       case 'del_tpl': {
         const t = state.config.templates.find(t=>t.id===el.dataset.id);
         state.modal = {kind:'confirmDeleteTemplate', id: el.dataset.id, name: t?t.name:''};
         render();
         break;
       }
+      case 'edit_target_grade':
+        state.editingTemplate.targetGrade = el.value; render(); break;
+      case 'pick_tpl_grade_filter':
+        state.tpl_gradeFilter = el.value; render(); break;
       case 'add_rating':
         state.editingTemplate.ratingGroups[parseInt(el.dataset.group)].items.push({id:uid(),label:'',hint:''}); render(); break;
       case 'del_rating': {
@@ -1214,14 +1304,11 @@ ${listText}
         if(grp.items.length<=1){ toast('評価項目は各カテゴリ最低1つ必要です'); return; }
         grp.items.splice(parseInt(el.dataset.idx),1); render(); break;
       }
-      case 'pick_edit_ref_grade':
-        state.editingReflectionGrade = el.dataset.val; render(); break;
       case 'add_ref':
-        if(!state.editingTemplate.reflectionsByGrade[state.editingReflectionGrade]) state.editingTemplate.reflectionsByGrade[state.editingReflectionGrade] = [];
-        state.editingTemplate.reflectionsByGrade[state.editingReflectionGrade].push({id:uid(),label:'',hint:''}); render(); break;
+        state.editingTemplate.reflections.push({id:uid(),label:'',hint:''}); render(); break;
       case 'del_ref': {
-        const arr = state.editingTemplate.reflectionsByGrade[state.editingReflectionGrade];
-        if(!arr || arr.length<=1){ toast('感想項目は各学年最低1つ必要です'); return; }
+        const arr = state.editingTemplate.reflections;
+        if(arr.length<=1){ toast('感想項目は最低1つ必要です'); return; }
         arr.splice(parseInt(el.dataset.idx),1); render(); break;
       }
       case 'save_template': {
@@ -1254,14 +1341,10 @@ ${listText}
         state.config.grades.push(val);
         state.config.classesByGrade[val] = ['1組','2組','3組'];
         state.config.classesByGrade[val].forEach(c=>{ state.config.rosters[rosterKey(val,c)] = []; });
-        state.config.templates.forEach(t=>{
-          if(!t.reflectionsByGrade) t.reflectionsByGrade = {};
-          if(!t.reflectionsByGrade[val]) t.reflectionsByGrade[val] = [{id:uid(),label:'',hint:''}];
-        });
         await saveConfig();
         state.rosterGrade = val;
         state.rosterClass = state.config.classesByGrade[val][0];
-        toast('学年を追加しました');
+        toast('学年を追加しました（種目は「種目をつくる」タブでこの学年用に作成してください）');
         render();
         break;
       }
@@ -1324,6 +1407,38 @@ ${listText}
         gradeAll(); break;
       case 'export_csv':
         exportCsv(); break;
+      case 'toggle_select_resp':
+        state.r_selected[el.dataset.id] = el.checked;
+        render(); break;
+      case 'toggle_select_all': {
+        const shouldSelect = el.checked;
+        state.r_visibleIds.forEach(id=>{ state.r_selected[id] = shouldSelect; });
+        render(); break;
+      }
+      case 'delete_one_resp':
+        state.modal = {kind:'confirmDeleteResponses', ids:[el.dataset.id], label:'この回答'};
+        render(); break;
+      case 'delete_selected': {
+        const ids = state.r_visibleIds.filter(id=>state.r_selected[id]);
+        if(ids.length===0){ toast('削除する回答を選択してください'); return; }
+        state.modal = {kind:'confirmDeleteResponses', ids, label: ids.length+'件の選択した回答'};
+        render(); break;
+      }
+      case 'delete_all_filtered': {
+        const ids = state.r_visibleIds.slice();
+        if(ids.length===0){ toast('削除する回答がありません'); return; }
+        state.modal = {kind:'confirmDeleteResponses', ids, label: '表示中の'+ids.length+'件すべて'};
+        render(); break;
+      }
+      case 'modal_confirm_delete_responses': {
+        const ids = state.modal.ids;
+        await deleteResponses(state.r_templateId, ids);
+        ids.forEach(id=>{ delete state.r_selected[id]; });
+        state.modal = null;
+        toast('削除しました');
+        render();
+        break;
+      }
       case 'change_pass':
         changeTeacherPassword(); break;
       case 'modal_cancel':
@@ -1345,7 +1460,7 @@ ${listText}
         state.config.grades = state.config.grades.filter(x=>x!==g);
         delete state.config.classesByGrade[g];
         Object.keys(state.config.rosters).forEach(k=>{ if(k.indexOf(g+'|')===0) delete state.config.rosters[k]; });
-        state.config.templates.forEach(t=>{ if(t.reflectionsByGrade) delete t.reflectionsByGrade[g]; });
+        state.config.templates = state.config.templates.filter(t=>t.targetGrade!==g);
         await saveConfig();
         if(state.rosterGrade===g){
           state.rosterGrade = state.config.grades[0];
