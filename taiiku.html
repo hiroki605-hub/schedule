@@ -1328,7 +1328,22 @@ ${rubric}
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
     });
     const json = await response.json();
-    const raw = (json.candidates[0].content.parts[0].text || '').trim();
+
+    if(!response.ok || json.error){
+      throw new Error((json.error && json.error.message) ? json.error.message : ('HTTPエラー '+response.status));
+    }
+    const cand = json.candidates && json.candidates[0];
+    if(!cand){
+      throw new Error('AIから候補が返りませんでした（内容が安全フィルターに引っかかった可能性があります）');
+    }
+    if(cand.finishReason && cand.finishReason !== 'STOP' && cand.finishReason !== 'MAX_TOKENS'){
+      throw new Error('AIが回答を停止しました（理由：'+cand.finishReason+'）');
+    }
+    const textPart = cand.content && cand.content.parts && cand.content.parts[0] && cand.content.parts[0].text;
+    if(!textPart){
+      throw new Error('AIの回答からテキストを取得できませんでした');
+    }
+    const raw = textPart.trim();
     let allScores = raw.split(/[,、\s]+/).map(s=>parseInt(s)).filter(n=>!isNaN(n));
     while(allScores.length < totalCount) allScores.push(0);
     allScores = allScores.slice(0, totalCount);
@@ -1357,7 +1372,7 @@ ${rubric}
       resp.aiScore = score;
       await saveAiScoreOnly(tpl.id, resp.id, score);
     }catch(e){
-      toast('AI採点に失敗しました');
+      toast('AI採点に失敗しました：' + (e && e.message ? e.message.slice(0,60) : '不明なエラー'));
     }
     delete state.r_grading[id];
     render();
@@ -1366,18 +1381,27 @@ ${rubric}
   async function gradeAll(){
     const tpl = state.config.templates.find(t=>t.id===state.r_templateId);
     const targets = state.r_responses.filter(r=>!r.aiScore);
+    let failCount = 0;
+    let lastError = '';
     for(const resp of targets){
       state.r_grading[resp.id] = true; render();
       try{
         const score = await gradeResponse(tpl, resp);
         resp.aiScore = score;
         await saveAiScoreOnly(tpl.id, resp.id, score);
-      }catch(e){ /* skip on failure, continue */ }
+      }catch(e){
+        failCount++;
+        lastError = (e && e.message) ? e.message : '';
+      }
       delete state.r_grading[resp.id];
       await new Promise(r=>setTimeout(r, 4200)); // Gemini無料枠のレート制限対策
     }
     render();
-    toast('AI採点が完了しました');
+    if(failCount>0){
+      toast(`AI採点が完了しました（${failCount}件失敗：${lastError.slice(0,40)}）`);
+    } else {
+      toast('AI採点が完了しました');
+    }
   }
 
   function exportCsv(){
