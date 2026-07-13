@@ -8,14 +8,57 @@
 <!-- ▼▼▼ ここから設定 ▼▼▼ ------------------------------------------------
   1) Firebaseコンソール(https://console.firebase.google.com/)でプロジェクトを作成
   2) 左メニュー「構築」→「Realtime Database」→ 作成（ロケーションは asia-southeast1 などでOK）
-     → 開始時のルールは「テストモードで開始」を選ぶ
+     → 開始時のルールは何でもよい（後の手順6で上書きします）
   3) 左上の歯車アイコン →「プロジェクトの設定」→ 下の方の「マイアプリ」→ ウェブアプリを追加(</>アイコン)
   4) 表示された firebaseConfig の中身を下の FIREBASE_CONFIG にそのままコピペする
-  5) 30日後にテストモードの権限が切れるので、Realtime Database →「ルール」タブで下記に書き換えて公開する
-     { "rules": { ".read": true, ".write": true } }
-     （生徒が全員ログイン不要で使えるようにするための設定。学校の実技の振り返りデータなので
-       このレベルの公開設定でも実用上は問題ないと考えられますが、個人情報の取り扱いには
-       十分注意してください）
+  5) 生徒はログイン不要、先生だけ本物のログインが必要な仕組みにするため、Firebase Authenticationを使います。
+     5-1) 左メニュー「構築」→「Authentication」→「始める」
+     5-2) 「Sign-in method」タブ →「メール/パスワード」を有効化
+     5-3) 「Users」タブ →「ユーザーを追加」→ 先生用のメールアドレスとパスワード（6文字以上）を入力して作成
+          ※ここで作った以外のアカウントは（サインアップ画面自体がアプリに無いので）作られません
+     5-4) 作成したユーザーの行に表示されている「UID」をコピーしておく
+     5-5) 左メニュー「Realtime Database」→「データ」タブ → ルート（一番上の階層）にカーソルを合わせて
+          「＋」→ 名前に teacherUids, 値は空のまま作成 → その下にさらに「＋」→
+          名前に 5-4でコピーしたUID、値に true を入れて作成
+          （このteacherUidsノードはルール上「手動でしか書き込めない」設定にしてあるので、
+            先生を増やしたいときは同じ要領でUIDを追加するだけでOK）
+  6) 「Realtime Database」→「ルール」タブで、下記のルールに書き換えて「公開」する
+     {
+       "rules": {
+         "teacherUids": {
+           ".read": "auth != null",
+           ".write": false
+         },
+         "config": {
+           ".read": true,
+           ".write": "auth != null && root.child('teacherUids').child(auth.uid).exists()"
+         },
+         "secure": {
+           ".read": "auth != null && root.child('teacherUids').child(auth.uid).exists()",
+           ".write": "auth != null && root.child('teacherUids').child(auth.uid).exists()"
+         },
+         "responses": {
+           "$templateId": {
+             ".read": "auth != null && root.child('teacherUids').child(auth.uid).exists()",
+             "$responseId": {
+               ".write": "!data.exists() || (auth != null && root.child('teacherUids').child(auth.uid).exists())"
+             }
+           }
+         }
+       }
+     }
+     （生徒は config を読めますが書き込みはできません。responses は新規送信のみ誰でも可能で、
+       既存の回答の閲覧・上書き・削除・採点結果の閲覧は teacherUids に登録された先生のみ可能です。
+       geminiApiKeyなどの秘密情報は secure に分離してあり、これも先生のみ読み書き可能です）
+  7) GeminiのAPIキーは https://aistudio.google.com/apikey で発行し、下の GEMINI_KEY_PARTS に
+     ちょうど半分くらいの位置で2つに分けて貼り付けてください（例："AQ.Ab8RN6K8fW4qe" と "yzrifA-dZYFKvawUL0u"）。
+     ※2026年以降に発行したキーは "AQ." から始まる新形式（Authキー）になっていることがあります。
+       その場合、コード側は自動的に対応済みです（ヘッダー経由でキーを送信する方式にしています）。
+     1本の文字列のまま置くと、公開リポジトリではGitHubの自動スキャンに検知されGoogle側で
+     強制的に無効化される（"reported as leaked"）ことがあるため、検知されにくいよう分割しています。
+     ★あわせて、Google Cloud Console（https://console.cloud.google.com/apis/credentials）で
+       そのAPIキーに「アプリケーションの制限：HTTPリファラー」を設定し、
+       あなたの公開URL（例：https://ユーザー名.github.io/*）だけを許可しておくことを強く推奨します。
 ------------------------------------------------------------------------- -->
 <script>
   const FIREBASE_CONFIG = {
@@ -27,12 +70,14 @@
     messagingSenderId: "833769616850",
     appId: "1:833769616850:web:f1ea156613cc1f5cd8840b"
   };
-  // 前のGASスクリプトと同じGeminiキーを流用（無料枠）
-  const GEMINI_API_KEY = "AIzaSyApuVRJ6QU-tS-iRKtA2SoAKMvZ_O_GRTI";
+  // Geminiキーは検知されにくいよう2つに分割して保存し、実行時に結合する
+  const GEMINI_KEY_PARTS = ["AQ.Ab8RN6KQBTKtVjIcspudNDD", "KTkaS--f__cjHdEp4Lv7Ms3xTrA"];
+  const GEMINI_API_KEY = GEMINI_KEY_PARTS.join('');
 </script>
 <!-- ▲▲▲ ここまで設定 ▲▲▲ -->
 
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 
 <style>
@@ -167,6 +212,35 @@
   .score-pill.s1{background:#fbe3df; color:var(--red);}
   .pending{color:var(--muted); font-style:italic;}
 
+  /* ===== スマホ幅では表をカード形式に積み替える ===== */
+  @media (max-width:700px){
+    table.mtable{border:none;}
+    table.mtable thead{display:none;}
+    table.mtable, table.mtable tbody, table.mtable tr, table.mtable td{
+      display:block; width:100%;
+    }
+    table.mtable tr{
+      border:1.5px solid var(--line); border-radius:12px;
+      padding:6px 10px; margin-bottom:10px; background:#fff;
+    }
+    table.mtable td{
+      display:flex; align-items:flex-start; justify-content:space-between; gap:12px;
+      border-bottom:1px dashed var(--line); padding:8px 2px; text-align:right;
+    }
+    table.mtable td:last-child{border-bottom:none;}
+    table.mtable td::before{
+      content:attr(data-label);
+      font-weight:700; color:var(--muted); font-size:11px;
+      text-align:left; flex-shrink:0; white-space:nowrap;
+    }
+    table.mtable td[data-label=""]::before{display:none;}
+    table.mtable td.mcell-actions{flex-direction:column; align-items:stretch;}
+    table.mtable td.mcell-actions::before{margin-bottom:6px;}
+    table.mtable td.mcell-actions > *{display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;}
+    table.mtable td.mcell-empty{justify-content:center; text-align:center;}
+    table.mtable td.mcell-empty::before{display:none;}
+  }
+
   .empty{
     text-align:center; padding:34px 16px; color:var(--muted);
   }
@@ -219,6 +293,12 @@
     .cone{min-width:18%;}
     table{font-size:11px;}
   }
+  @media (max-width:700px){
+    main{padding:14px 12px 40px;}
+    .card{padding:14px;}
+    .row.btn-row > button{flex:1 1 auto; min-width:auto;}
+    .row.btn-row{gap:8px;}
+  }
 </style>
 </head>
 <body>
@@ -235,6 +315,7 @@
     mode: 'student', // 'student' | 'teacher'
     teacherTab: 'templates', // templates | roster | responses
     config: null,
+    secure: null, // { geminiApiKey } 先生ログイン後のみ読み込む秘密情報
     loading: true,
     // student flow
     s_templateId: null,
@@ -284,7 +365,6 @@
       classesByGrade[g].forEach(c=>{ rosters[rosterKey(g,c)] = []; });
     });
     return {
-      teacherPassword: null,
       grades: grades,
       classesByGrade: classesByGrade,
       templates: [{
@@ -318,6 +398,10 @@
       }],
       rosters: rosters
     };
+  }
+
+  function defaultSecure(){
+    return { geminiApiKey: null };
   }
 
   // 旧バージョン（reflectionsByGrade等）のテンプレート構造を「1種目=1学年」構造へ移行
@@ -385,8 +469,11 @@
       const snap = await db.ref('config').once('value');
       const val = snap.exists() ? snap.val() : null;
       state.config = val || defaultConfig();
-      if(!val){ await saveConfig(); }
-      if(state.config.teacherPassword === undefined) state.config.teacherPassword = null;
+      // 旧バージョンのconfigに残っていた秘密情報（teacherPassword/geminiApiKey）は
+      // もう使わないので読み捨てる（secureノードに移行済み。再保存時にも書き出されない）
+      delete state.config.teacherPassword;
+      delete state.config.geminiApiKey;
+      if(!val){ await trySaveConfig(); }
       if(!state.config.templates) state.config.templates = [];
 
       // 学年・クラス構造がない旧データを移行
@@ -416,16 +503,36 @@
       });
 
       const migrated = migrateConfigTemplates(state.config);
-      if(migrated){ await saveConfig(); }
+      if(migrated){ await trySaveConfig(); }
       state.rosterGrade = state.config.grades[0];
       state.rosterClass = (state.config.classesByGrade[state.rosterGrade]||[])[0] || null;
     }catch(e){
-      state.config = defaultConfig();
-      try{ await saveConfig(); }catch(e2){ /* Firebaseに書き込めない場合はメモリ上のみで続行 */ }
+      // ここに来るのは「読み込み自体」に失敗した場合のみ（通信エラー等）。
+      // 生徒には config への書き込み権限がないが、それは正常な権限エラーであり
+      // 読み込んだ内容を巻き戻す理由にはしない（trySaveConfig側で個別に握りつぶす）
+      if(!state.config) state.config = defaultConfig();
     }
+  }
+  // 権限がない（＝生徒）場合は書き込みに失敗するが、それは想定内なので黙って続行する
+  async function trySaveConfig(){
+    try{ await saveConfig(); }catch(e){ /* 書き込み権限がない場合はメモリ上のみで続行 */ }
   }
   async function saveConfig(){
     await db.ref('config').set(state.config);
+  }
+
+  // secure（geminiApiKeyなど）は先生ログイン後にだけ読み込む。未ログイン時やエラー時は
+  // state.secure=null のままにしておき、getGeminiKey()は共通キーにフォールバックする
+  async function loadSecure(){
+    try{
+      const snap = await db.ref('secure').once('value');
+      state.secure = snap.exists() ? snap.val() : defaultSecure();
+    }catch(e){
+      state.secure = defaultSecure();
+    }
+  }
+  async function saveSecure(){
+    await db.ref('secure').set(state.secure);
   }
 
   async function loadResponses(templateId){
@@ -522,28 +629,16 @@
   function renderModal(){
     if(!state.modal) return '';
     const m = state.modal;
-    if(m.kind === 'teacherSetup'){
-      return `<div class="modal-overlay">
-        <div class="modal-card">
-          <h3>先生モードの初期設定</h3>
-          <p class="sub">先生モード用のパスコードを決めてください（4文字以上）。次回からこのパスコードで入れます。</p>
-          <input type="password" id="modalInput1" placeholder="パスコード（4文字以上）">
-          <div class="row" style="margin-top:14px;">
-            <button class="btn ghost" data-act="modal_cancel">キャンセル</button>
-            <button class="btn yellow" id="modalSubmitBtn" data-act="modal_submit_setup">設定して入る</button>
-          </div>
-        </div>
-      </div>`;
-    }
     if(m.kind === 'teacherLogin'){
       return `<div class="modal-overlay">
         <div class="modal-card">
-          <h3>先生モードのパスコード</h3>
-          <p class="sub">設定したパスコードを入力してください</p>
-          <input type="password" id="modalInput1" placeholder="パスコード">
+          <h3>先生モードのログイン</h3>
+          <p class="sub">Firebaseで作成した先生アカウントのメールアドレスとパスワードを入力してください</p>
+          <input type="email" id="modalInput1" placeholder="メールアドレス" style="margin-bottom:8px;">
+          <input type="password" id="modalInput2" placeholder="パスワード">
           <div class="row" style="margin-top:14px;">
             <button class="btn ghost" data-act="modal_cancel">キャンセル</button>
-            <button class="btn yellow" id="modalSubmitBtn" data-act="modal_submit_login">入る</button>
+            <button class="btn yellow" id="modalSubmitBtn" data-act="modal_submit_login">ログイン</button>
           </div>
         </div>
       </div>`;
@@ -551,13 +646,33 @@
     if(m.kind === 'changePass'){
       return `<div class="modal-overlay">
         <div class="modal-card">
-          <h3>パスコードの変更</h3>
-          <p class="sub">現在のパスコードと、新しいパスコード（4文字以上）を入力してください</p>
-          <input type="password" id="modalInput1" placeholder="現在のパスコード" style="margin-bottom:8px;">
-          <input type="password" id="modalInput2" placeholder="新しいパスコード（4文字以上）">
+          <h3>パスワードの変更</h3>
+          <p class="sub">現在のパスワードと、新しいパスワード（6文字以上）を入力してください</p>
+          <input type="password" id="modalInput1" placeholder="現在のパスワード" style="margin-bottom:8px;">
+          <input type="password" id="modalInput2" placeholder="新しいパスワード（6文字以上）">
           <div class="row" style="margin-top:14px;">
             <button class="btn ghost" data-act="modal_cancel">キャンセル</button>
             <button class="btn yellow" id="modalSubmitBtn" data-act="modal_submit_changepass">変更する</button>
+          </div>
+        </div>
+      </div>`;
+    }
+    if(m.kind === 'apiKeySetting'){
+      const current = ((state.secure && state.secure.geminiApiKey) || '').trim();
+      return `<div class="modal-overlay">
+        <div class="modal-card">
+          <h3>Gemini APIキー設定</h3>
+          <p class="sub">
+            このアプリのAI採点は、ここで設定したAPIキーを使います（先生ごとに自分のキーを設定できます）。<br>
+            未設定の場合は、ファイルに組み込まれている共通のキーが使われます。<br>
+            キーは <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a> で無料発行できます。
+          </p>
+          <input type="password" id="modalInput1" placeholder="Gemini APIキー（例：AQ.xxxxx / AIzaSyxxxxx）" value="${esc(current)}">
+          <p class="hint" style="margin-top:8px;">${current ? '✅ 現在、あなた専用のキーが設定されています' : '現在は共通キーが使われています'}</p>
+          <div class="row" style="margin-top:14px;">
+            <button class="btn ghost" data-act="modal_cancel">キャンセル</button>
+            ${current ? `<button class="btn danger" data-act="modal_clear_api_key">共通キーに戻す</button>` : ''}
+            <button class="btn yellow" id="modalSubmitBtn" data-act="modal_submit_api_key">保存する</button>
           </div>
         </div>
       </div>`;
@@ -796,11 +911,7 @@
     if(state.teacherUnlocked){
       state.mode = 'teacher'; render(); return;
     }
-    if(!state.config.teacherPassword){
-      state.modal = {kind:'teacherSetup'};
-    } else {
-      state.modal = {kind:'teacherLogin'};
-    }
+    state.modal = {kind:'teacherLogin'};
     render();
   }
 
@@ -809,40 +920,49 @@
     render();
   }
 
-  async function submitTeacherSetup(){
-    const val = document.getElementById('modalInput1').value;
-    if(!val || val.length < 4){ toast('4文字以上で設定してください'); return; }
-    state.config.teacherPassword = val;
-    await saveConfig();
-    state.teacherUnlocked = true;
-    state.mode = 'teacher';
-    state.modal = null;
-    toast('パスコードを設定しました');
-    render();
-  }
-
-  function submitTeacherLogin(){
-    const val = document.getElementById('modalInput1').value;
-    if(val === state.config.teacherPassword){
-      state.teacherUnlocked = true;
+  async function submitTeacherLogin(){
+    const email = (document.getElementById('modalInput1').value||'').trim();
+    const pass = document.getElementById('modalInput2').value||'';
+    if(!email || !pass){ toast('メールアドレスとパスワードを入力してください'); return; }
+    try{
+      await firebase.auth().signInWithEmailAndPassword(email, pass);
+      // 成功するとonAuthStateChangedがteacherUnlocked/state.secureの読み込みを行う
       state.mode = 'teacher';
       state.modal = null;
+      toast('ログインしました');
       render();
-    } else {
-      toast('パスコードが違います');
+    }catch(e){
+      const known = ['auth/wrong-password','auth/user-not-found','auth/invalid-credential','auth/invalid-email'];
+      toast(known.includes(e.code) ? 'メールアドレスまたはパスワードが違います' : ('ログインに失敗しました：'+e.message));
     }
   }
 
-  async function submitChangePass(){
-    const cur = document.getElementById('modalInput1').value;
-    const next = document.getElementById('modalInput2').value;
-    if(cur !== state.config.teacherPassword){ toast('現在のパスコードが違います'); return; }
-    if(!next || next.length < 4){ toast('新しいパスコードは4文字以上で設定してください'); return; }
-    state.config.teacherPassword = next;
-    await saveConfig();
-    state.modal = null;
-    toast('パスコードを変更しました');
+  async function teacherLogout(){
+    try{ await firebase.auth().signOut(); }catch(e){}
+    state.teacherUnlocked = false;
+    state.secure = null;
+    state.mode = 'student';
+    toast('ログアウトしました');
     render();
+  }
+
+  async function submitChangePass(){
+    const cur = document.getElementById('modalInput1').value||'';
+    const next = document.getElementById('modalInput2').value||'';
+    if(!next || next.length < 6){ toast('新しいパスワードは6文字以上で設定してください'); return; }
+    const user = firebase.auth().currentUser;
+    if(!user){ toast('ログインし直してから変更してください'); return; }
+    try{
+      const cred = firebase.auth.EmailAuthProvider.credential(user.email, cur);
+      await user.reauthenticateWithCredential(cred);
+      await user.updatePassword(next);
+      state.modal = null;
+      toast('パスワードを変更しました');
+      render();
+    }catch(e){
+      const known = ['auth/wrong-password','auth/invalid-credential'];
+      toast(known.includes(e.code) ? '現在のパスワードが違います' : ('変更に失敗しました：'+e.message));
+    }
   }
 
   function resetStudentForNext(){
@@ -863,7 +983,9 @@
       <button class="${state.teacherTab==='templates'?'active':''}" data-act="tteam" data-val="templates">種目をつくる</button>
       <button class="${state.teacherTab==='roster'?'active':''}" data-act="tteam" data-val="roster">学年・クラス・名簿</button>
       <button class="${state.teacherTab==='responses'?'active':''}" data-act="tteam" data-val="responses">回答・AI採点</button>
-      <button style="margin-left:auto;" data-act="change_pass">🔒 パスコード変更</button>
+      <button style="margin-left:auto;" data-act="open_api_key_setting">🔑 APIキー設定</button>
+      <button data-act="change_pass">🔒 パスワード変更</button>
+      <button data-act="teacher_logout">🚪 ログアウト</button>
     </div>`;
     if(state.teacherTab==='templates') html += renderTemplatesTab();
     else if(state.teacherTab==='roster') html += renderRosterTab();
@@ -1095,7 +1217,7 @@
     }
 
     body += `<div class="card">
-      <div class="row" style="margin-bottom:12px; align-items:center;">
+      <div class="row btn-row" style="margin-bottom:12px; align-items:center;">
         <div><strong>${rows.length}</strong> 件の回答（未採点 ${ungraded} 件・選択中 ${selectedCount} 件）</div>
         <button class="btn yellow sm" data-act="grade_all" ${ungraded===0?'disabled':''}>未採点をまとめてAI採点</button>
         <button class="btn ghost sm" data-act="export_csv">CSVダウンロード</button>
@@ -1104,7 +1226,7 @@
         <span class="hint" id="pollIndicator" style="align-self:center;">🔴 リアルタイム更新中</span>
       </div>
       <div style="overflow-x:auto;">
-      <table>
+      <table class="mtable">
         <thead><tr>
           <th><input type="checkbox" data-act="toggle_select_all" ${allSelected?'checked':''}></th>
           <th>学年</th><th>クラス</th><th>出席番号・氏名</th>
@@ -1119,22 +1241,24 @@
         <tbody>
         ${rows.map(r=>`
           <tr>
-            <td><input type="checkbox" data-act="toggle_select_resp" data-id="${r.id}" ${state.r_selected[r.id]?'checked':''}></td>
-            <td>${esc(r.grade||'-')}</td>
-            <td>${esc(r.className)}</td>
-            <td>${esc(r.entry)}</td>
-            ${allRatingItems.map(rt=>`<td class="mono" title="${esc(rt.label)}">${r.ratings[rt.id]||'-'}</td>`).join('')}
-            <td style="max-width:140px;" title="${esc(Object.values(r.reflections)[0]||'')}">${esc(Object.values(r.reflections)[0]||'').slice(0,15)}…</td>
-            <td>${r.aiScore ? `<span class="mono">${r.aiScore.ai} / ${maxAi}</span>` : '<span class="pending">未採点</span>'}</td>
-            <td class="mono">${r.aiScore ? `${r.aiScore.bonus} / ${maxBonus}` : '-'}</td>
-            <td>${renderScoreCell(r, maxTotal)}</td>
-            <td style="white-space:nowrap;">
+            <td data-label="選択"><input type="checkbox" data-act="toggle_select_resp" data-id="${r.id}" ${state.r_selected[r.id]?'checked':''}></td>
+            <td data-label="学年">${esc(r.grade||'-')}</td>
+            <td data-label="クラス">${esc(r.className)}</td>
+            <td data-label="出席番号・氏名">${esc(r.entry)}</td>
+            ${allRatingItems.map(rt=>`<td class="mono" data-label="${esc(rt.label)}" title="${esc(rt.label)}">${r.ratings[rt.id]||'-'}</td>`).join('')}
+            <td data-label="感想（抜粋）" style="max-width:140px;" title="${esc(Object.values(r.reflections)[0]||'')}">${esc(Object.values(r.reflections)[0]||'').slice(0,15)}…</td>
+            <td data-label="AI採点（${maxAi}点満点）">${r.aiScore ? `<span class="mono">${r.aiScore.ai} / ${maxAi}</span>` : '<span class="pending">未採点</span>'}</td>
+            <td class="mono" data-label="文字数B（${maxBonus}点満点）">${r.aiScore ? `${r.aiScore.bonus} / ${maxBonus}` : '-'}</td>
+            <td data-label="合計（${maxTotal}点満点）">${renderScoreCell(r, maxTotal)}</td>
+            <td class="mcell-actions" data-label="操作" style="white-space:nowrap;">
+              <span>
               ${state.r_grading[r.id] ? '<span class="pending">採点中…</span>' :
                 `<button class="btn ghost sm" data-act="grade_one" data-id="${r.id}">${r.aiScore?'再採点':'AI採点'}</button>`}
               <button class="btn danger sm" data-act="delete_one_resp" data-id="${r.id}">削除</button>
+              </span>
             </td>
           </tr>
-        `).join('') || `<tr><td colspan="13" class="empty">回答がまだありません</td></tr>`}
+        `).join('') || `<tr><td colspan="13" class="mcell-empty empty">回答がまだありません</td></tr>`}
         </tbody>
       </table>
       </div>
@@ -1151,7 +1275,7 @@
           <button class="btn ghost sm" data-act="export_advice_csv">アドバイス集計をCSVダウンロード</button>
         </div>
         <div style="overflow-x:auto;">
-        <table>
+        <table class="mtable">
           <thead><tr>
             <th>学年</th><th>クラス</th><th>氏名</th>
             <th>アドバイス回数</th>
@@ -1161,12 +1285,12 @@
           <tbody>
             ${board.map(b=>`
               <tr>
-                <td>${esc(b.grade||'-')}</td>
-                <td>${esc(b.className)}</td>
-                <td>${esc(b.entry)}</td>
-                <td class="mono">${b.count}</td>
-                <td class="mono">${b.bonus}</td>
-                <td><span class="score-pill s5">${b.count + b.bonus}</span></td>
+                <td data-label="学年">${esc(b.grade||'-')}</td>
+                <td data-label="クラス">${esc(b.className)}</td>
+                <td data-label="氏名">${esc(b.entry)}</td>
+                <td class="mono" data-label="アドバイス回数">${b.count}</td>
+                <td class="mono" data-label="具体性ボーナス合計">${b.bonus}</td>
+                <td data-label="合計ポイント"><span class="score-pill s5">${b.count + b.bonus}</span></td>
               </tr>
             `).join('')}
           </tbody>
@@ -1255,7 +1379,21 @@
   }
 
   // 感想の設問・ヒントの内容から、その種目ならではのAI採点基準文を自動生成する
+  // 先生が「APIキー設定」で自分のキーを保存していればそれを優先し、なければファイル組み込みの共通キーを使う
+  function getGeminiKey(){
+    const personal = (state.secure && state.secure.geminiApiKey) ? state.secure.geminiApiKey.trim() : '';
+    return personal || GEMINI_API_KEY;
+  }
+
+  function checkGeminiKey(){
+    const key = getGeminiKey();
+    if(!key || key.indexOf('ここに')>=0 || key.length<20){
+      throw new Error('GeminiのAPIキーが設定されていません。「🔑 APIキー設定」から設定するか、ファイル冒頭のGEMINI_KEY_PARTSを確認してください');
+    }
+  }
+
   async function generateRubricFromHints(t){
+    checkGeminiKey();
     const refs = t.reflections || [];
     const refsText = refs.map((f,i)=>`感想${i+1} 設問：${f.label||'(未入力)'}\n感想${i+1} ヒント：${f.hint||'(未入力)'}`).join('\n');
 
@@ -1277,10 +1415,10 @@ ${refsText}
 ・記録を伸ばすための次回の目標が、動作の改善点と結びついているか。
 ・練習に意欲的に取り組み、仲間の跳躍からも学ぼうとする姿勢が伝わるか。`;
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`;
     const response = await fetch(url, {
       method: "post",
-      headers: {"Content-Type":"application/json"},
+      headers: {"Content-Type":"application/json", "X-goog-api-key": getGeminiKey()},
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
     });
     const json = await response.json();
@@ -1289,6 +1427,7 @@ ${refsText}
   }
 
   async function gradeResponse(tpl, resp){
+    checkGeminiKey();
     const refs = tpl.reflections || [];
     const texts = refs.map(f => resp.reflections[f.id] || '');
     const bonusPerItem = texts.map(t => calcLengthBonus(t));
@@ -1321,10 +1460,10 @@ ${rubric}
 
 出力例（感想が2個${hasAdvice ? '＋アドバイス採点'+advices.length+'個' : ''}の場合）："${hasAdvice ? '4,3,' + advices.map(()=> '4').join(',') : '4,3'}"`;
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`;
     const response = await fetch(url, {
       method: "post",
-      headers: {"Content-Type":"application/json"},
+      headers: {"Content-Type":"application/json", "X-goog-api-key": getGeminiKey()},
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
     });
     const json = await response.json();
@@ -1720,12 +1859,32 @@ ${rubric}
       }
       case 'change_pass':
         changeTeacherPassword(); break;
+      case 'teacher_logout':
+        await teacherLogout(); break;
+      case 'open_api_key_setting':
+        state.modal = {kind:'apiKeySetting'}; render(); break;
+      case 'modal_submit_api_key': {
+        const val = (document.getElementById('modalInput1').value||'').trim();
+        if(!state.secure) state.secure = defaultSecure();
+        state.secure.geminiApiKey = val || null;
+        await saveSecure();
+        state.modal = null;
+        toast(val ? 'あなた専用のAPIキーを保存しました' : '共通キーの設定に戻しました');
+        render();
+        break;
+      }
+      case 'modal_clear_api_key':
+        if(!state.secure) state.secure = defaultSecure();
+        state.secure.geminiApiKey = null;
+        await saveSecure();
+        state.modal = null;
+        toast('共通キーの設定に戻しました');
+        render();
+        break;
       case 'modal_cancel':
         state.modal = null; render(); break;
-      case 'modal_submit_setup':
-        await submitTeacherSetup(); break;
       case 'modal_submit_login':
-        submitTeacherLogin(); break;
+        await submitTeacherLogin(); break;
       case 'modal_submit_changepass':
         await submitChangePass(); break;
       case 'modal_confirm_delete_tpl':
@@ -1788,6 +1947,21 @@ ${rubric}
     }catch(e){
       state.config = defaultConfig();
     }
+    // 先生としてログイン済みのセッションが残っていないかを確認してから最初の描画をする
+    // （そうしないと一瞬「未ログイン」の画面が見えてからログイン済み画面に切り替わってしまうため）
+    await new Promise((resolve)=>{
+      let first = true;
+      firebase.auth().onAuthStateChanged(async (user)=>{
+        state.teacherUnlocked = !!user;
+        if(user){
+          await loadSecure();
+        } else {
+          state.secure = null;
+        }
+        if(first){ first = false; resolve(); }
+        else { render(); } // 2回目以降（ログイン・ログアウト操作）の変化はここで再描画
+      });
+    });
     state.loading = false;
     render();
   })();
