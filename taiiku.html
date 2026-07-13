@@ -243,6 +243,8 @@
     s_entry: null,
     s_ratings: {},
     s_reflections: {},
+    s_adviceFrom: null,
+    s_adviceContent: '',
     s_submitting: false,
     s_done: false,
     teacherUnlocked: false,
@@ -263,6 +265,7 @@
     r_grading: {}, // responseId -> true while grading
     r_selected: {}, // responseId -> true (削除用チェック状態)
     rubricGenerating: false,
+    r_adviceBoard: [],
     r_visibleIds: [], // 直近の表示行のid一覧（全選択・全件削除に使用）
   };
 
@@ -311,7 +314,8 @@
           {id:'f1', label:'感想①：今日の練習で「特に意識したこと」や「うまくできた動き」を詳しく', hint:'腕の角度、かかとの軸、列を揃える意識など、具体的に書こう'},
           {id:'f2', label:'感想②：集団としてより美しく動くための「これからの課題」や「目標」を', hint:'次の授業で意識したいポイントや、周りを見て気づいたことを書こう'},
         ],
-        aiRubric: DEFAULT_AI_RUBRIC
+        aiRubric: DEFAULT_AI_RUBRIC,
+        hasAdviceField: false
       }],
       rosters: rosters
     };
@@ -324,14 +328,18 @@
     const oldList = cfg.templates || [];
     const needsMigration = oldList.some(t => !t.targetGrade);
     if(!needsMigration){
-      // 既に新構造。aiRubricが無ければ補うだけ
-      oldList.forEach(t=>{ if(t.aiRubric===undefined) t.aiRubric = DEFAULT_AI_RUBRIC; });
+      // 既に新構造。aiRubric・hasAdviceFieldが無ければ補うだけ
+      oldList.forEach(t=>{
+        if(t.aiRubric===undefined) t.aiRubric = DEFAULT_AI_RUBRIC;
+        if(t.hasAdviceField===undefined) t.hasAdviceField = false;
+      });
       return false;
     }
     const newList = [];
     oldList.forEach(t=>{
       if(t.targetGrade){
         if(t.aiRubric===undefined) t.aiRubric = DEFAULT_AI_RUBRIC;
+        if(t.hasAdviceField===undefined) t.hasAdviceField = false;
         newList.push(t);
         return;
       }
@@ -348,7 +356,8 @@
             targetGrade: g,
             ratingGroups: JSON.parse(JSON.stringify(ratingGroups)),
             reflections: JSON.parse(JSON.stringify(t.reflectionsByGrade[g] || [])),
-            aiRubric: DEFAULT_AI_RUBRIC
+            aiRubric: DEFAULT_AI_RUBRIC,
+            hasAdviceField: false
           });
         });
       } else {
@@ -360,7 +369,8 @@
           targetGrade: grades[0],
           ratingGroups: JSON.parse(JSON.stringify(ratingGroups)),
           reflections: JSON.parse(JSON.stringify(refs)),
-          aiRubric: DEFAULT_AI_RUBRIC
+          aiRubric: DEFAULT_AI_RUBRIC,
+          hasAdviceField: false
         });
       }
     });
@@ -704,6 +714,22 @@
             <div class="hint">ヒント：${esc(f.hint)}</div>
           </div>
         `).join('')}
+      </div>
+
+      ${tpl.hasAdviceField ? `
+      <div class="card">
+        <h2>⑦ アドバイスをもらった人（あれば）</h2>
+        <p class="sub">今日、誰かからアドバイスをもらった場合だけ入力してください</p>
+        <label class="field-label">アドバイスをくれた人</label>
+        <select data-act="s_pick_advice_from" style="margin-bottom:16px;">
+          <option value="">-- 選択（もらってない場合は空欄でOK）--</option>
+          ${roster.filter(n=>n!==state.s_entry).map(n=>`<option value="${esc(n)}" ${n===state.s_adviceFrom?'selected':''}>${esc(n)}</option>`).join('')}
+        </select>
+        <label class="field-label">どんなアドバイスをもらいましたか</label>
+        <textarea data-act="s_advice_content" placeholder="できるだけ具体的に書こう（例：手のひらの向きをこうしたらいい、など）">${esc(state.s_adviceContent||'')}</textarea>
+      </div>` : ''}
+
+      <div class="card">
         <button class="btn yellow" data-act="s_submit" ${state.s_submitting?'disabled':''}>${state.s_submitting?'送信中…':'送信する'}</button>
       </div>`;
     }
@@ -719,6 +745,10 @@
     const refs = tpl.reflections || [];
     const missingReflect = refs.some(f=>!(state.s_reflections[f.id]||'').trim());
     if(missingReflect){ toast('感想をすべて記入してください'); return; }
+    if(tpl.hasAdviceField && state.s_adviceFrom && !(state.s_adviceContent||'').trim()){
+      toast('アドバイスをくれた人を選んだ場合は、内容も入力してください');
+      return;
+    }
 
     state.s_submitting = true; render();
     try{
@@ -730,6 +760,9 @@
         entry: state.s_entry,
         ratings: {...state.s_ratings},
         reflections: {...state.s_reflections},
+        advice: (tpl.hasAdviceField && state.s_adviceFrom && (state.s_adviceContent||'').trim())
+          ? { fromEntry: state.s_adviceFrom, content: state.s_adviceContent.trim() }
+          : null,
         aiScore: null,
         submittedAt: Date.now(),
       };
@@ -804,6 +837,8 @@
     state.s_entry = null;
     state.s_ratings = {};
     state.s_reflections = {};
+    state.s_adviceFrom = null;
+    state.s_adviceContent = '';
     state.s_done = false;
     render();
   }
@@ -832,7 +867,8 @@
         {id:'shikou', name:'思考・判断', items:[{id:uid(),label:'',hint:''}]},
       ],
       reflections:[{id:uid(),label:'',hint:''}],
-      aiRubric: DEFAULT_AI_RUBRIC
+      aiRubric: DEFAULT_AI_RUBRIC,
+      hasAdviceField: false
     };
   }
 
@@ -887,6 +923,15 @@
           </div>
         `).join('')}
         <button class="btn ghost sm" data-act="add_ref" style="margin-bottom:20px;">＋ 感想項目を追加</button>
+
+        <label class="field-label">アドバイスの記録</label>
+        <div class="item-row" style="align-items:center;">
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin:0;">
+            <input type="checkbox" data-act="toggle_advice_field" ${t.hasAdviceField?'checked':''} style="width:18px; height:18px;">
+            <span>感想の後に「誰からアドバイスをもらったか」「どんな内容か」を記録する欄を追加する</span>
+          </label>
+        </div>
+        <p class="hint" style="margin:6px 0 20px;">生徒が自分のクラス名簿からアドバイスをくれた人を選んで内容を記入できるようになります。先生の「回答・AI採点」画面で、アドバイスを送った生徒への加点集計が見られます。</p>
 
         <label class="field-label">AI採点基準（この種目の「思考・判断」「主体的な態度」の観点）</label>
         <div class="row" style="margin-bottom:8px;">
@@ -1080,7 +1125,77 @@
       </table>
       </div>
     </div>`;
+
+    if(tpl.hasAdviceField){
+      const board = computeAdviceLeaderboard(rows);
+      state.r_adviceBoard = board;
+      body += `<div class="card">
+        <h2>🏅 アドバイス集計</h2>
+        <p class="sub">表示中の回答の中で、誰が・何回アドバイスをして、内容がどれくらい具体的だったかの積み上げです（表示中のクラス・学年フィルタに連動します）</p>
+        ${board.length ? `
+        <div class="row" style="margin-bottom:12px;">
+          <button class="btn ghost sm" data-act="export_advice_csv">アドバイス集計をCSVダウンロード</button>
+        </div>
+        <div style="overflow-x:auto;">
+        <table>
+          <thead><tr>
+            <th>学年</th><th>クラス</th><th>氏名</th>
+            <th>アドバイス回数</th>
+            <th>具体性ボーナス合計</th>
+            <th>合計ポイント</th>
+          </tr></thead>
+          <tbody>
+            ${board.map(b=>`
+              <tr>
+                <td>${esc(b.grade||'-')}</td>
+                <td>${esc(b.className)}</td>
+                <td>${esc(b.entry)}</td>
+                <td class="mono">${b.count}</td>
+                <td class="mono">${b.bonus}</td>
+                <td><span class="score-pill s5">${b.count + b.bonus}</span></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        </div>
+        ` : '<div class="empty">まだアドバイスの記録がありません</div>'}
+      </div>`;
+    }
+
     return body;
+  }
+
+  // アドバイスをくれた人ごとに「言及された回数」「AIによる具体性ボーナス合計」を集計する
+  function computeAdviceLeaderboard(rows){
+    const map = {};
+    rows.forEach(r=>{
+      if(r.advice && r.advice.fromEntry){
+        const key = (r.grade||'')+'|'+r.className+'|'+r.advice.fromEntry;
+        if(!map[key]) map[key] = {grade:r.grade, className:r.className, entry:r.advice.fromEntry, count:0, bonus:0};
+        map[key].count += 1;
+        if(r.aiScore && r.aiScore.adviceScore!=null){
+          map[key].bonus += r.aiScore.adviceScore;
+        }
+      }
+    });
+    return Object.values(map).sort((a,b)=> (b.count+b.bonus) - (a.count+a.bonus));
+  }
+
+  function exportAdviceCsv(){
+    const tpl = state.config.templates.find(t=>t.id===state.r_templateId);
+    const board = state.r_adviceBoard || [];
+    if(!tpl || board.length===0) return;
+    const headers = ['学年','クラス','氏名','アドバイス回数','具体性ボーナス合計','合計ポイント'];
+    const lines = [headers.join(',')];
+    board.forEach(b=>{
+      lines.push([b.grade||'', b.className, b.entry, b.count, b.bonus, b.count+b.bonus].join(','));
+    });
+    const blob = new Blob(["\uFEFF"+lines.join('\n')], {type:'text/csv'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `${tpl.name}_アドバイス集計.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   function renderScoreCell(r, maxTotal){
@@ -1147,13 +1262,18 @@ ${refsText}
     const bonusPerItem = texts.map(t => calcLengthBonus(t));
     const totalBonus = bonusPerItem.reduce((a,b)=>a+b, 0);
 
+    const hasAdvice = !!(tpl.hasAdviceField && resp.advice && (resp.advice.content||'').trim());
+
     const listText = texts.map((t,i)=>`感想${i+1}：${t}`).join('\n');
+    const adviceText = hasAdvice ? `\n\nアドバイスについての記述：${resp.advice.content}` : '';
     const rubric = tpl.aiRubric && tpl.aiRubric.trim() ? tpl.aiRubric : DEFAULT_AI_RUBRIC;
+    const totalCount = texts.length + (hasAdvice ? 1 : 0);
 
     const prompt = `あなたは中学校の体育の先生です。生徒が書いた【${tpl.name}】の感想を採点してください。
-${listText}
+${listText}${adviceText}
 
-【重要】感想をひとつずつ5点満点で採点してください。感想が${texts.length}個あるので、${texts.length}個の整数（各0〜5点）を半角カンマ区切りで返してください。それ以外の文字は一切含めないでください。
+【重要】感想をひとつずつ5点満点で採点してください。感想が${texts.length}個あります。${hasAdvice ? '加えて、最後の「アドバイスについての記述」が、動きのポイントを具体的に指摘できているか（単なる励ましや「頑張って」だけの抽象的な内容ではないか）を0〜5点で採点し、感想の点数の後に追加してください。' : ''}
+${totalCount}個の整数（各0〜5点）を半角カンマ区切りで返してください。それ以外の文字は一切含めないでください。
 
 ■採点基準（この種目の「思考・判断」＆「主体的な態度」の観点）
 ${rubric}
@@ -1164,7 +1284,7 @@ ${rubric}
 4点：自分の課題を具体的に分析し、工夫した点が書けている。
 5点：ポイントを深く理解し、高い意欲と深い分析が両立している。
 
-出力例（感想が2個の場合）："4,3"`;
+出力例（感想が2個${hasAdvice ? '＋アドバイス採点' : ''}の場合）："${hasAdvice ? '4,3,4' : '4,3'}"`;
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
     const response = await fetch(url, {
@@ -1174,9 +1294,11 @@ ${rubric}
     });
     const json = await response.json();
     const raw = (json.candidates[0].content.parts[0].text || '').trim();
-    let aiPerItem = raw.split(/[,、\s]+/).map(s=>parseInt(s)).filter(n=>!isNaN(n));
-    while(aiPerItem.length < texts.length) aiPerItem.push(0);
-    aiPerItem = aiPerItem.slice(0, texts.length);
+    let allScores = raw.split(/[,、\s]+/).map(s=>parseInt(s)).filter(n=>!isNaN(n));
+    while(allScores.length < totalCount) allScores.push(0);
+    allScores = allScores.slice(0, totalCount);
+    const aiPerItem = allScores.slice(0, texts.length);
+    const adviceScore = hasAdvice ? allScores[texts.length] : null;
     const totalAi = aiPerItem.reduce((a,b)=>a+b, 0);
 
     return {
@@ -1185,6 +1307,7 @@ ${rubric}
       ai: totalAi,
       bonus: totalBonus,
       total: totalAi + totalBonus,
+      adviceScore: adviceScore,
       comment: ''
     };
   }
@@ -1258,6 +1381,9 @@ ${rubric}
       if(el.tagName==='TEXTAREA' && (act==='s_reflect')){
         el.addEventListener('input', (e)=>{ state.s_reflections[el.dataset.fid] = el.value; });
       }
+      if(el.tagName==='TEXTAREA' && (act==='s_advice_content')){
+        el.addEventListener('input', (e)=>{ state.s_adviceContent = el.value; });
+      }
       if((el.tagName==='INPUT' || el.tagName==='TEXTAREA') && act && act.startsWith('edit_') && act!=='edit_target_grade'){
         el.addEventListener('input', (e)=>handleEditInput(act, el));
       }
@@ -1293,15 +1419,23 @@ ${rubric}
         state.s_templateId = null;
         state.s_class = null; state.s_entry = null;
         state.s_ratings = {}; state.s_reflections = {};
+        state.s_adviceFrom = null; state.s_adviceContent = '';
         render(); break;
       case 's_pick_template':
         state.s_templateId = el.value || null;
         state.s_ratings = {}; state.s_reflections = {};
+        state.s_adviceFrom = null; state.s_adviceContent = '';
         render(); break;
       case 's_pick_class':
-        state.s_class = el.value || null; state.s_entry = null; render(); break;
+        state.s_class = el.value || null; state.s_entry = null;
+        state.s_adviceFrom = null;
+        render(); break;
       case 's_pick_entry':
-        state.s_entry = el.value || null; render(); break;
+        state.s_entry = el.value || null;
+        state.s_adviceFrom = null;
+        render(); break;
+      case 's_pick_advice_from':
+        state.s_adviceFrom = el.value || null; render(); break;
       case 's_rate':
         state.s_ratings[el.dataset.rid] = parseInt(el.dataset.val); render(); break;
       case 's_submit':
@@ -1342,6 +1476,8 @@ ${rubric}
       }
       case 'edit_target_grade':
         state.editingTemplate.targetGrade = el.value; render(); break;
+      case 'toggle_advice_field':
+        state.editingTemplate.hasAdviceField = el.checked; render(); break;
       case 'pick_tpl_grade_filter':
         state.tpl_gradeFilter = el.value; render(); break;
       case 'add_rating':
@@ -1474,6 +1610,8 @@ ${rubric}
         gradeAll(); break;
       case 'export_csv':
         exportCsv(); break;
+      case 'export_advice_csv':
+        exportAdviceCsv(); break;
       case 'toggle_select_resp':
         state.r_selected[el.dataset.id] = el.checked;
         render(); break;
