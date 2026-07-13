@@ -1067,10 +1067,10 @@
 
         <label class="field-label">AI採点基準（この種目の「思考・判断」「主体的な態度」の観点）</label>
         <div class="row" style="margin-bottom:8px;">
-          <button class="btn ghost sm" data-act="auto_gen_rubric" ${state.rubricGenerating?'disabled':''}>${state.rubricGenerating?'生成中…':'✨ 感想のヒントから自動生成'}</button>
+          <button class="btn ghost sm" data-act="auto_gen_rubric" ${state.rubricGenerating?'disabled':''}>${state.rubricGenerating?'生成中…':'✨ 感想の項目から自動生成'}</button>
         </div>
         <textarea data-act="edit_rubric" style="min-height:110px; margin-bottom:6px;" placeholder="この種目ならではの採点基準を書いてください">${esc(t.aiRubric||'')}</textarea>
-        <p class="hint" style="margin-top:0 0 20px;">感想の設問・ヒントの内容を読み取って、上のボタンでAIに基準文を作らせることもできます。生成後も自由に書き換えられます。</p>
+        <p class="hint" style="margin-top:0 0 20px;">感想の設問の内容を読み取って、上のボタンでAIに基準文を作らせることもできます。生成後も自由に書き換えられます。</p>
 
         <div class="row" style="margin-top:20px;">
           <button class="btn yellow" data-act="save_template">保存する</button>
@@ -1391,13 +1391,13 @@
   async function generateRubricFromHints(t){
     checkGeminiKey();
     const refs = t.reflections || [];
-    const refsText = refs.map((f,i)=>`感想${i+1} 設問：${f.label||'(未入力)'}\n感想${i+1} ヒント：${f.hint||'(未入力)'}`).join('\n');
+    const refsText = refs.map((f,i)=>`感想${i+1} 設問：${f.label||'(未入力)'}`).join('\n');
 
-    const prompt = `あなたは中学校保健体育科の教員です。以下は「${t.name || '（種目名未設定）'}」という種目の振り返りシートで、生徒に書かせる感想の設問とヒントです。
+    const prompt = `あなたは中学校保健体育科の教員です。以下は「${t.name || '（種目名未設定）'}」という種目の振り返りシートで、生徒に書かせる感想の設問です。
 
 ${refsText}
 
-この設問・ヒントの内容から、生徒の感想を採点する際に使う「AI採点基準」を作成してください。
+この設問の内容から、生徒の感想を採点する際に使う「AI採点基準」を作成してください。
 観点は「思考・判断」と「主体的に取り組む態度」です。
 
 ■出力ルール
