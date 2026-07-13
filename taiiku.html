@@ -800,7 +800,6 @@
         ${tpl.ratingGroups[0].items.map(r=>`
           <div class="rating-block">
             <div class="q-label">${esc(r.label)}</div>
-            <div class="q-hint">${esc(r.hint)}</div>
             <div class="cones">
               ${[1,2,3,4,5].map(v=>`<div class="cone ${state.s_ratings[r.id]===v?'selected':''}" data-act="s_rate" data-rid="${r.id}" data-val="${v}">${v}</div>`).join('')}
             </div>
@@ -814,7 +813,6 @@
         ${tpl.ratingGroups[1].items.map(r=>`
           <div class="rating-block">
             <div class="q-label">${esc(r.label)}</div>
-            <div class="q-hint">${esc(r.hint)}</div>
             <div class="cones">
               ${[1,2,3,4,5].map(v=>`<div class="cone ${state.s_ratings[r.id]===v?'selected':''}" data-act="s_rate" data-rid="${r.id}" data-val="${v}">${v}</div>`).join('')}
             </div>
@@ -827,7 +825,7 @@
         ${refs.map(f=>`
           <div style="margin-bottom:16px;">
             <label class="field-label">${esc(f.label)}</label>
-            <textarea data-act="s_reflect" data-fid="${f.id}" placeholder="${esc(f.hint)}">${esc(state.s_reflections[f.id]||'')}</textarea>
+            <textarea data-act="s_reflect" data-fid="${f.id}">${esc(state.s_reflections[f.id]||'')}</textarea>
             <div class="hint">ヒント：${esc(f.hint)}</div>
           </div>
         `).join('')}
@@ -1029,7 +1027,6 @@
           <div class="item-row">
             <div class="fields">
               <input type="text" data-act="edit_rating_label" data-group="0" data-idx="${i}" value="${esc(r.label)}" placeholder="項目名（例：意欲）">
-              <input type="text" data-act="edit_rating_hint" data-group="0" data-idx="${i}" value="${esc(r.hint)}" placeholder="評価基準の説明">
             </div>
             <button class="btn danger sm" data-act="del_rating" data-group="0" data-idx="${i}">削除</button>
           </div>
@@ -1041,7 +1038,6 @@
           <div class="item-row">
             <div class="fields">
               <input type="text" data-act="edit_rating_label" data-group="1" data-idx="${i}" value="${esc(r.label)}" placeholder="項目名（例：キレ）">
-              <input type="text" data-act="edit_rating_hint" data-group="1" data-idx="${i}" value="${esc(r.hint)}" placeholder="評価基準の説明">
             </div>
             <button class="btn danger sm" data-act="del_rating" data-group="1" data-idx="${i}">削除</button>
           </div>
