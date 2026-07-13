@@ -243,8 +243,7 @@
     s_entry: null,
     s_ratings: {},
     s_reflections: {},
-    s_adviceFrom: null,
-    s_adviceContent: '',
+    s_advices: [], // [{fromEntry, content}, ...] 複数人ぶん記録できる
     s_submitting: false,
     s_done: false,
     teacherUnlocked: false,
@@ -677,6 +676,9 @@
 
     if(state.s_class && state.s_entry){
       const refs = tpl.reflections || [];
+      if(tpl.hasAdviceField && state.s_advices.length===0){
+        state.s_advices = [{fromEntry:'', content:''}];
+      }
       html += `<div class="card">
         <h2>④ 自己評価① 主体的に取り組む態度</h2>
         <p class="sub">できていたら5、まだまだなら1</p>
@@ -719,14 +721,24 @@
       ${tpl.hasAdviceField ? `
       <div class="card">
         <h2>⑦ アドバイスをもらった人（あれば）</h2>
-        <p class="sub">今日、誰かからアドバイスをもらった場合だけ入力してください</p>
-        <label class="field-label">アドバイスをくれた人</label>
-        <select data-act="s_pick_advice_from" style="margin-bottom:16px;">
-          <option value="">-- 選択（もらってない場合は空欄でOK）--</option>
-          ${roster.filter(n=>n!==state.s_entry).map(n=>`<option value="${esc(n)}" ${n===state.s_adviceFrom?'selected':''}>${esc(n)}</option>`).join('')}
-        </select>
-        <label class="field-label">どんなアドバイスをもらいましたか</label>
-        <textarea data-act="s_advice_content" placeholder="できるだけ具体的に書こう（例：手のひらの向きをこうしたらいい、など）">${esc(state.s_adviceContent||'')}</textarea>
+        <p class="sub">今日、誰かからアドバイスをもらった場合だけ入力してください。複数人からもらった場合は「＋もう1人分追加」で欄を増やせます。</p>
+        ${state.s_advices.map((a,i)=>`
+          <div class="item-row" style="flex-direction:column; align-items:stretch; margin-bottom:14px;">
+            <div class="row" style="align-items:flex-end;">
+              <div style="flex:2;">
+                <label class="field-label">アドバイスをくれた人${state.s_advices.length>1 ? '（'+(i+1)+'人目）' : ''}</label>
+                <select data-act="s_pick_advice_from" data-idx="${i}">
+                  <option value="">-- 選択（もらってない場合は空欄でOK）--</option>
+                  ${roster.filter(n=>n!==state.s_entry).map(n=>`<option value="${esc(n)}" ${n===a.fromEntry?'selected':''}>${esc(n)}</option>`).join('')}
+                </select>
+              </div>
+              ${state.s_advices.length>1 ? `<button class="btn danger sm" data-act="s_remove_advice" data-idx="${i}" style="flex:none;">この欄を削除</button>` : ''}
+            </div>
+            <label class="field-label" style="margin-top:10px;">どんなアドバイスをもらいましたか</label>
+            <textarea data-act="s_advice_content" data-idx="${i}" placeholder="できるだけ具体的に書こう（例：手のひらの向きをこうしたらいい、など）">${esc(a.content||'')}</textarea>
+          </div>
+        `).join('')}
+        <button class="btn ghost sm" data-act="s_add_advice">＋ もう1人分アドバイスを追加</button>
       </div>` : ''}
 
       <div class="card">
@@ -745,9 +757,14 @@
     const refs = tpl.reflections || [];
     const missingReflect = refs.some(f=>!(state.s_reflections[f.id]||'').trim());
     if(missingReflect){ toast('感想をすべて記入してください'); return; }
-    if(tpl.hasAdviceField && state.s_adviceFrom && !(state.s_adviceContent||'').trim()){
-      toast('アドバイスをくれた人を選んだ場合は、内容も入力してください');
-      return;
+
+    let advices = [];
+    if(tpl.hasAdviceField){
+      const incomplete = state.s_advices.some(a=> a.fromEntry && !(a.content||'').trim());
+      if(incomplete){ toast('アドバイスをくれた人を選んだ場合は、内容も入力してください'); return; }
+      advices = state.s_advices
+        .filter(a=> a.fromEntry && (a.content||'').trim())
+        .map(a=>({ fromEntry: a.fromEntry, content: a.content.trim() }));
     }
 
     state.s_submitting = true; render();
@@ -760,9 +777,7 @@
         entry: state.s_entry,
         ratings: {...state.s_ratings},
         reflections: {...state.s_reflections},
-        advice: (tpl.hasAdviceField && state.s_adviceFrom && (state.s_adviceContent||'').trim())
-          ? { fromEntry: state.s_adviceFrom, content: state.s_adviceContent.trim() }
-          : null,
+        advices: advices,
         aiScore: null,
         submittedAt: Date.now(),
       };
@@ -837,8 +852,7 @@
     state.s_entry = null;
     state.s_ratings = {};
     state.s_reflections = {};
-    state.s_adviceFrom = null;
-    state.s_adviceContent = '';
+    state.s_advices = [];
     state.s_done = false;
     render();
   }
@@ -1168,14 +1182,32 @@
   // アドバイスをくれた人ごとに「言及された回数」「AIによる具体性ボーナス合計」を集計する
   function computeAdviceLeaderboard(rows){
     const map = {};
+    function addOne(r, fromEntry, score){
+      const key = (r.grade||'')+'|'+r.className+'|'+fromEntry;
+      if(!map[key]) map[key] = {grade:r.grade, className:r.className, entry:fromEntry, count:0, bonus:0};
+      map[key].count += 1;
+      if(score!=null) map[key].bonus += score;
+    }
     rows.forEach(r=>{
-      if(r.advice && r.advice.fromEntry){
-        const key = (r.grade||'')+'|'+r.className+'|'+r.advice.fromEntry;
-        if(!map[key]) map[key] = {grade:r.grade, className:r.className, entry:r.advice.fromEntry, count:0, bonus:0};
-        map[key].count += 1;
-        if(r.aiScore && r.aiScore.adviceScore!=null){
-          map[key].bonus += r.aiScore.adviceScore;
-        }
+      if(Array.isArray(r.advices) && r.advices.length){
+        // 新形式（複数人対応）：AI採点済みならadviceResultsから対応するスコアを引く
+        r.advices.forEach((a,i)=>{
+          if(!a || !a.fromEntry) return;
+          let score = null;
+          if(r.aiScore && Array.isArray(r.aiScore.adviceResults)){
+            const found = r.aiScore.adviceResults[i];
+            if(found && found.fromEntry===a.fromEntry) score = found.score;
+            else {
+              const byName = r.aiScore.adviceResults.find(x=>x.fromEntry===a.fromEntry);
+              if(byName) score = byName.score;
+            }
+          }
+          addOne(r, a.fromEntry, score);
+        });
+      } else if(r.advice && r.advice.fromEntry){
+        // 旧形式（1人のみ）との互換
+        const score = (r.aiScore && r.aiScore.adviceScore!=null) ? r.aiScore.adviceScore : null;
+        addOne(r, r.advice.fromEntry, score);
       }
     });
     return Object.values(map).sort((a,b)=> (b.count+b.bonus) - (a.count+a.bonus));
@@ -1262,29 +1294,32 @@ ${refsText}
     const bonusPerItem = texts.map(t => calcLengthBonus(t));
     const totalBonus = bonusPerItem.reduce((a,b)=>a+b, 0);
 
-    const hasAdvice = !!(tpl.hasAdviceField && resp.advice && (resp.advice.content||'').trim());
+    const advices = (tpl.hasAdviceField && Array.isArray(resp.advices)) ? resp.advices.filter(a=>a && (a.content||'').trim()) : [];
+    const hasAdvice = advices.length > 0;
 
     const listText = texts.map((t,i)=>`感想${i+1}：${t}`).join('\n');
-    const adviceText = hasAdvice ? `\n\nアドバイスについての記述：${resp.advice.content}` : '';
+    const adviceText = hasAdvice
+      ? '\n\n' + advices.map((a,i)=>`アドバイス${i+1}についての記述：${a.content}`).join('\n')
+      : '';
     const rubric = tpl.aiRubric && tpl.aiRubric.trim() ? tpl.aiRubric : DEFAULT_AI_RUBRIC;
-    const totalCount = texts.length + (hasAdvice ? 1 : 0);
+    const totalCount = texts.length + advices.length;
 
     const prompt = `あなたは中学校の体育の先生です。生徒が書いた【${tpl.name}】の感想を採点してください。
 ${listText}${adviceText}
 
-【重要】感想をひとつずつ5点満点で採点してください。感想が${texts.length}個あります。${hasAdvice ? '加えて、最後の「アドバイスについての記述」が、動きのポイントを具体的に指摘できているか（単なる励ましや「頑張って」だけの抽象的な内容ではないか）を0〜5点で採点し、感想の点数の後に追加してください。' : ''}
+【重要】感想をひとつずつ5点満点で採点してください。感想が${texts.length}個あります。${hasAdvice ? `加えて、上記の「アドバイスについての記述」が${advices.length}個あります。それぞれ、動きのポイントを具体的に指摘できているか（単なる励ましや「頑張って」だけの抽象的な内容ではないか）を0〜5点で採点し、感想の点数の後に順番に追加してください。` : ''}
 ${totalCount}個の整数（各0〜5点）を半角カンマ区切りで返してください。それ以外の文字は一切含めないでください。
 
 ■採点基準（この種目の「思考・判断」＆「主体的な態度」の観点）
 ${rubric}
 
-■ルール（各感想ごとの目安）
+■ルール（各感想・各アドバイスごとの目安）
 1〜2点：記述が非常に短い、または内容が抽象的。
-3点：一般的な感想。
-4点：自分の課題を具体的に分析し、工夫した点が書けている。
+3点：一般的な内容。
+4点：具体的に分析し、工夫した点が書けている。
 5点：ポイントを深く理解し、高い意欲と深い分析が両立している。
 
-出力例（感想が2個${hasAdvice ? '＋アドバイス採点' : ''}の場合）："${hasAdvice ? '4,3,4' : '4,3'}"`;
+出力例（感想が2個${hasAdvice ? '＋アドバイス採点'+advices.length+'個' : ''}の場合）："${hasAdvice ? '4,3,' + advices.map(()=> '4').join(',') : '4,3'}"`;
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
     const response = await fetch(url, {
@@ -1298,7 +1333,7 @@ ${rubric}
     while(allScores.length < totalCount) allScores.push(0);
     allScores = allScores.slice(0, totalCount);
     const aiPerItem = allScores.slice(0, texts.length);
-    const adviceScore = hasAdvice ? allScores[texts.length] : null;
+    const adviceScoresArr = allScores.slice(texts.length);
     const totalAi = aiPerItem.reduce((a,b)=>a+b, 0);
 
     return {
@@ -1307,7 +1342,7 @@ ${rubric}
       ai: totalAi,
       bonus: totalBonus,
       total: totalAi + totalBonus,
-      adviceScore: adviceScore,
+      adviceResults: advices.map((a,i)=>({ fromEntry: a.fromEntry, score: adviceScoresArr[i] || 0 })),
       comment: ''
     };
   }
@@ -1382,7 +1417,10 @@ ${rubric}
         el.addEventListener('input', (e)=>{ state.s_reflections[el.dataset.fid] = el.value; });
       }
       if(el.tagName==='TEXTAREA' && (act==='s_advice_content')){
-        el.addEventListener('input', (e)=>{ state.s_adviceContent = el.value; });
+        el.addEventListener('input', (e)=>{
+          const idx = parseInt(el.dataset.idx);
+          if(state.s_advices[idx]) state.s_advices[idx].content = el.value;
+        });
       }
       if((el.tagName==='INPUT' || el.tagName==='TEXTAREA') && act && act.startsWith('edit_') && act!=='edit_target_grade'){
         el.addEventListener('input', (e)=>handleEditInput(act, el));
@@ -1419,23 +1457,35 @@ ${rubric}
         state.s_templateId = null;
         state.s_class = null; state.s_entry = null;
         state.s_ratings = {}; state.s_reflections = {};
-        state.s_adviceFrom = null; state.s_adviceContent = '';
+        state.s_advices = [];
         render(); break;
       case 's_pick_template':
         state.s_templateId = el.value || null;
         state.s_ratings = {}; state.s_reflections = {};
-        state.s_adviceFrom = null; state.s_adviceContent = '';
+        state.s_advices = [];
         render(); break;
       case 's_pick_class':
         state.s_class = el.value || null; state.s_entry = null;
-        state.s_adviceFrom = null;
+        state.s_advices = [];
         render(); break;
       case 's_pick_entry':
         state.s_entry = el.value || null;
-        state.s_adviceFrom = null;
+        state.s_advices = [];
         render(); break;
-      case 's_pick_advice_from':
-        state.s_adviceFrom = el.value || null; render(); break;
+      case 's_pick_advice_from': {
+        const idx = parseInt(el.dataset.idx);
+        if(state.s_advices[idx]) state.s_advices[idx].fromEntry = el.value || '';
+        render(); break;
+      }
+      case 's_add_advice':
+        state.s_advices.push({fromEntry:'', content:''});
+        render(); break;
+      case 's_remove_advice': {
+        const idx = parseInt(el.dataset.idx);
+        state.s_advices.splice(idx, 1);
+        if(state.s_advices.length===0) state.s_advices.push({fromEntry:'', content:''});
+        render(); break;
+      }
       case 's_rate':
         state.s_ratings[el.dataset.rid] = parseInt(el.dataset.val); render(); break;
       case 's_submit':
