@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>引き渡し確認</title>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<style>
+  :root{
+    --bg:#F4F6F8;
+    --surface:#FFFFFF;
+    --surface-soft:#EDF1F4;
+    --ink:#1F2937;
+    --ink-soft:#5B6472;
+    --ink-faint:#8A93A0;
+    --primary:#24425F;
+    --primary-light:#3D6690;
+    --primary-bg:#E7EDF3;
+    --accent-warm:#D97B3F;
+    --accent-warm-bg:#FBEBDD;
+    --success:#2F8F5B;
+    --success-bg:#E4F3EA;
+    --danger:#C0392B;
+    --danger-bg:#FBEAE8;
+    --border:#DFE3E8;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"Hiragino Sans","Yu Gothic",-apple-system,"Segoe UI",sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{max-width:920px;margin:0 auto;padding:20px 16px 60px;}
+  header.top{
+    display:flex;justify-content:space-between;align-items:flex-start;
+    margin-bottom:18px;gap:12px;flex-wrap:wrap;
+  }
+  header.top h1{font-size:20px;font-weight:700;margin:0 0 4px;color:var(--primary);}
+  header.top p{font-size:13px;color:var(--ink-soft);margin:0;}
+  .top-actions{display:flex;gap:8px;flex-shrink:0;}
+  button{font-family:inherit;cursor:pointer;}
+  .btn{
+    border:1px solid var(--border);background:var(--surface);color:var(--ink);
+    border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;
+    transition:background .12s;
+  }
+  .btn:hover{background:var(--surface-soft);}
+  .btn.danger-outline{color:var(--danger);border-color:#EFC6C0;}
+  .btn.danger-outline:hover{background:var(--danger-bg);}
+
+  .tabs{display:flex;gap:4px;background:var(--surface-soft);padding:4px;border-radius:10px;margin-bottom:18px;}
+  .tab{
+    flex:1;border:none;background:transparent;padding:10px 8px;border-radius:8px;
+    font-size:14px;font-weight:700;color:var(--ink-soft);
+  }
+  .tab.active{background:var(--surface);color:var(--primary);box-shadow:0 1px 2px rgba(0,0,0,0.06);}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px;}
+  .section-label{font-size:12px;font-weight:700;color:var(--ink-faint);letter-spacing:.03em;margin:0 0 10px;text-transform:uppercase;}
+
+  .grade-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:6px;}
+  .grade-btn{
+    padding:12px 4px;border-radius:10px;border:2px solid var(--border);background:var(--surface);
+    font-size:14px;font-weight:700;color:var(--ink);
+  }
+  .grade-btn.selected{border-color:var(--primary);background:var(--primary-bg);color:var(--primary);}
+  .grade-btn .count{display:block;font-size:11px;font-weight:500;color:var(--ink-faint);margin-top:2px;}
+  .grade-btn.selected .count{color:var(--primary-light);}
+
+  .student-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;}
+  .student-btn{
+    position:relative;padding:14px 10px;border-radius:10px;border:2px solid var(--border);background:var(--surface);
+    font-size:15px;font-weight:600;color:var(--ink);text-align:left;
+  }
+  .student-btn.selected{border-color:var(--primary);background:var(--primary-bg);color:var(--primary);}
+  .student-btn.done{background:var(--success-bg);border-color:#BEE0CC;}
+  .student-btn.done .badge{position:absolute;top:6px;right:8px;font-size:10px;font-weight:700;color:var(--success);}
+
+  .method-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+  .method-btn{
+    padding:16px 8px;border-radius:10px;border:2px solid var(--border);background:var(--surface);
+    font-size:15px;font-weight:700;color:var(--ink);
+  }
+  .method-btn.selected{border-color:var(--accent-warm);background:var(--accent-warm-bg);color:#8A4A1E;}
+
+  input[type=text],textarea{
+    width:100%;border:1px solid var(--border);border-radius:8px;padding:10px 12px;
+    font-size:14px;font-family:inherit;color:var(--ink);background:var(--surface);
+  }
+  input[type=text]:focus,textarea:focus{outline:2px solid var(--primary-light);outline-offset:-1px;}
+
+  .submit-btn{
+    width:100%;padding:16px;border:none;border-radius:10px;background:var(--primary);color:#fff;
+    font-size:17px;font-weight:700;margin-top:16px;
+  }
+  .submit-btn:disabled{background:#B9C3CC;cursor:not-allowed;}
+
+  .flash{
+    background:var(--success-bg);color:var(--success);border:1px solid #BEE0CC;
+    padding:10px 14px;border-radius:8px;font-size:14px;font-weight:700;margin-bottom:16px;
+  }
+
+  .filter-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;}
+  .filter-btn{padding:7px 14px;border-radius:20px;border:1px solid var(--border);background:var(--surface);font-size:13px;font-weight:600;color:var(--ink-soft);}
+  .filter-btn.selected{background:var(--primary);border-color:var(--primary);color:#fff;}
+
+  .stat-row{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;}
+  .stat-card{flex:1;min-width:120px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;}
+  .stat-card .num{font-size:26px;font-weight:700;color:var(--primary);}
+  .stat-card .lbl{font-size:12px;color:var(--ink-soft);margin-top:2px;}
+
+  table{width:100%;border-collapse:collapse;font-size:14px;}
+  th{text-align:left;color:var(--ink-faint);font-size:12px;font-weight:700;padding:6px 8px;border-bottom:1px solid var(--border);}
+  td{padding:10px 8px;border-bottom:1px solid var(--border);}
+  tr:last-child td{border-bottom:none;}
+  .method-tag{display:inline-block;padding:2px 10px;border-radius:20px;background:var(--accent-warm-bg);color:#8A4A1E;font-size:12px;font-weight:700;}
+  .row-del{border:none;background:transparent;color:var(--danger);font-size:12px;font-weight:700;padding:4px 8px;}
+
+  .pending-list{display:flex;flex-wrap:wrap;gap:6px;}
+  .pending-chip{padding:6px 12px;border-radius:20px;background:var(--accent-warm-bg);color:#8A4A1E;font-size:13px;font-weight:600;}
+
+  .empty{color:var(--ink-faint);font-size:13px;text-align:center;padding:24px 0;}
+
+  .roster-list{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;}
+  .roster-item{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;background:var(--surface-soft);border-radius:8px;font-size:14px;}
+  .roster-item button{border:none;background:transparent;color:var(--danger);font-size:13px;font-weight:700;}
+
+  .add-row{display:flex;gap:8px;margin-bottom:10px;}
+  .add-row input{flex:1;}
+  .add-row button{white-space:nowrap;}
+
+  .confirm-box{background:var(--danger-bg);border:1px solid #EFC6C0;border-radius:10px;padding:14px;margin-bottom:16px;}
+  .confirm-box p{margin:0 0 10px;font-size:14px;font-weight:600;color:var(--danger);}
+  .confirm-box .row{display:flex;gap:8px;}
+
+  .sync-note{font-size:12px;color:var(--ink-faint);margin-top:4px;}
+
+  .sibling-note{font-size:13px;color:var(--ink-soft);margin:0 0 10px;}
+  .sibling-chip{
+    display:inline-flex;align-items:center;gap:6px;padding:9px 14px;border-radius:20px;
+    border:2px solid var(--border);background:var(--surface);font-size:14px;font-weight:600;color:var(--ink);
+    margin:0 6px 6px 0;
+  }
+  .sibling-chip.selected{border-color:var(--accent-warm);background:var(--accent-warm-bg);color:#8A4A1E;}
+
+  .group-card{background:var(--surface-soft);border-radius:10px;padding:10px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
+  .group-members{display:flex;flex-wrap:wrap;gap:6px;}
+  .group-member-tag{font-size:12px;font-weight:600;color:var(--primary);background:var(--primary-bg);padding:3px 9px;border-radius:14px;}
+  .group-del{border:none;background:transparent;color:var(--danger);font-size:12px;font-weight:700;}
+
+  .builder-grade{margin-bottom:10px;}
+  .builder-grade .lbl{font-size:12px;font-weight:700;color:var(--ink-faint);margin-bottom:6px;}
+  .builder-actions{display:flex;gap:8px;margin-top:10px;}
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+
+<script>
+// ▼▼▼ ここから設定 ▼▼▼ ------------------------------------------------
+// 「体育振り返りアプリ」「スポーツテスト」と同じFirebaseプロジェクトを使います。
+// Realtime Database →「ルール」タブに、下記を"追加"してください（既存のルールは残したまま）。
+// このアプリはお迎え時間の慌ただしさを考慮し、あえてログイン不要（リンクを知っていれば
+// 誰でも読み書きできる）設計にしています。そのぶん、このアプリのURLは学校関係者以外に
+// 広めないよう取り扱いに注意してください。
+//    "pkRoster": { ".read": true, ".write": true },
+//    "pkPickups": { ".read": true, ".write": true },
+//    "pkSiblings": { ".read": true, ".write": true }
+// ------------------------------------------------------------------------- -->
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCvxuQJqhkSTsErHdjj9cpM6M0FnutLEEQ",
+  authDomain: "remembaer-me.firebaseapp.com",
+  databaseURL: "https://remembaer-me-default-rtdb.firebaseio.com",
+  projectId: "remembaer-me",
+  storageBucket: "remembaer-me.firebasestorage.app",
+  messagingSenderId: "833769616850",
+  appId: "1:833769616850:web:f1ea156613cc1f5cd8840b"
+};
+let db = null;
+
+const GRADES = ['1','2','3','4','5','6','7','8','9'];
+const METHODS = [
+  {id:'father',label:'父'},
+  {id:'mother',label:'母'},
+  {id:'grandfather',label:'祖父'},
+  {id:'grandmother',label:'祖母'},
+  {id:'other',label:'その他'},
+  {id:'self',label:'自分で帰る'}
+];
+
+let state = {
+  loaded:false,
+  activeTab:'register',
+  roster:{},
+  pickups:[],
+  siblingGroups:[],
+  selGrade:null,
+  selStudent:null,
+  selMethod:null,
+  selSiblings:[],
+  otherText:'',
+  flash:null,
+  listFilter:'all',
+  rosterGrade:'1',
+  newStudentName:'',
+  bulkText:'',
+  confirmReset:false,
+  saving:false,
+  showGroupBuilder:false,
+  newGroupMembers:[]
+};
+
+function fmtTime(ts){
+  const d = new Date(ts);
+  return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');
+}
+
+async function loadRoster(){
+  try{
+    const snap = await db.ref('pkRoster').once('value');
+    state.roster = snap.exists() ? snap.val() : {};
+  }catch(e){ state.roster = {}; }
+}
+async function loadPickups(){
+  try{
+    const snap = await db.ref('pkPickups').once('value');
+    const val = snap.exists() ? snap.val() : {};
+    state.pickups = Object.keys(val).map(k=>({...val[k], id:k}));
+  }catch(e){ state.pickups = []; }
+}
+async function saveRoster(){
+  try{ await db.ref('pkRoster').set(state.roster); }
+  catch(e){ console.error('roster save failed', e); alert('名簿の保存に失敗しました：'+e.message); }
+}
+async function loadSiblings(){
+  try{
+    const snap = await db.ref('pkSiblings').once('value');
+    const val = snap.exists() ? snap.val() : [];
+    state.siblingGroups = Array.isArray(val) ? val : Object.values(val);
+  }catch(e){ state.siblingGroups = []; }
+}
+async function saveSiblings(){
+  try{ await db.ref('pkSiblings').set(state.siblingGroups); }
+  catch(e){ console.error('siblings save failed', e); alert('グループの保存に失敗しました：'+e.message); }
+}
+function siblingsOf(grade, name){
+  const g = state.siblingGroups.find(grp => grp.some(m => m.grade===grade && m.name===name));
+  if(!g) return [];
+  return g.filter(m => !(m.grade===grade && m.name===name));
+}
+function toggleGroupMember(grade, name){
+  const key = grade+'|'+name;
+  const idx = state.newGroupMembers.findIndex(k=>k===key);
+  if(idx>=0) state.newGroupMembers.splice(idx,1);
+  else state.newGroupMembers.push(key);
+  render();
+}
+function toggleSiblingSelection(grade, name){
+  const key = grade+'|'+name;
+  const idx = state.selSiblings.findIndex(k=>k===key);
+  if(idx>=0) state.selSiblings.splice(idx,1);
+  else state.selSiblings.push(key);
+  render();
+}
+async function saveNewGroup(){
+  if(state.newGroupMembers.length<2) return;
+  const members = state.newGroupMembers.map(k=>{
+    const i = k.indexOf('|');
+    return {grade:k.slice(0,i), name:k.slice(i+1)};
+  });
+  await loadSiblings();
+  state.siblingGroups.push(members);
+  await saveSiblings();
+  state.newGroupMembers = [];
+  state.showGroupBuilder = false;
+  render();
+}
+async function deleteGroup(idx){
+  await loadSiblings();
+  state.siblingGroups.splice(idx,1);
+  await saveSiblings();
+  render();
+}
+async function pushPickups(entries){
+  const updates = {};
+  entries.forEach(e=>{
+    const key = e.id || db.ref('pkPickups').push().key;
+    e.id = key;
+    updates[key] = e;
+  });
+  await db.ref('pkPickups').update(updates);
+}
+async function removePickup(id){
+  await db.ref('pkPickups/'+id).remove();
+}
+async function clearAllPickups(){
+  await db.ref('pkPickups').remove();
+}
+
+let listenersActive = false;
+function startLiveListeners(){
+  if(listenersActive) return;
+  listenersActive = true;
+  db.ref('pkRoster').on('value', snap=>{
+    state.roster = snap.exists() ? snap.val() : {};
+    render();
+  });
+  db.ref('pkPickups').on('value', snap=>{
+    const val = snap.exists() ? snap.val() : {};
+    state.pickups = Object.keys(val).map(k=>({...val[k], id:k}));
+    render();
+  });
+  db.ref('pkSiblings').on('value', snap=>{
+    const val = snap.exists() ? snap.val() : [];
+    state.siblingGroups = Array.isArray(val) ? val : Object.values(val);
+    render();
+  });
+}
+
+async function init(){
+  try{
+    firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.database();
+  }catch(e){
+    document.getElementById('app').innerHTML = '<div style="max-width:560px;margin:60px auto;padding:20px;">Firebaseの初期化に失敗しました。FIREBASE_CONFIGの値を確認してください。<br>'+esc(e.message)+'</div>';
+    return;
+  }
+  await Promise.all([loadRoster(), loadPickups(), loadSiblings()]);
+  state.loaded = true;
+  render();
+  startLiveListeners();
+}
+
+function setTab(tab){
+  state.activeTab = tab;
+  state.flash = null;
+  state.confirmReset = false;
+  render();
+}
+
+function selectGrade(g){
+  state.selGrade = g;
+  state.selStudent = null;
+  state.selMethod = null;
+  state.otherText = '';
+  state.selSiblings = [];
+  render();
+}
+function selectStudent(name){
+  state.selStudent = name;
+  state.selSiblings = [];
+  render();
+}
+function selectMethod(id){
+  state.selMethod = id;
+  render();
+}
+
+async function submitPickup(){
+  if(!state.selGrade || !state.selStudent || !state.selMethod) return;
+  const methodObj = METHODS.find(m=>m.id===state.selMethod);
+  const methodLabel = state.selMethod==='other' && state.otherText.trim() ? ('その他：'+state.otherText.trim()) : methodObj.label;
+  const now = Date.now();
+
+  const targets = [{grade:state.selGrade, name:state.selStudent}];
+  state.selSiblings.forEach(k=>{
+    const i = k.indexOf('|');
+    targets.push({grade:k.slice(0,i), name:k.slice(i+1)});
+  });
+
+  const newEntries = targets.map(t => ({
+    id: now+'-'+Math.random().toString(36).slice(2,7),
+    grade: t.grade,
+    student: t.name,
+    method: state.selMethod,
+    methodLabel: methodLabel,
+    time: now
+  }));
+
+  state.saving = true;
+  render();
+  try{
+    await pushPickups(newEntries);
+  }catch(e){
+    state.saving = false;
+    alert('登録に失敗しました：'+e.message);
+    render();
+    return;
+  }
+
+  const names = targets.map(t=>t.grade+'年 '+t.name).join('、');
+  state.flash = names+'を「'+methodLabel+'」に引き渡し登録しました';
+  state.selStudent = null;
+  state.selMethod = null;
+  state.selSiblings = [];
+  state.otherText = '';
+  state.saving = false;
+  render();
+}
+
+async function deletePickup(id){
+  try{ await removePickup(id); }
+  catch(e){ alert('取消に失敗しました：'+e.message); }
+}
+
+function askReset(){ state.confirmReset = true; render(); }
+function cancelReset(){ state.confirmReset = false; render(); }
+async function doReset(){
+  try{ await clearAllPickups(); }
+  catch(e){ alert('リセットに失敗しました：'+e.message); }
+  state.confirmReset = false;
+  state.flash = '本日の引き渡し記録をリセットしました';
+  render();
+}
+
+function setRosterGrade(g){ state.rosterGrade = g; state.newStudentName=''; render(); }
+async function addStudent(){
+  const name = state.newStudentName.trim();
+  if(!name) return;
+  await loadRoster();
+  if(!state.roster[state.rosterGrade]) state.roster[state.rosterGrade] = [];
+  state.roster[state.rosterGrade].push(name);
+  state.newStudentName = '';
+  await saveRoster();
+  render();
+}
+async function bulkAddStudents(){
+  const names = state.bulkText.split('\n').map(s=>s.trim()).filter(Boolean);
+  if(names.length===0) return;
+  await loadRoster();
+  if(!state.roster[state.rosterGrade]) state.roster[state.rosterGrade] = [];
+  state.roster[state.rosterGrade].push(...names);
+  state.bulkText = '';
+  await saveRoster();
+  render();
+}
+async function removeStudent(grade, idx){
+  await loadRoster();
+  state.roster[grade].splice(idx,1);
+  await saveRoster();
+  render();
+}
+
+function esc(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderRegisterTab(){
+  const roster = state.roster[state.selGrade] || [];
+  const donetoday = new Set(state.pickups.filter(p=>p.grade===state.selGrade).map(p=>p.student));
+
+  let html = '';
+  if(state.flash){
+    html += '<div class="flash">'+esc(state.flash)+'</div>';
+  }
+
+  html += '<div class="card"><p class="section-label">学年を選択</p><div class="grade-grid">';
+  GRADES.forEach(g=>{
+    const cnt = (state.roster[g]||[]).length;
+    html += '<button class="grade-btn'+(state.selGrade===g?' selected':'')+'" onclick="selectGrade(\''+g+'\')">'+g+'年<span class="count">'+cnt+'名</span></button>';
+  });
+  html += '</div></div>';
+
+  if(state.selGrade){
+    html += '<div class="card"><p class="section-label">児童を選択</p>';
+    if(roster.length===0){
+      html += '<div class="empty">この学年の名簿が登録されていません。「名簿設定」タブから追加してください。</div>';
+    }else{
+      html += '<div class="student-grid">';
+      roster.forEach(name=>{
+        const isDone = donetoday.has(name);
+        html += '<button class="student-btn'+(state.selStudent===name?' selected':'')+(isDone?' done':'')+'" onclick="selectStudent(\''+esc(name).replace(/'/g,"\\'")+'\')">'+esc(name)+(isDone?'<span class="badge">済</span>':'')+'</button>';
+      });
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+
+  if(state.selGrade && state.selStudent){
+    const doneKeys = new Set(state.pickups.map(p=>p.grade+'|'+p.student));
+    const sibs = siblingsOf(state.selGrade, state.selStudent).filter(s=>!doneKeys.has(s.grade+'|'+s.name));
+    if(sibs.length>0){
+      html += '<div class="card"><p class="section-label">兄弟姉妹も一緒にお迎えですか？</p>';
+      html += '<p class="sibling-note">同じ方が一緒に引き渡しを受ける場合は選択してください。</p>';
+      sibs.forEach(s=>{
+        const key = s.grade+'|'+s.name;
+        const sel = state.selSiblings.includes(key);
+        html += '<button class="sibling-chip'+(sel?' selected':'')+'" onclick="toggleSiblingSelection(\''+s.grade+'\',\''+esc(s.name).replace(/'/g,"\\'")+'\')">'+s.grade+'年 '+esc(s.name)+(sel?' ✓':'')+'</button>';
+      });
+      html += '</div>';
+    }
+  }
+
+  if(state.selGrade && state.selStudent){
+    html += '<div class="card"><p class="section-label">お迎えの方</p><div class="method-grid">';
+    METHODS.forEach(m=>{
+      html += '<button class="method-btn'+(state.selMethod===m.id?' selected':'')+'" onclick="selectMethod(\''+m.id+'\')">'+m.label+'</button>';
+    });
+    html += '</div>';
+    if(state.selMethod==='other'){
+      html += '<div style="margin-top:10px;"><input type="text" id="otherTextInput" placeholder="続柄・氏名など" value="'+esc(state.otherText)+'" oninput="state.otherText=this.value"></div>';
+    }
+    const canSubmit = state.selGrade && state.selStudent && state.selMethod && !state.saving;
+    html += '<button class="submit-btn" '+(canSubmit?'':'disabled')+' onclick="submitPickup()">'+(state.saving?'登録中…':'この内容で登録する')+'</button>';
+    html += '</div>';
+  }
+
+  return html;
+}
+
+function renderListTab(){
+  const filtered = state.listFilter==='all' ? state.pickups : state.pickups.filter(p=>p.grade===state.listFilter);
+  const sorted = [...filtered].sort((a,b)=>b.time-a.time);
+
+  let totalRoster = 0, totalDone = 0;
+  if(state.listFilter==='all'){
+    GRADES.forEach(g=>{ totalRoster += (state.roster[g]||[]).length; });
+    totalDone = state.pickups.length;
+  }else{
+    totalRoster = (state.roster[state.listFilter]||[]).length;
+    totalDone = state.pickups.filter(p=>p.grade===state.listFilter).length;
+  }
+
+  let pendingNames = [];
+  if(state.listFilter==='all'){
+    GRADES.forEach(g=>{
+      const done = new Set(state.pickups.filter(p=>p.grade===g).map(p=>p.student));
+      (state.roster[g]||[]).forEach(n=>{ if(!done.has(n)) pendingNames.push(g+'年 '+n); });
+    });
+  }else{
+    const done = new Set(state.pickups.filter(p=>p.grade===state.listFilter).map(p=>p.student));
+    (state.roster[state.listFilter]||[]).forEach(n=>{ if(!done.has(n)) pendingNames.push(n); });
+  }
+
+  let html = '';
+  if(state.flash){ html += '<div class="flash">'+esc(state.flash)+'</div>'; }
+
+  if(state.confirmReset){
+    html += '<div class="confirm-box"><p>本日の引き渡し記録をすべて削除します。よろしいですか？</p><div class="row"><button class="btn danger-outline" onclick="doReset()">削除する</button><button class="btn" onclick="cancelReset()">キャンセル</button></div></div>';
+  }
+
+  html += '<div class="filter-row">';
+  html += '<button class="filter-btn'+(state.listFilter==='all'?' selected':'')+'" onclick="state.listFilter=\'all\';render()">全学年</button>';
+  GRADES.forEach(g=>{
+    html += '<button class="filter-btn'+(state.listFilter===g?' selected':'')+'" onclick="state.listFilter=\''+g+'\';render()">'+g+'年</button>';
+  });
+  html += '</div>';
+
+  html += '<div class="stat-row">';
+  html += '<div class="stat-card"><div class="num">'+totalDone+' / '+totalRoster+'</div><div class="lbl">引き渡し完了</div></div>';
+  html += '<div class="stat-card"><div class="num">'+pendingNames.length+'</div><div class="lbl">未引き渡し</div></div>';
+  html += '</div>';
+
+  if(pendingNames.length>0){
+    html += '<div class="card"><p class="section-label">未引き渡しの児童</p><div class="pending-list">';
+    pendingNames.forEach(n=>{ html += '<span class="pending-chip">'+esc(n)+'</span>'; });
+    html += '</div></div>';
+  }
+
+  html += '<div class="card"><p class="section-label">引き渡し記録</p>';
+  if(sorted.length===0){
+    html += '<div class="empty">記録はまだありません。</div>';
+  }else{
+    html += '<table><thead><tr><th>時刻</th><th>学年</th><th>児童名</th><th>お迎え</th><th></th></tr></thead><tbody>';
+    sorted.forEach(p=>{
+      html += '<tr><td>'+fmtTime(p.time)+'</td><td>'+esc(p.grade)+'年</td><td>'+esc(p.student)+'</td><td><span class="method-tag">'+esc(p.methodLabel)+'</span></td><td><button class="row-del" onclick="deletePickup(\''+p.id+'\')">取消</button></td></tr>';
+    });
+    html += '</tbody></table>';
+  }
+  html += '</div>';
+
+  html += '<button class="btn danger-outline" onclick="askReset()">本日の記録をリセット</button>';
+
+  return html;
+}
+
+function renderRosterTab(){
+  let html = '<div class="card"><p class="section-label">学年を選択</p><div class="grade-grid">';
+  GRADES.forEach(g=>{
+    html += '<button class="grade-btn'+(state.rosterGrade===g?' selected':'')+'" onclick="setRosterGrade(\''+g+'\')">'+g+'年</button>';
+  });
+  html += '</div></div>';
+
+  const list = state.roster[state.rosterGrade] || [];
+  html += '<div class="card"><p class="section-label">'+state.rosterGrade+'年 名簿（'+list.length+'名）</p>';
+  html += '<div class="roster-list">';
+  if(list.length===0){
+    html += '<div class="empty">まだ登録されていません。</div>';
+  }else{
+    list.forEach((name,idx)=>{
+      html += '<div class="roster-item"><span>'+esc(name)+'</span><button onclick="removeStudent(\''+state.rosterGrade+'\','+idx+')">削除</button></div>';
+    });
+  }
+  html += '</div>';
+
+  html += '<div class="add-row"><input type="text" placeholder="児童名を入力" value="'+esc(state.newStudentName)+'" oninput="state.newStudentName=this.value" onkeydown="if(event.key===\'Enter\')addStudent()"><button class="btn" onclick="addStudent()">追加</button></div>';
+
+  html += '<p class="section-label" style="margin-top:16px;">複数まとめて追加</p>';
+  html += '<textarea rows="4" placeholder="1行に1名ずつ入力" oninput="state.bulkText=this.value">'+esc(state.bulkText)+'</textarea>';
+  html += '<button class="btn" style="margin-top:8px;" onclick="bulkAddStudents()">一括追加</button>';
+  html += '<p class="sync-note">名簿はこの端末だけでなく、他の端末とも共有されます。</p>';
+  html += '</div>';
+
+  html += renderSiblingSection();
+
+  return html;
+}
+
+function renderSiblingSection(){
+  let html = '<div class="card"><p class="section-label">兄弟姉妹グループ</p>';
+  html += '<p class="sibling-note">同じグループにした児童は、登録時にまとめて選べるようになります。</p>';
+
+  if(state.siblingGroups.length===0){
+    html += '<div class="empty">まだ登録されていません。</div>';
+  }else{
+    state.siblingGroups.forEach((grp, idx)=>{
+      html += '<div class="group-card"><div class="group-members">';
+      grp.forEach(m=>{ html += '<span class="group-member-tag">'+m.grade+'年 '+esc(m.name)+'</span>'; });
+      html += '</div><button class="group-del" onclick="deleteGroup('+idx+')">グループ削除</button></div>';
+    });
+  }
+
+  if(!state.showGroupBuilder){
+    html += '<button class="btn" style="margin-top:8px;" onclick="state.showGroupBuilder=true;render()">＋ 兄弟グループを追加</button>';
+  }else{
+    html += '<div style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px;">';
+    html += '<p class="sibling-note">同じ兄弟姉妹になる児童を、学年をまたいで選んでください（2名以上）。</p>';
+    GRADES.forEach(g=>{
+      const list = state.roster[g] || [];
+      if(list.length===0) return;
+      html += '<div class="builder-grade"><div class="lbl">'+g+'年</div>';
+      list.forEach(name=>{
+        const key = g+'|'+name;
+        const sel = state.newGroupMembers.includes(key);
+        html += '<button class="sibling-chip'+(sel?' selected':'')+'" onclick="toggleGroupMember(\''+g+'\',\''+esc(name).replace(/'/g,"\\'")+'\')">'+esc(name)+(sel?' ✓':'')+'</button>';
+      });
+      html += '</div>';
+    });
+    html += '<div class="builder-actions">';
+    html += '<button class="btn" '+(state.newGroupMembers.length<2?'disabled':'')+' onclick="saveNewGroup()">グループを保存（'+state.newGroupMembers.length+'名選択中）</button>';
+    html += '<button class="btn" onclick="state.showGroupBuilder=false;state.newGroupMembers=[];render()">キャンセル</button>';
+    html += '</div></div>';
+  }
+
+  html += '</div>';
+  return html;
+}
+
+function render(){
+  const app = document.getElementById('app');
+  if(!state.loaded){
+    app.innerHTML = '<div class="empty" style="padding:60px 0;">読み込み中…</div>';
+    return;
+  }
+  let html = '';
+  html += '<header class="top"><div><h1>引き渡し確認</h1><p>学年・児童・お迎えの方を選んで登録します</p></div>';
+  html += '<div class="top-actions"><span style="font-size:12px;color:var(--success);font-weight:700;align-self:center;">🟢 リアルタイム同期中</span></div></header>';
+
+  html += '<div class="tabs">';
+  html += '<button class="tab'+(state.activeTab==='register'?' active':'')+'" onclick="setTab(\'register\')">登録</button>';
+  html += '<button class="tab'+(state.activeTab==='list'?' active':'')+'" onclick="setTab(\'list\')">状況一覧</button>';
+  html += '<button class="tab'+(state.activeTab==='roster'?' active':'')+'" onclick="setTab(\'roster\')">名簿設定</button>';
+  html += '</div>';
+
+  if(state.activeTab==='register') html += renderRegisterTab();
+  else if(state.activeTab==='list') html += renderListTab();
+  else html += renderRosterTab();
+
+  app.innerHTML = html;
+}
+
+async function manualRefresh(){
+  await Promise.all([loadRoster(), loadPickups(), loadSiblings()]);
+  render();
+}
+
+init();
+</script>
+</body>
+</html>
