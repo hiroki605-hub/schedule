@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>新体力テスト 記録入力</title>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans",sans-serif;font-size:14px;background:#f5f5f5;color:#1a1a1a;min-height:100vh}
+.wrap{max-width:720px;margin:0 auto;padding:16px}
+h1{font-size:18px;font-weight:600;margin-bottom:4px}
+h2{font-size:16px;font-weight:600;margin-bottom:12px}
+h3{font-size:14px;font-weight:600;margin-bottom:8px}
+p{line-height:1.6}
+.sub{font-size:12px;color:#666;margin-bottom:20px}
+.card{background:#fff;border-radius:12px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:12px}
+button{cursor:pointer;border-radius:8px;font-size:13px;font-family:inherit;transition:.15s}
+.btn-primary{background:#1a1a1a;color:#fff;border:none;padding:11px 20px;font-weight:500}
+.btn-primary:disabled{opacity:.4;cursor:default}
+.btn-outline{background:#fff;color:#444;border:1px solid #ccc;padding:8px 14px}
+.btn-outline:hover{border-color:#999}
+.btn-sm{padding:5px 12px;font-size:12px}
+.btn-green{background:#fff;color:#0F6E56;border:1px solid #0F6E56}
+.btn-red{background:#fff;color:#a32d2d;border:1px solid #a32d2d}
+.btn-blue{background:#fff;color:#185FA5;border:1px solid #185FA5}
+input,select,textarea{width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;background:#fff;color:#1a1a1a}
+input[type=number]{width:90px}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#888}
+.lbl{font-size:12px;color:#666;margin-bottom:5px}
+.seg{display:flex;border:1px solid #ccc;border-radius:8px;overflow:hidden;width:fit-content}
+.seg button{padding:7px 18px;border:none;background:transparent;color:#444;font-size:13px}
+.seg button.on{background:#1a1a1a;color:#fff}
+.ev-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-bottom:16px}
+.ev-card{background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:11px 13px;display:flex;align-items:center;gap:10px}
+.ev-card.filled{border-color:#888}
+.badge{width:42px;height:42px;border-radius:50%;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#f0f0f0;border:1px solid #ddd;font-size:9px;color:#999}
+.badge.s{border-width:2px}
+.sum-box{background:#f5f5f5;border-radius:10px;padding:14px 16px;margin-bottom:14px}
+.rat-box{border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-width:2px;border-style:solid}
+.rat-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.tag{display:inline-block;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600}
+.rec-card{background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:13px 15px;margin-bottom:8px}
+.rec-card.ok{border-color:#0F6E56}
+.sc-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:3px;margin:8px 0}
+.sc-cell{border-radius:5px;padding:4px 2px;text-align:center;background:#f0f0f0}
+.tabs{display:flex;border-bottom:1px solid #e0e0e0;margin-bottom:16px;gap:0}
+.tab{padding:9px 16px;border:none;background:transparent;font-size:13px;color:#888;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab.on{color:#1a1a1a;font-weight:600;border-bottom-color:#1a1a1a}
+.info-box{background:#fffbe6;border:1px solid #e6d800;border-radius:8px;padding:10px 12px;font-size:12px;color:#555;margin-bottom:12px;line-height:1.7}
+.code-box{background:#1a1a1a;color:#4ade80;font-family:monospace;font-size:11px;padding:10px;border-radius:8px;word-break:break-all;max-height:100px;overflow-y:auto;user-select:all;cursor:text;margin:8px 0}
+.done-circle{width:54px;height:54px;border-radius:50%;background:#E1F5EE;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:26px}
+.rt-badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.rt-badge{font-size:11px;padding:2px 10px;border-radius:4px;font-weight:600}
+.sbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.stat-pill{font-size:12px;padding:5px 10px;border-radius:6px}
+textarea{resize:vertical;font-family:monospace}
+@media(max-width:500px){.ev-grid{grid-template-columns:1fr 1fr}.sc-grid{grid-template-columns:repeat(4,1fr)}}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<script>
+// ▼▼▼ ここから設定 ▼▼▼ ------------------------------------------------
+// 「体育振り返りアプリ」と同じFirebaseプロジェクトを使います（先生ログインも共通）。
+// 新規にFirebaseを設定する場合は、体育振り返りアプリと同じ手順で以下を書き換えてください。
+// 1) すでに体育振り返りアプリで設定済みなら、そのままコピペでOK（同じプロジェクトなので
+//    先生アカウント・teacherUidsもそのまま使えます）
+// 2) Realtime Database →「ルール」タブに、下記を"追加"してください（既存のルールは残したまま）
+//    "stConfig": {
+//      ".read": true,
+//      ".write": "auth != null && root.child('teacherUids').child(auth.uid).exists()"
+//    },
+//    "stRecords": {
+//      ".read": "auth != null && root.child('teacherUids').child(auth.uid).exists()",
+//      "$recordId": {
+//        ".write": "!data.exists() || (auth != null && root.child('teacherUids').child(auth.uid).exists())"
+//      }
+//    }
+// ------------------------------------------------------------------------- -->
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCvxuQJqhkSTsErHdjj9cpM6M0FnutLEEQ",
+  authDomain: "remembaer-me.firebaseapp.com",
+  databaseURL: "https://remembaer-me-default-rtdb.firebaseio.com",
+  projectId: "remembaer-me",
+  storageBucket: "remembaer-me.firebasestorage.app",
+  messagingSenderId: "833769616850",
+  appId: "1:833769616850:web:f1ea156613cc1f5cd8840b"
+};
+
+// ── 得点表（平成11年度 新体力テスト実施要項） ────────────────────
+const ST = {
+  男:{
+    grp:{t:[56,51,47,43,38,33,28,23,18,0],h:true},
+    sup:{t:[35,33,30,27,25,22,19,16,13,0],h:true},
+    bnd:{t:[64,58,53,49,44,39,33,28,21,0],h:true},
+    stp:{t:[63,60,56,53,49,45,41,37,30,0],h:true},
+    sht:{t:[125,113,102,90,76,63,51,37,26,0],h:true},
+    spr:{t:[6.6,6.8,7.0,7.2,7.5,7.9,8.4,9.0,9.7,99],h:false},
+    jmp:{t:[265,254,242,230,218,203,188,170,150,0],h:true},
+    thr:{t:[37,34,31,28,25,22,19,16,13,0],h:true},
+  },
+  女:{
+    grp:{t:[36,33,30,28,25,23,20,17,14,0],h:true},
+    sup:{t:[29,26,23,20,18,15,13,11,8,0],h:true},
+    bnd:{t:[63,58,54,50,45,40,35,30,23,0],h:true},
+    stp:{t:[53,50,48,45,42,39,36,32,27,0],h:true},
+    sht:{t:[88,76,64,54,44,35,27,21,15,0],h:true},
+    spr:{t:[7.7,8.0,8.3,8.6,8.9,9.3,9.8,10.3,11.2,99],h:false},
+    jmp:{t:[210,200,190,179,168,157,145,132,118,0],h:true},
+    thr:{t:[23,20,18,16,14,12,11,9,8,0],h:true},
+  }
+};
+// 総合評価基準 [A下限,B下限,C下限,D下限] 学年別
+const RT={'1':[51,41,32,22],'2':[57,47,37,27],'3':[60,51,41,31]};
+const EV=[
+  {id:'grp',lb:'握力',      un:'kg',st:'0.1'},
+  {id:'sup',lb:'上体起こし',un:'回', st:'1'},
+  {id:'bnd',lb:'長座体前屈',un:'cm',st:'0.1'},
+  {id:'stp',lb:'反復横跳び',un:'点',st:'1'},
+  {id:'sht',lb:'シャトルラン',un:'回',st:'1'},
+  {id:'spr',lb:'50m走',    un:'秒',st:'0.1'},
+  {id:'jmp',lb:'立ち幅跳び',un:'cm',st:'1'},
+  {id:'thr',lb:'ボール投げ',un:'m', st:'1'},
+];
+const RI={A:{c:'#0F6E56',bg:'#E1F5EE',p:5},B:{c:'#185FA5',bg:'#E6F1FB',p:4},C:{c:'#BA7517',bg:'#FAEEDA',p:3},D:{c:'#993C1D',bg:'#FAECE7',p:2},E:{c:'#A32D2D',bg:'#FCEBEB',p:1}};
+
+function calcSc(val,tbl,h){const n=parseFloat(val);if(isNaN(n))return null;if(h){const i=tbl.findIndex(x=>n>=x);return i>=0?10-i:1}else{const i=tbl.findIndex(x=>n<=x);return i>=0?10-i:1}}
+function getSc(id,val,g){const tb=ST[g][id];return calcSc(val,tb.t,tb.h)}
+function getRat(tot,grade){const rt=RT[String(grade)];return tot>=rt[0]?'A':tot>=rt[1]?'B':tot>=rt[2]?'C':tot>=rt[3]?'D':'E'}
+function scC(s){return s>=9?'#0F6E56':s>=7?'#185FA5':s>=5?'#BA7517':s>=3?'#D85A30':'#A32D2D'}
+function scB(s){return s>=9?'#E1F5EE':s>=7?'#E6F1FB':s>=5?'#FAEEDA':s>=3?'#FAECE7':'#FCEBEB'}
+
+// ── Firebaseデータ層 ───────────────────────────────────────────────
+// classes/rosters（stConfig）は誰でも読める・先生だけ書ける。
+// records（stRecords）は先生だけ読める・生徒は新規送信のみできる（上書き・削除不可）。
+let db = null;
+let auth = null;
+let CONFIG = { classes: [], rosters: {} };   // stConfigのキャッシュ（起動時に読み込み）
+let RECORDS = [];                             // stRecordsのキャッシュ（先生ログイン中はリアルタイム同期）
+let teacherUnlocked = false;
+let recordsListenerActive = false;
+
+async function loadStConfig(){
+  try{
+    const snap = await db.ref('stConfig').once('value');
+    CONFIG = snap.exists() ? snap.val() : { classes:[], rosters:{} };
+    if(!CONFIG.classes) CONFIG.classes = [];
+    if(!CONFIG.rosters) CONFIG.rosters = {};
+  }catch(e){
+    CONFIG = { classes:[], rosters:{} };
+  }
+}
+async function saveStConfig(){
+  try{ await db.ref('stConfig').set(CONFIG); }
+  catch(e){ alert('保存に失敗しました（先生としてログインしているか確認してください）：'+e.message); }
+}
+function getClasses(){ return CONFIG.classes || []; }
+function setClasses(v){ CONFIG.classes = v; saveStConfig(); }
+function getStus(cid){ return (CONFIG.rosters && CONFIG.rosters[cid]) || []; }
+function setStus(cid,v){ if(!CONFIG.rosters) CONFIG.rosters = {}; CONFIG.rosters[cid] = v; saveStConfig(); }
+
+function getRecs(){ return RECORDS; }
+
+// 先生画面を開いている間だけ、stRecordsをリアルタイムで購読する
+function startRecordsListener(){
+  if(recordsListenerActive) return;
+  recordsListenerActive = true;
+  db.ref('stRecords').on('value', snap=>{
+    const val = snap.exists() ? snap.val() : {};
+    RECORDS = Object.keys(val).map(k=>({...val[k], id:k}));
+    if(PAGE==='t_dash') render();
+  });
+}
+function stopRecordsListener(){
+  if(!recordsListenerActive) return;
+  recordsListenerActive = false;
+  db.ref('stRecords').off('value');
+}
+
+// 生徒が1件送信する（新規作成のみ。上書き・削除はできない）
+async function pushRecord(rec){
+  const ref = db.ref('stRecords').push();
+  rec.id = ref.key;
+  await ref.set(rec);
+  return rec;
+}
+async function confirmRecRemote(id){
+  await db.ref('stRecords/'+id+'/confirmed').set(true);
+}
+async function deleteRecRemote(id){
+  await db.ref('stRecords/'+id).remove();
+}
+async function deleteRecsRemote(ids){
+  const updates = {};
+  ids.forEach(id=>{ updates[id] = null; });
+  await db.ref('stRecords').update(updates);
+}
+async function updateRecEventRemote(id, patch){
+  await db.ref('stRecords/'+id).update(patch);
+}
+
+// ── 名前パース（番号は数字のみ） ──────────────────────────────────
+function parseLine(line,autoNum){
+  line=line.trim();if(!line)return null;
+  const ci=line.search(/[,，]/);
+  if(ci>=0){const b=line.slice(0,ci).trim(),a=line.slice(ci+1).trim();if(a)return{num:b,name:a}}
+  const m=line.match(/^(\d+)\s+(.+)$/);
+  if(m)return{num:m[1],name:m[2].trim()};
+  return{num:String(autoNum),name:line};
+}
+
+// ── 提出コード ─────────────────────────────────────────────────────
+// ── ルーター ──────────────────────────────────────────────────────
+let PAGE='top',STATE={};
+function goTeacher(){ nav(teacherUnlocked ? 't_dash' : 't_login'); }
+function nav(page,state={}){
+  PAGE=page;STATE=state;
+  if(page==='t_dash'){
+    if(!teacherUnlocked){ PAGE='t_login'; render(); return; }
+    startRecordsListener();
+  } else {
+    stopRecordsListener();
+  }
+  render();
+}
+
+// ── レンダリング ──────────────────────────────────────────────────
+function render(){
+  const app=document.getElementById('app');
+  switch(PAGE){
+    case'top':        app.innerHTML=tmplTop();       break;
+    case'stu_cls':    app.innerHTML=tmplStuCls();    break;
+    case'stu_pick':   app.innerHTML=tmplStuPick();   break;
+    case'stu_test':   app.innerHTML=tmplStuTest();   break;
+    case'stu_done':   app.innerHTML=tmplStuDone();   break;
+    case't_login':    app.innerHTML=tmplTLogin();    break;
+    case't_dash':     app.innerHTML=tmplTDash();     break;
+    default:          app.innerHTML=tmplTop();
+  }
+  bindEvents();
+}
+
+// ── ユーティリティHTML ─────────────────────────────────────────────
+const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+function backBtn(fn){return`<button class="btn-outline btn-sm" style="margin-bottom:16px" onclick="${fn}">← 戻る</button>`}
+function segHtml(opts,cur,fn){return`<div class="seg">${opts.map(o=>`<button class="${cur===o?'on':''}" onclick="${fn}('${o}')">${esc(o)}</button>`).join('')}</div>`}
+function ratBoxHtml(val,sub,color,bg,size,fs){return`<div class="rat-box" style="width:${size}px;height:${size}px;background:${bg};border-color:${color}"><span style="font-size:${fs}px;font-weight:700;color:${color};line-height:1">${esc(val)}</span>${sub?`<span style="font-size:10px;color:${color}">${sub}</span>`:''}</div>`}
+function scBadgeHtml(s,size=42){
+  if(!s)return`<div class="badge" style="width:${size}px;height:${size}px">—</div>`;
+  return`<div class="badge s" style="width:${size}px;height:${size}px;background:${scB(s)};border-color:${scC(s)}"><span style="font-size:${size>40?17:13}px;font-weight:700;color:${scC(s)};line-height:1">${s}</span><span style="font-size:9px;color:${scC(s)}">点</span></div>`;
+}
+
+// ── トップ ────────────────────────────────────────────────────────
+function tmplTop(){return`
+<div style="padding:1rem 0">
+  <h1>新体力テスト 記録入力</h1>
+  <p class="sub" style="margin-top:4px">平成11年度 新体力テスト実施要項 準拠</p>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:380px">
+    <button onclick="nav('stu_cls')" style="background:#fff;border:1px solid #ddd;border-radius:12px;padding:24px 12px;cursor:pointer;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.06)">
+      <div style="font-size:32px;margin-bottom:8px">🏃</div>
+      <p style="font-weight:600;font-size:15px;margin-bottom:4px">生徒用</p>
+      <p style="font-size:12px;color:#666">記録を入力する</p>
+    </button>
+    <button onclick="goTeacher()" style="background:#fff;border:1px solid #ddd;border-radius:12px;padding:24px 12px;cursor:pointer;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.06)">
+      <div style="font-size:32px;margin-bottom:8px">📋</div>
+      <p style="font-weight:600;font-size:15px;margin-bottom:4px">教師用</p>
+      <p style="font-size:12px;color:#666">確認・管理する</p>
+    </button>
+  </div>
+</div>`}
+
+// ── 生徒：クラス選択 ──────────────────────────────────────────────
+function tmplStuCls(){
+  const cls=getClasses();
+  return`<div>${backBtn("nav('top')")}
+  <h2>クラスを選択</h2>
+  ${!cls.length?`<div class="card" style="text-align:center;padding:32px"><p style="font-size:32px;margin-bottom:8px">📭</p><p style="font-weight:600;margin-bottom:4px">クラスが登録されていません</p><p class="sub">先生にクラスの登録をお願いしてください</p></div>`:`
+  <div style="max-width:360px">
+    <p class="lbl">クラスを選択してください</p>
+    <select id="clssel" style="margin-bottom:14px">
+      <option value="">-- クラスを選択 --</option>
+      ${cls.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}（中${c.grade}）</option>`).join('')}
+    </select>
+    <button class="btn-primary" style="width:100%" onclick="goStuPick()">次へ →</button>
+  </div>`}
+  </div>`
+}
+function goStuPick(){const v=document.getElementById('clssel').value;if(!v)return alert('クラスを選んでください');STATE.cid=v;const cl=getClasses().find(c=>c.id===v);STATE.cls=cl.name;STATE.grade=cl.grade;nav('stu_pick',STATE)}
+
+// ── 生徒：生徒選択 ────────────────────────────────────────────────
+function tmplStuPick(){
+  const stus=getStus(STATE.cid);stus.sort((a,b)=>(+a.num||0)-(+b.num||0));
+  STATE.gender=STATE.gender||'男';
+  return`<div>${backBtn("nav('stu_cls')")}
+  <h2>生徒を選択</h2>
+  <p class="sub">${esc(STATE.cls)}（中${STATE.grade}）</p>
+  ${!stus.length?`<div class="card" style="text-align:center;padding:32px"><p style="font-size:32px;margin-bottom:8px">👤</p><p style="font-weight:600;margin-bottom:4px">生徒が登録されていません</p><p class="sub">先生に生徒の登録をお願いしてください</p></div>`:`
+  <div style="max-width:360px;display:flex;flex-direction:column;gap:12px">
+    <div>
+      <p class="lbl">出席番号・氏名</p>
+      <select id="spick" style="margin-bottom:0" onchange="onStuPick(this.value)">
+        <option value="">-- 選択してください --</option>
+        ${stus.map(s=>`<option value="${esc(s.num)}|||${esc(s.name)}">${s.num}番　${esc(s.name)}</option>`).join('')}
+      </select>
+    </div>
+    <div id="gdiv" style="display:none">
+      <p class="lbl">性別</p>
+      ${segHtml(['男子','女子'],STATE.gender+'子',"pickG")}
+    </div>
+    <button id="snxt" class="btn-primary" style="width:100%;opacity:0.4" disabled onclick="goTest()">テスト入力へ →</button>
+  </div>`}
+  </div>`
+}
+function onStuPick(v){const btn=document.getElementById('snxt'),gd=document.getElementById('gdiv');if(!v){if(btn){btn.disabled=true;btn.style.opacity='0.4';}if(gd)gd.style.display='none';return;}const p=v.split('|||');STATE.num=p[0];STATE.name=p[1];if(gd)gd.style.display='block';if(btn){btn.disabled=false;btn.style.opacity='1';}}
+function pickG(v){STATE.gender=v.replace('子','');document.querySelectorAll('.seg button').forEach(b=>{b.className=b.textContent===v?'on':'';})}
+function goTest(){if(!STATE.name)return;STATE.vals={};nav('stu_test',STATE)}
+
+// ── 生徒：テスト入力 ──────────────────────────────────────────────
+function tmplStuTest(){
+  const scores={};EV.forEach(e=>{const v=STATE.vals[e.id];if(v!==undefined&&v!==''){const s=getSc(e.id,v,STATE.gender);if(s!=null)scores[e.id]=s;}});
+  const n=Object.keys(scores).length,tot=Object.values(scores).reduce((a,b)=>a+b,0),done=n===8;
+  const rat=done?getRating_:null,rs=rat?RI[rat]:null;
+  const rt=RT[String(STATE.grade)];
+  return`<div>${backBtn("nav('stu_pick')")}
+  <p class="sub">${esc(STATE.cls)}　${esc(STATE.num)}番　${esc(STATE.name)}（${STATE.gender}子・中${STATE.grade}）</p>
+  <h2>測定記録を入力</h2>
+  <div class="ev-grid">
+    ${EV.map(e=>{const s=scores[e.id],v=STATE.vals[e.id]||'';return`
+    <div class="ev-card${v?` filled`:''}" id="ec_${e.id}">
+      <div style="flex:1">
+        <p class="lbl">${e.lb}</p>
+        <div style="display:flex;align-items:center;gap:6px">
+          <input type="number" step="${e.st}" min="0" value="${esc(v)}" placeholder="入力" id="ei_${e.id}" oninput="setVal('${e.id}',this.value)" style="width:80px">
+          <span style="font-size:12px;color:#666">${e.un}</span>
+        </div>
+      </div>
+      ${scBadgeHtml(s)}
+    </div>`}).join('')}
+  </div>
+  ${n>0?`
+  <div class="sum-box">
+    <div class="rat-row" style="margin-bottom:8px">
+      <div>
+        <p style="font-size:11px;color:#666;margin-bottom:2px">合計得点（${n}/8種目）</p>
+        <div style="display:flex;align-items:baseline;gap:4px">
+          <span style="font-size:32px;font-weight:700">${tot}</span>
+          <span style="font-size:12px;color:#666">/ ${n*10}点満点</span>
+        </div>
+      </div>
+      ${done&&rs?`<div style="display:flex;gap:8px">
+        <div style="text-align:center"><p style="font-size:10px;color:#666;margin-bottom:4px">総合評価</p>${ratBoxHtml(rat,'',rs.c,rs.bg,54,32)}</div>
+        <div style="text-align:center"><p style="font-size:10px;color:#666;margin-bottom:4px">評価点</p>${ratBoxHtml(rs.p,'点',rs.c,rs.bg,54,26)}</div>
+      </div>`:''}
+    </div>
+    <div class="rt-badges">
+      ${['A','B','C','D','E'].map((r,i)=>{const ri=RI[r];const labels=[`${rt[0]}点以上`,`${rt[1]}〜${rt[0]-1}`,`${rt[2]}〜${rt[1]-1}`,`${rt[3]}〜${rt[2]-1}`,`〜${rt[3]-1}点`];return`<span class="rt-badge" style="background:${ri.bg};color:${ri.c}">${r}: ${labels[i]}</span>`}).join('')}
+    </div>
+  </div>`:``}
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <button id="subbtn" class="btn-primary" ${done?'':'disabled style="opacity:.4"'} onclick="doSubmit()">送信して提出コードを取得</button>
+    <p style="font-size:12px;color:#666">${done?'準備完了！送信してください':`残り${8-n}種目`}</p>
+  </div></div>`
+}
+let getRating_=null; // computed in setVal
+function setVal(id,v){
+  STATE.vals[id]=v;
+  const scores={};EV.forEach(e=>{const vv=STATE.vals[e.id];if(vv!==undefined&&vv!==''){const s=getSc(e.id,vv,STATE.gender);if(s!=null)scores[e.id]=s;}});
+  const n=Object.keys(scores).length,tot=Object.values(scores).reduce((a,b)=>a+b,0),done=n===8;
+  if(done)getRating_=getRat(tot,STATE.grade);
+  // update badge
+  const bdg=document.getElementById('ec_'+id);
+  if(bdg){
+    const s=scores[id];
+    const badgeEl=bdg.querySelector('.badge');
+    if(badgeEl){
+      if(s){badgeEl.className='badge s';badgeEl.style.background=scB(s);badgeEl.style.borderColor=scC(s);badgeEl.innerHTML=`<span style="font-size:17px;font-weight:700;color:${scC(s)};line-height:1">${s}</span><span style="font-size:9px;color:${scC(s)}">点</span>`;}
+      else{badgeEl.className='badge';badgeEl.style.background='#f0f0f0';badgeEl.style.borderColor='#ddd';badgeEl.innerHTML='—';}
+    }
+    bdg.className='ev-card'+(v?' filled':'');
+  }
+  // update sum
+  const sb=document.getElementById('subbtn');if(sb){sb.disabled=!done;sb.style.opacity=done?'1':'0.4';}
+  // re-render sum box area
+  const app=document.getElementById('app');
+  const oldSum=app.querySelector('.sum-box');
+  const newSumHtml=n>0?(() => {
+    const rt=RT[String(STATE.grade)];const rat=done?getRat(tot,STATE.grade):null;const rs=rat?RI[rat]:null;
+    return`<div class="sum-box" style="margin-bottom:12px">
+      <div class="rat-row" style="margin-bottom:8px">
+        <div><p style="font-size:11px;color:#666;margin-bottom:2px">合計得点（${n}/8種目）</p>
+        <div style="display:flex;align-items:baseline;gap:4px"><span style="font-size:32px;font-weight:700">${tot}</span><span style="font-size:12px;color:#666">/ ${n*10}点満点</span></div></div>
+        ${done&&rs?`<div style="display:flex;gap:8px">
+          <div style="text-align:center"><p style="font-size:10px;color:#666;margin-bottom:4px">総合評価</p>${ratBoxHtml(rat,'',rs.c,rs.bg,54,32)}</div>
+          <div style="text-align:center"><p style="font-size:10px;color:#666;margin-bottom:4px">評価点</p>${ratBoxHtml(rs.p,'点',rs.c,rs.bg,54,26)}</div>
+        </div>`:''}
+      </div>
+      <div class="rt-badges">${['A','B','C','D','E'].map((r,i)=>{const ri=RI[r];const labels=[`${rt[0]}点以上`,`${rt[1]}〜${rt[0]-1}`,`${rt[2]}〜${rt[1]-1}`,`${rt[3]}〜${rt[2]-1}`,`〜${rt[3]-1}点`];return`<span class="rt-badge" style="background:${ri.bg};color:${ri.c}">${r}: ${labels[i]}</span>`}).join('')}</div>
+    </div>`;
+  })():'';
+  if(oldSum){if(n>0){oldSum.outerHTML=newSumHtml;}else{oldSum.remove();}}
+  else if(n>0){
+    const btnRow=app.querySelector('#subbtn').parentElement;
+    btnRow.insertAdjacentHTML('beforebegin',newSumHtml);
+  }
+}
+async function doSubmit(){
+  const scores={};
+  EV.forEach(e=>{const v=STATE.vals[e.id];if(v!==undefined&&v!==''){const s=getSc(e.id,v,STATE.gender);if(s!=null)scores[e.id]=s;}});
+  const tot=Object.values(scores).reduce((a,b)=>a+b,0);
+  const rat=getRat(tot,STATE.grade);
+  const rs=RI[rat];
+  const rec={
+    cid:STATE.cid,cls:STATE.cls,num:STATE.num,
+    name:STATE.name,grade:STATE.grade,gender:STATE.gender,
+    vals:{...STATE.vals},scores,total:tot,rating:rat,ratingPt:rs.p,
+    confirmed:false,ts:Date.now(),tsStr:new Date().toLocaleString('ja-JP')
+  };
+  STATE.sending=true;
+  STATE.sendOk=false;
+  STATE.sendError='';
+  nav('stu_done',STATE);
+  try{
+    const saved = await pushRecord(rec);
+    STATE.doneRec=saved;
+    STATE.sendOk=true;
+  }catch(e){
+    STATE.doneRec=rec;
+    STATE.sendError=String(e.message||e);
+  }
+  STATE.sending=false;
+  nav('stu_done',STATE);
+}
+
+// ── 生徒：完了画面 ────────────────────────────────────────────────
+function tmplStuDone(){
+  const rec=STATE.doneRec;if(!rec)return tmplTop();
+  const rs=RI[rec.rating];
+  const sending=STATE.sending;
+  const ok=STATE.sendOk;
+  const errMsg=STATE.sendError||'';
+
+  let statusHtml='';
+  if(sending){
+    statusHtml=`<div style="background:#fffbe6;border:1px solid #e6c700;border-radius:10px;padding:14px 16px;margin-bottom:14px;display:flex;align-items:center;gap:12px">
+      <span style="font-size:22px">⏳</span>
+      <div><p style="font-weight:600;margin-bottom:2px">送信中...</p>
+      <p style="font-size:12px;color:#888">しばらくお待ちください</p></div>
+    </div>`;
+  }else if(ok){
+    statusHtml=`<div style="background:#E1F5EE;border:1px solid #0F6E56;border-radius:10px;padding:14px 16px;margin-bottom:14px;display:flex;align-items:center;gap:12px">
+      <span style="font-size:24px">✅</span>
+      <div><p style="font-weight:600;color:#0F6E56;margin-bottom:2px">送信完了！</p>
+      <p style="font-size:12px;color:#0F6E56">先生の画面にリアルタイムで反映されます</p></div>
+    </div>`;
+  }else{
+    statusHtml=`<div style="background:#FAECE7;border:1px solid #993C1D;border-radius:10px;padding:12px 14px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <span style="font-size:22px">⚠️</span>
+        <div><p style="font-weight:600;color:#993C1D;margin-bottom:2px">送信に失敗しました</p>
+        <p style="font-size:12px;color:#993C1D">通信環境を確認してもう一度お試しください。改善しない場合は先生に声をかけてください</p></div>
+      </div>
+      ${errMsg?`<details style="font-size:10px;color:#aaa"><summary>エラー詳細</summary>${esc(errMsg)}</details>`:''}
+      <button class="btn-outline btn-sm" style="margin-top:8px" onclick="retrySubmit()">🔄 もう一度送信する</button>
+    </div>`;
+  }
+
+  return`<div style="max-width:500px">
+  <div style="text-align:center;margin-bottom:20px">
+    <div class="done-circle">✅</div>
+    <h2>送信完了！</h2>
+    <p class="sub">${rec.cls}　${rec.num}番　${rec.name}</p>
+  </div>
+  <div class="sum-box" style="margin-bottom:14px">
+    <div class="rat-row">
+      <div><p style="font-size:11px;color:#666;margin-bottom:2px">合計得点</p>
+        <div style="display:flex;align-items:baseline;gap:4px"><span style="font-size:34px;font-weight:700">${rec.total}</span><span style="font-size:12px;color:#666">/ 80点満点</span></div></div>
+      <div style="display:flex;gap:8px">
+        <div style="text-align:center"><p style="font-size:10px;color:#666;margin-bottom:4px">総合評価</p>${ratBoxHtml(rec.rating,'',rs.c,rs.bg,54,32)}</div>
+        <div style="text-align:center"><p style="font-size:10px;color:#666;margin-bottom:4px">評価点</p>${ratBoxHtml(rec.ratingPt,'点',rs.c,rs.bg,54,26)}</div>
+      </div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:14px">
+    ${EV.map(e=>{const s=rec.scores[e.id];return`<div style="background:${s?scB(s):'#f5f5f5'};border-radius:8px;padding:7px 4px;text-align:center">
+      <p style="font-size:9px;color:#666;margin-bottom:1px">${e.lb.length>5?e.lb.slice(0,5)+'…':e.lb}</p>
+      <p style="font-size:9px;color:#888;margin-bottom:2px">${rec.vals[e.id]!==undefined&&rec.vals[e.id]!==''?rec.vals[e.id]+e.un:'—'}</p>
+      <span style="font-size:14px;font-weight:700;color:${s?scC(s):'#999'}">${s||'—'}</span>${s?`<span style="font-size:9px;color:${scC(s)}">点</span>`:''}
+    </div>`;}).join('')}
+  </div>
+  ${statusHtml}
+  <button class="btn-outline" style="width:100%" onclick="nav('top')">トップへ戻る</button>
+  </div>`;
+}
+function retrySubmit(){
+  if(!STATE.doneRec)return;
+  const rec = STATE.doneRec;
+  delete rec.id;
+  STATE.sending=true; STATE.sendOk=false; STATE.sendError='';
+  render();
+  pushRecord(rec).then(saved=>{
+    STATE.doneRec=saved; STATE.sendOk=true; STATE.sending=false; render();
+  }).catch(e=>{
+    STATE.sendError=String(e.message||e); STATE.sending=false; render();
+  });
+}
+
+// ── 教師：ログイン ────────────────────────────────────────────────
+function tmplTLogin(){return`<div>${backBtn("nav('top')")}
+  <h2>教師用ログイン</h2>
+  <p class="sub" style="margin-bottom:16px">Firebaseで作成した先生アカウントのメールアドレスとパスワードを入力してください</p>
+  <div style="max-width:320px">
+    <input type="email" id="temail" placeholder="メールアドレス" style="margin-bottom:8px">
+    <input type="password" id="tpwd" placeholder="パスワード" style="margin-bottom:8px" onkeydown="if(event.key==='Enter')tlogin()">
+    <p id="tpe" style="color:#a32d2d;font-size:12px;margin-bottom:8px;min-height:16px"></p>
+    <button class="btn-primary" style="width:100%" onclick="tlogin()">ログイン</button>
+  </div></div>`}
+async function tlogin(){
+  const email=(document.getElementById('temail').value||'').trim();
+  const pwd=document.getElementById('tpwd').value||'';
+  const e=document.getElementById('tpe');
+  if(!email||!pwd){ if(e)e.textContent='メールアドレスとパスワードを入力してください'; return; }
+  try{
+    await firebase.auth().signInWithEmailAndPassword(email,pwd);
+    nav('t_dash');
+  }catch(err){
+    const known=['auth/wrong-password','auth/user-not-found','auth/invalid-credential','auth/invalid-email'];
+    if(e)e.textContent = known.includes(err.code) ? 'メールアドレスまたはパスワードが違います' : ('ログインに失敗しました：'+err.message);
+  }
+}
+async function tlogout(){
+  try{ await firebase.auth().signOut(); }catch(e){}
+  stopRecordsListener();
+  nav('top');
+}
+
+// ── 教師：ダッシュボード ──────────────────────────────────────────
+let TTAB='records',TFILTER='全て';
+function tmplTDash(){
+  const tabContent=TTAB==='records'?tmplRecords():TTAB==='manage'?tmplManage():tmplSettings();
+  return`<div>${backBtn("nav('top')")}
+  <div class="tabs" style="flex-wrap:wrap">
+    <button class="tab ${TTAB==='records'?'on':''}" onclick="TTAB='records';render()">📋 記録一覧</button>
+    <button class="tab ${TTAB==='manage'?'on':''}" onclick="TTAB='manage';render()">⚙️ クラス・生徒管理</button>
+    <button class="tab ${TTAB==='settings'?'on':''}" onclick="TTAB='settings';render()">🔑 設定</button>
+    <button class="tab" onclick="tlogout()" style="margin-left:auto;color:#a32d2d">🚪 ログアウト</button>
+  </div>
+  <div id="tc">${tabContent}</div>
+  </div>`;
+}
+
+function tmplSettings(){
+  return`<div style="max-width:520px">
+    <h3 style="margin-bottom:6px">🔗 データ同期について</h3>
+    <div style="background:#E1F5EE;border:1px solid #0F6E56;border-radius:10px;padding:14px 16px;margin-bottom:20px;display:flex;align-items:center;gap:12px">
+      <span style="font-size:24px">✅</span>
+      <div>
+        <p style="font-weight:600;color:#0F6E56;margin-bottom:2px">リアルタイム同期・設定済み</p>
+        <p style="font-size:12px;color:#0F6E56">生徒が送信すると、この画面（記録一覧）に自動で反映されます。追加の設定は不要です。</p>
+      </div>
+    </div>
+
+    <!-- パスワード変更 -->
+    <div class="card" style="margin-top:16px">
+      <p style="font-weight:600;margin-bottom:12px">🔑 教師用パスワードの変更</p>
+      <div style="display:flex;flex-direction:column;gap:8px;max-width:320px">
+        <div>
+          <p class="lbl">現在のパスワード</p>
+          <input type="password" id="pwd_cur" placeholder="現在のパスワード">
+        </div>
+        <div>
+          <p class="lbl">新しいパスワード</p>
+          <input type="password" id="pwd_new" placeholder="新しいパスワード（6文字以上）">
+        </div>
+        <div>
+          <p class="lbl">新しいパスワード（確認）</p>
+          <input type="password" id="pwd_new2" placeholder="もう一度入力">
+        </div>
+        <button class="btn-primary" onclick="changePassword()">🔑 パスワードを変更する</button>
+        <p id="pwdmsg" style="font-size:12px;min-height:16px"></p>
+      </div>
+    </div>
+  </div>`;
+}
+async function changePassword(){
+  const cur=document.getElementById('pwd_cur').value;
+  const nw=document.getElementById('pwd_new').value;
+  const nw2=document.getElementById('pwd_new2').value;
+  const msg=document.getElementById('pwdmsg');
+  if(nw.length<6){if(msg){msg.style.color='#a32d2d';msg.textContent='6文字以上で設定してください';}return;}
+  if(nw!==nw2){if(msg){msg.style.color='#a32d2d';msg.textContent='新しいパスワードが一致しません';}return;}
+  const user=firebase.auth().currentUser;
+  if(!user){if(msg){msg.style.color='#a32d2d';msg.textContent='ログインし直してから変更してください';}return;}
+  try{
+    const cred=firebase.auth.EmailAuthProvider.credential(user.email,cur);
+    await user.reauthenticateWithCredential(cred);
+    await user.updatePassword(nw);
+    document.getElementById('pwd_cur').value='';
+    document.getElementById('pwd_new').value='';
+    document.getElementById('pwd_new2').value='';
+    if(msg){msg.style.color='#0F6E56';msg.textContent='✅ パスワードを変更しました';setTimeout(()=>{if(msg)msg.textContent=''},3000);}
+  }catch(e){
+    const known=['auth/wrong-password','auth/invalid-credential'];
+    if(msg){msg.style.color='#a32d2d';msg.textContent=known.includes(e.code)?'現在のパスワードが違います':('変更に失敗しました：'+e.message);}
+  }
+}
+
+// ── 教師：記録一覧 ────────────────────────────────────────────────
+let evDelMode={}; // recId→true でその生徒の種目削除モードON
+let bulkDelConfirm={}; // grade→true
+let delConfirm={};
+
+function tmplRecords(){
+  const cls=getClasses();let recs=getRecs();
+  if(TFILTER!=='全て')recs=recs.filter(r=>r.cls===TFILTER);
+  recs=recs.sort((a,b)=>{const ca=a.cls||'',cb=b.cls||'';if(ca!==cb)return ca.localeCompare(cb,'ja');return(+a.num||0)-(+b.num||0);});
+  const conf=recs.filter(r=>r.confirmed).length;
+  const allRecs=getRecs();
+  const g1=allRecs.filter(r=>r.grade==='1').length;
+  const g2=allRecs.filter(r=>r.grade==='2').length;
+  const g3=allRecs.filter(r=>r.grade==='3').length;
+
+  return`<div>
+  <!-- フィルター・操作バー -->
+  <div class="sbar">
+    <select onchange="TFILTER=this.value;render()" style="width:auto;padding:6px 10px">
+      <option value="全て">全クラス</option>
+      ${cls.map(c=>`<option value="${esc(c.name)}"${TFILTER===c.name?' selected':''}>${esc(c.name)}</option>`).join('')}
+    </select>
+    <button class="btn-outline btn-sm" onclick="exportCSV()">📊 CSV書き出し</button>
+    <span class="stat-pill" style="background:#f0f0f0">${recs.length}件</span>
+    <span class="stat-pill" style="background:#E1F5EE;color:#0F6E56">確認済 ${conf}</span>
+    <span class="stat-pill" style="background:#FAECE7;color:#993C1D">未確認 ${recs.length-conf}</span>
+    <span class="stat-pill" style="background:#E1F5EE;color:#0F6E56">🟢 リアルタイム同期中</span>
+  </div>
+
+  <!-- 学年ごと一括削除 -->
+  <div class="card" style="margin-bottom:14px;background:#fff8f8;border:1px solid #f0d0d0">
+    <p style="font-size:12px;font-weight:600;color:#a32d2d;margin-bottom:8px">🗑 学年ごと一括削除</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      ${[['1','中1'],['2','中2'],['3','中3'],['all','全学年']].map(([g,lb])=>{
+        const cnt=g==='all'?allRecs.length:allRecs.filter(r=>r.grade===g).length;
+        const bid='bdel_'+g;
+        const isConf=!!bulkDelConfirm[g];
+        return`<div style="display:flex;align-items:center;gap:6px;background:#fff;border:1px solid ${isConf?'#a32d2d':'#e0c0c0'};border-radius:8px;padding:6px 10px">
+          <span style="font-size:12px;color:#666">${lb}（${cnt}件）</span>
+          <button id="${bid}" class="btn-outline btn-sm btn-red" onclick="bulkDelete('${g}')" style="${isConf?'background:#a32d2d;color:#fff;':''}">
+            ${isConf?'本当に削除？':'削除'}
+          </button>
+        </div>`;
+      }).join('')}
+    </div>
+    <p style="font-size:11px;color:#a32d2d;margin-top:6px">※ ボタンを2回押すと削除されます</p>
+  </div>
+
+  ${!recs.length?`<div class="card" style="text-align:center;padding:32px"><p style="font-size:32px;margin-bottom:8px">📭</p><p>まだ記録がありません</p></div>`:''}
+  ${recs.map(r=>{
+    const rs=RI[r.rating];
+    const isEvDel=!!evDelMode[r.id];
+    return`
+  <div class="rec-card${r.confirmed?' ok':''}">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px">
+      <div>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:3px">
+          <span class="tag" style="background:${r.confirmed?'#E1F5EE':'#FAECE7'};color:${r.confirmed?'#0F6E56':'#993C1D'}">${r.confirmed?'確認済':'未確認'}</span>
+          <strong>${esc(r.cls)}</strong>
+          <strong>${esc(r.num)}番　${esc(r.name)}</strong>
+          <span style="font-size:12px;color:#666">${r.gender}子・中${r.grade}</span>
+        </div>
+        <p style="font-size:11px;color:#888">${r.tsStr}</p>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="text-align:right"><p style="font-size:10px;color:#666;margin-bottom:1px">合計</p><span style="font-size:20px;font-weight:700">${r.total}</span><span style="font-size:11px;color:#666">点</span></div>
+        ${ratBoxHtml(r.rating,'',rs.c,rs.bg,44,24)}
+        ${ratBoxHtml(r.ratingPt,'点',rs.c,rs.bg,44,18)}
+      </div>
+    </div>
+
+    <!-- 種目グリッド（削除モード時はクリック可） -->
+    ${isEvDel?`<p style="font-size:11px;color:#a32d2d;margin-bottom:4px">🗑 削除したい種目をタップ</p>`:''}
+    <div class="sc-grid" style="${isEvDel?'border:2px dashed #f0a0a0;border-radius:8px;padding:4px':''}">
+      ${EV.map(e=>{
+        const s=r.scores[e.id];
+        const hasData=s!=null;
+        if(isEvDel&&hasData){
+          return`<div class="sc-cell" onclick="deleteEvent('${esc(r.id)}','${e.id}')" style="background:#fff0f0;border:1px solid #f0a0a0;cursor:pointer;position:relative" title="${e.lb}を削除">
+            <p style="font-size:8px;color:#a32d2d;margin-bottom:1px">${e.lb.length>4?e.lb.slice(0,4)+'…':e.lb}</p>
+            <p style="font-size:8px;color:#aaa;margin-bottom:1px">${r.vals[e.id]!==undefined&&r.vals[e.id]!==''?r.vals[e.id]+e.un:'—'}</p>
+            <span style="font-size:13px;font-weight:700;color:#a32d2d">${s}</span>
+            <div style="position:absolute;top:1px;right:2px;font-size:9px;color:#a32d2d">✕</div>
+          </div>`;
+        }
+        return`<div class="sc-cell" style="background:${s?scB(s):'#f0f0f0'};${isEvDel&&!hasData?'opacity:.4':''}">
+          <p style="font-size:8px;color:#888;margin-bottom:1px">${e.lb.length>4?e.lb.slice(0,4)+'…':e.lb}</p>
+          <p style="font-size:8px;color:#aaa;margin-bottom:1px">${r.vals[e.id]!==undefined&&r.vals[e.id]!==''?r.vals[e.id]+e.un:'—'}</p>
+          <span style="font-size:13px;font-weight:700;color:${s?scC(s):'#aaa'}">${s||'—'}</span>
+        </div>`;
+      }).join('')}
+    </div>
+
+    <!-- ボタン行 -->
+    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+      ${!r.confirmed?`<button class="btn-outline btn-sm btn-green" onclick="confirmRec('${esc(r.id)}')">✓ 確認済</button>`:''}
+      <button class="btn-outline btn-sm" onclick="toggleEvDel('${esc(r.id)}')" style="${isEvDel?'background:#a32d2d;color:#fff;border-color:#a32d2d':''}">
+        ${isEvDel?'✕ 種目削除モードOFF':'✏️ 種目を個別削除'}
+      </button>
+      <button class="btn-outline btn-sm" id="del_${esc(r.id)}" onclick="deleteRec('${esc(r.id)}')">🗑 この記録を削除</button>
+    </div>
+  </div>`}).join('')}
+  </div>`
+}
+
+async function confirmRec(id){
+  try{ await confirmRecRemote(id); }
+  catch(e){ alert('更新に失敗しました：'+e.message); }
+}
+
+function deleteRec(id){
+  if(!delConfirm[id]){delConfirm[id]=true;const b=document.getElementById('del_'+id);if(b){b.textContent='本当に削除？';b.style.borderColor='#a32d2d';b.style.color='#a32d2d';}setTimeout(()=>{delete delConfirm[id]},3000);return;}
+  delete delConfirm[id];
+  delete evDelMode[id];
+  deleteRecRemote(id).catch(e=>alert('削除に失敗しました：'+e.message));
+}
+
+function bulkDelete(grade){
+  if(!bulkDelConfirm[grade]){
+    bulkDelConfirm[grade]=true;
+    // ボタン更新（再レンダーせずに直接変更）
+    const btn=document.getElementById('bdel_'+grade);
+    if(btn){btn.textContent='本当に削除？';btn.style.background='#a32d2d';btn.style.color='#fff';}
+    setTimeout(()=>{
+      delete bulkDelConfirm[grade];
+      const b=document.getElementById('bdel_'+grade);
+      if(b){b.textContent='削除';b.style.background='';b.style.color='';}
+    },3000);
+    return;
+  }
+  delete bulkDelConfirm[grade];
+  const all=getRecs();
+  const ids=(grade==='all'?all:all.filter(r=>r.grade===grade)).map(r=>r.id);
+  if(ids.length) deleteRecsRemote(ids).catch(e=>alert('削除に失敗しました：'+e.message));
+  else render();
+}
+
+function toggleEvDel(id){
+  if(evDelMode[id]) delete evDelMode[id]; else evDelMode[id]=true;
+  render();
+}
+
+function deleteEvent(recId,evId){
+  const r=getRecs().find(x=>x.id===recId);
+  if(!r)return;
+  const scores={...r.scores},vals={...r.vals};
+  delete scores[evId];
+  delete vals[evId];
+  const tot=Object.values(scores).reduce((a,b)=>a+b,0);
+  const n=Object.keys(scores).length;
+  const patch={ scores, vals, total: tot };
+  if(n===8){ patch.rating=getRat(tot,r.grade); patch.ratingPt=RI[patch.rating].p; }
+  updateRecEventRemote(recId, patch).catch(e=>alert('更新に失敗しました：'+e.message));
+}
+function exportCSV(){
+  let recs=getRecs();if(TFILTER!=='全て')recs=recs.filter(r=>r.cls===TFILTER);
+  recs=recs.sort((a,b)=>{const ca=a.cls||'',cb=b.cls||'';if(ca!==cb)return ca.localeCompare(cb,'ja');return(+a.num||0)-(+b.num||0);});
+  const hdr=['クラス','出席番号','氏名','性別','学年',...EV.flatMap(e=>[e.lb+'(記録)',e.lb+'(得点)']),'合計得点','総合評価','評価点','送信日時','確認済み'];
+  const rows=recs.map(r=>[r.cls,r.num,r.name,r.gender+'子','中'+r.grade,...EV.flatMap(e=>[r.vals[e.id]||'',r.scores[e.id]||'']),r.total,r.rating,r.ratingPt,r.tsStr,r.confirmed?'○':'—']);
+  const csv='\uFEFF'+[hdr,...rows].map(row=>row.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
+  a.download=`体力テスト_${TFILTER==='全て'?'全クラス':TFILTER}_${new Date().toLocaleDateString('ja-JP').replace(/\//g,'-')}.csv`;a.click();
+}
+
+// ── 教師：クラス・生徒管理 ────────────────────────────────────────
+let SELCID=null;
+function tmplManage(){
+  const cls=getClasses();
+  return`<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:16px">
+  <div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <h3>クラス一覧</h3>
+      <button class="btn-outline btn-sm" onclick="showAddCls()">＋ 追加</button>
+    </div>
+    <div id="addclsf"></div>
+    ${!cls.length?`<p style="font-size:13px;color:#888">クラスがありません</p>`:''}
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${cls.map(c=>`<div style="display:flex;align-items:center;gap:6px;background:${SELCID===c.id?'#f5f5f5':'#fff'};border:1px solid ${SELCID===c.id?'#888':'#e0e0e0'};border-radius:8px;padding:8px 10px">
+        <button onclick="SELCID='${esc(c.id)}';render()" style="flex:1;background:none;border:none;cursor:pointer;text-align:left;font-size:13px;font-weight:${SELCID===c.id?700:400};padding:0">${esc(c.name)} <span style="color:#888;font-size:11px">中${c.grade}</span></button>
+        <button class="btn-outline btn-sm" id="dclsb_${esc(c.id)}" onclick="deleteCls('${esc(c.id)}')">削除</button>
+      </div>`).join('')}
+    </div>
+  </div>
+  <div id="stumgmt">${SELCID?tmplStuEdit(SELCID):'<p style="font-size:13px;color:#888">← クラスを選ぶと生徒を編集できます</p>'}</div>
+  </div>`}
+
+let dclsConfirm={};
+function showAddCls(){document.getElementById('addclsf').innerHTML=`<div style="background:#f5f5f5;border-radius:8px;padding:12px;margin-bottom:10px">
+  <p class="lbl">クラス名</p><input id="nc" placeholder="例：1年1組" style="margin-bottom:8px">
+  <p class="lbl">学年</p>
+  <select id="ng" style="margin-bottom:10px"><option value="1">中1（12歳）</option><option value="2">中2（13歳）</option><option value="3">中3（14歳）</option></select>
+  <div style="display:flex;gap:6px">
+    <button class="btn-primary" style="flex:1;padding:8px" onclick="saveNewCls()">追加</button>
+    <button class="btn-outline" style="padding:8px 12px" onclick="document.getElementById('addclsf').innerHTML=''">取消</button>
+  </div></div>`}
+function saveNewCls(){const nm=document.getElementById('nc').value.trim(),gr=document.getElementById('ng').value;if(!nm)return alert('クラス名を入力してください');const arr=getClasses();arr.push({id:'cls_'+Date.now(),name:nm,grade:gr});setClasses(arr);render()}
+function deleteCls(id){
+  if(!dclsConfirm[id]){dclsConfirm[id]=true;const b=document.getElementById('dclsb_'+id);if(b){b.textContent='確認？';b.style.borderColor='#a32d2d';b.style.color='#a32d2d';}setTimeout(()=>{delete dclsConfirm[id]},3000);return;}
+  const arr=getClasses().filter(c=>c.id!==id);setClasses(arr);if(SELCID===id)SELCID=null;render();
+}
+
+function tmplStuEdit(cid){
+  const cl=getClasses().find(c=>c.id===cid);if(!cl)return'';
+  const stus=getStus(cid);stus.sort((a,b)=>(+a.num||0)-(+b.num||0));
+  const txt=stus.map(s=>s.name).join('\n');
+  return`<div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+    <h3>${esc(cl.name)} の生徒</h3>
+    <span style="font-size:12px;color:#888">${stus.length}人</span>
+  </div>
+  <div class="info-box" style="background:#f0f7ff;border-color:#c0d8f0">
+    <strong>入力形式（1行に1人）</strong><br>
+    　名前のみ　→ 番号は自動採番（例：<code>大里 悟子</code>）<br>
+    　番号あり　→ 先頭に数字（例：<code>1 大里 悟子</code>）<br>
+    　カンマも可（例：<code>1,大里悟子</code>）
+  </div>
+  <textarea id="sta_${esc(cid)}" style="height:180px" placeholder="大里 悟子&#10;小川 真生&#10;河野 那津">${esc(txt)}</textarea>
+  <button class="btn-primary" style="width:100%;margin-top:8px" onclick="saveStuBulk('${esc(cid)}')">💾 保存</button>
+  <p id="stmsg_${esc(cid)}" style="font-size:12px;color:#0F6E56;margin-top:6px;min-height:16px"></p>
+  ${stus.length?`<div style="margin-top:8px;max-height:180px;overflow-y:auto;border-top:1px solid #eee;padding-top:8px">
+    ${stus.map(s=>`<div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid #f0f0f0;font-size:13px"><span style="color:#888;width:30px;flex-shrink:0">${s.num}</span><span>${esc(s.name)}</span></div>`).join('')}
+  </div>`:''}
+  </div>`
+}
+function saveStuBulk(cid){
+  const ta=document.getElementById('sta_'+cid);if(!ta)return;
+  const lines=ta.value.split('\n').map(l=>l.trim()).filter(Boolean);
+  let auto=1;const arr=lines.map(l=>{const r=parseLine(l,auto);if(r)auto++;return r;}).filter(x=>x&&x.name);
+  setStus(cid,arr);
+  const msg=document.getElementById('stmsg_'+cid);if(msg){msg.textContent=`✓ ${arr.length}人を保存しました`;setTimeout(()=>{if(msg)msg.textContent=''},2500);}
+  // 一覧更新
+  const sm=document.getElementById('stumgmt');if(sm)sm.innerHTML=tmplStuEdit(cid);
+}
+
+// ── イベントバインド ──────────────────────────────────────────────
+function bindEvents(){}
+
+// ── 起動 ─────────────────────────────────────────────────────────
+(async function boot(){
+  const app=document.getElementById('app');
+  try{
+    firebase.initializeApp(FIREBASE_CONFIG);
+  }catch(e){
+    app.innerHTML=`<div style="max-width:560px;margin:60px auto;padding:20px;">Firebaseの初期化に失敗しました。FIREBASE_CONFIGの値を確認してください。<br>${esc(e.message)}</div>`;
+    return;
+  }
+  db = firebase.database();
+  auth = firebase.auth();
+  try{ await loadStConfig(); }catch(e){ CONFIG={classes:[],rosters:{}}; }
+
+  // 先生としてログイン済みのセッションが残っていないかを、最初の描画前に確認する
+  await new Promise(resolve=>{
+    let first=true;
+    auth.onAuthStateChanged(user=>{
+      teacherUnlocked=!!user;
+      if(!user){ stopRecordsListener(); RECORDS=[]; if(PAGE==='t_dash'){ PAGE='top'; } }
+      if(first){ first=false; resolve(); }
+      else { render(); }
+    });
+  });
+  render();
+})();
+</script>
+</body>
+</html>
