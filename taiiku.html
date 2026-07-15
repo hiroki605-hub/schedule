@@ -779,10 +779,10 @@
           </select>
         </div>
         <div>
-          <label class="field-label">出席番号・名前</label>
+          <label class="field-label">出席番号</label>
           <select data-act="s_pick_entry" ${!state.s_class?'disabled':''}>
             <option value="">-- 選択 --</option>
-            ${roster.map(n=>`<option value="${esc(n)}" ${n===state.s_entry?'selected':''}>${esc(n)}</option>`).join('')}
+            ${roster.map(n=>`<option value="${esc(n)}" ${n===state.s_entry?'selected':''}>${esc(n)}番</option>`).join('')}
           </select>
         </div>
       </div>
@@ -843,7 +843,7 @@
                 <label class="field-label">アドバイスをくれた人${state.s_advices.length>1 ? '（'+(i+1)+'人目）' : ''}</label>
                 <select data-act="s_pick_advice_from" data-idx="${i}">
                   <option value="">-- 選択（もらってない場合は空欄でOK）--</option>
-                  ${roster.filter(n=>n!==state.s_entry).map(n=>`<option value="${esc(n)}" ${n===a.fromEntry?'selected':''}>${esc(n)}</option>`).join('')}
+                  ${roster.filter(n=>n!==state.s_entry).map(n=>`<option value="${esc(n)}" ${n===a.fromEntry?'selected':''}>${esc(n)}番</option>`).join('')}
                 </select>
               </div>
               ${state.s_advices.length>1 ? `<button class="btn danger sm" data-act="s_remove_advice" data-idx="${i}" style="flex:none;">この欄を削除</button>` : ''}
@@ -1153,8 +1153,15 @@
 
     <div class="card">
       <h2>名簿（${esc(state.rosterGrade)} ${esc(state.rosterClass||'')}）</h2>
-      <p class="sub">「出席番号 名前」の形式で1行ずつ貼り付けてください（例：3 佐藤花子）</p>
-      <textarea id="rosterTextarea" rows="10" placeholder="1 山田太郎&#10;2 鈴木花子&#10;3 佐藤次郎">${esc(state.rosterDraft!==null && state.rosterDraft!=='' ? state.rosterDraft : list.join('\n'))}</textarea>
+      <p class="sub">個人が特定されないよう、名前は使わず出席番号だけで管理します。出席番号を1行ずつ貼り付けてください。</p>
+      <div class="row" style="margin-bottom:10px; align-items:flex-end;">
+        <div>
+          <label class="field-label">人数（1番から連番で作成）</label>
+          <input type="number" id="rosterCount" min="1" max="99" placeholder="例：35">
+        </div>
+        <button class="btn ghost sm" data-act="gen_roster_seq">連番で作成</button>
+      </div>
+      <textarea id="rosterTextarea" rows="10" placeholder="1&#10;2&#10;3">${esc(state.rosterDraft!==null && state.rosterDraft!=='' ? state.rosterDraft : list.join('\n'))}</textarea>
       <div class="row" style="margin-top:10px;">
         <button class="btn yellow" data-act="save_roster">この名簿を保存（${list.length}名 登録中）</button>
       </div>
@@ -1226,7 +1233,7 @@
       <table class="mtable">
         <thead><tr>
           <th><input type="checkbox" data-act="toggle_select_all" ${allSelected?'checked':''}></th>
-          <th>学年</th><th>クラス</th><th>出席番号・氏名</th>
+          <th>学年</th><th>クラス</th><th>出席番号</th>
           ${tpl.ratingGroups[0].items.map(r=>`<th title="${esc(r.label)}">[態度]${shortLabel(r.label)}</th>`).join('')}
           ${tpl.ratingGroups[1].items.map(r=>`<th title="${esc(r.label)}">[判断]${shortLabel(r.label)}</th>`).join('')}
           <th>感想（抜粋）</th>
@@ -1241,7 +1248,7 @@
             <td data-label="選択"><input type="checkbox" data-act="toggle_select_resp" data-id="${r.id}" ${state.r_selected[r.id]?'checked':''}></td>
             <td data-label="学年">${esc(r.grade||'-')}</td>
             <td data-label="クラス">${esc(r.className)}</td>
-            <td data-label="出席番号・氏名">${esc(r.entry)}</td>
+            <td data-label="出席番号">${esc(r.entry)}番</td>
             ${allRatingItems.map(rt=>`<td class="mono" data-label="${esc(rt.label)}" title="${esc(rt.label)}">${r.ratings[rt.id]||'-'}</td>`).join('')}
             <td data-label="感想（抜粋）" style="max-width:140px;" title="${esc(Object.values(r.reflections)[0]||'')}">${esc(Object.values(r.reflections)[0]||'').slice(0,15)}…</td>
             <td data-label="AI採点（${maxAi}点満点）">${r.aiScore ? `<span class="mono">${r.aiScore.ai} / ${maxAi}</span>` : '<span class="pending">未採点</span>'}</td>
@@ -1274,7 +1281,7 @@
         <div style="overflow-x:auto;">
         <table class="mtable">
           <thead><tr>
-            <th>学年</th><th>クラス</th><th>氏名</th>
+            <th>学年</th><th>クラス</th><th>出席番号</th>
             <th>アドバイス回数</th>
             <th>具体性ボーナス合計</th>
             <th>合計ポイント</th>
@@ -1284,7 +1291,7 @@
               <tr>
                 <td data-label="学年">${esc(b.grade||'-')}</td>
                 <td data-label="クラス">${esc(b.className)}</td>
-                <td data-label="氏名">${esc(b.entry)}</td>
+                <td data-label="出席番号">${esc(b.entry)}番</td>
                 <td class="mono" data-label="アドバイス回数">${b.count}</td>
                 <td class="mono" data-label="具体性ボーナス合計">${b.bonus}</td>
                 <td data-label="合計ポイント"><span class="score-pill s5">${b.count + b.bonus}</span></td>
@@ -1338,7 +1345,7 @@
     const tpl = state.config.templates.find(t=>t.id===state.r_templateId);
     const board = state.r_adviceBoard || [];
     if(!tpl || board.length===0) return;
-    const headers = ['学年','クラス','氏名','アドバイス回数','具体性ボーナス合計','合計ポイント'];
+    const headers = ['学年','クラス','出席番号','アドバイス回数','具体性ボーナス合計','合計ポイント'];
     const lines = [headers.join(',')];
     board.forEach(b=>{
       lines.push([b.grade||'', b.className, b.entry, b.count, b.bonus, b.count+b.bonus].join(','));
@@ -1545,7 +1552,7 @@ ${rubric}
     if(!tpl) return;
     const taidoIds = tpl.ratingGroups[0].items.map(i=>i.id);
     const shikouIds = tpl.ratingGroups[1].items.map(i=>i.id);
-    const headers = ['学年','クラス','出席番号・氏名','主体的に取り組む態度(合計)','思考・判断(合計)','感想AI採点(内容)','文字数加点','総合計'];
+    const headers = ['学年','クラス','出席番号','主体的に取り組む態度(合計)','思考・判断(合計)','感想AI採点(内容)','文字数加点','総合計'];
     const lines = [headers.join(',')];
     state.r_responses.forEach(r=>{
       const taidoTotal = taidoIds.reduce((s,id)=> s + (r.ratings[id]||0), 0);
@@ -1785,6 +1792,14 @@ ${rubric}
         if(arr.length<=1){ toast('クラスは各学年最低1つ必要です'); return; }
         state.modal = {kind:'confirmDeleteClass', grade: state.rosterGrade, cls: el.dataset.val};
         render();
+        break;
+      }
+      case 'gen_roster_seq': {
+        const n = parseInt(document.getElementById('rosterCount').value, 10);
+        if(!n || n < 1){ toast('人数を入力してください'); break; }
+        const seq = Array.from({length:n}, (_,i)=>String(i+1)).join('\n');
+        state.rosterDraft = seq;
+        document.getElementById('rosterTextarea').value = seq;
         break;
       }
       case 'save_roster': {
