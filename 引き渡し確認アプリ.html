@@ -223,6 +223,48 @@ function fmtTime(ts){
   const d = new Date(ts);
   return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');
 }
+function fmtDateForFile(){
+  const d = new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function csvCell(v){
+  const s = String(v==null?'':v);
+  if(/[",\n]/.test(s)) return '"'+s.replace(/"/g,'""')+'"';
+  return s;
+}
+function downloadCSV(filename, rows){
+  const csv = '\uFEFF' + rows.map(r=>r.map(csvCell).join(',')).join('\r\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function exportStatusCSV(){
+  const gradesInScope = state.listFilter==='all' ? GRADES : [state.listFilter];
+  const rows = [['学年','児童名','状況','引き渡し時刻','お迎え方法']];
+  gradesInScope.forEach(g=>{
+    (state.roster[g]||[]).forEach(name=>{
+      if(isAbsent(g,name)){
+        rows.push([g+'年', name, '欠席', '', '']);
+        return;
+      }
+      const rec = state.pickups.find(p=>p.grade===g && p.student===name);
+      if(rec) rows.push([g+'年', name, '引き渡し済み', fmtTime(rec.time), rec.methodLabel]);
+      else rows.push([g+'年', name, '未引き渡し', '', '']);
+    });
+  });
+  downloadCSV('引き渡し状況_'+fmtDateForFile()+'.csv', rows);
+}
+function exportLogCSV(){
+  const filtered = state.listFilter==='all' ? state.pickups : state.pickups.filter(p=>p.grade===state.listFilter);
+  const sorted = [...filtered].sort((a,b)=>a.time-b.time);
+  const rows = [['時刻','学年','児童名','お迎え方法']];
+  sorted.forEach(p=>{ rows.push([fmtTime(p.time), p.grade+'年', p.student, p.methodLabel]); });
+  downloadCSV('引き渡し記録_'+fmtDateForFile()+'.csv', rows);
+}
 
 async function loadRoster(){
   try{
@@ -601,7 +643,10 @@ function renderListTab(){
 
   html += renderAbsentSection();
 
-  html += '<div class="card"><p class="section-label">引き渡し記録</p>';
+  html += '<div class="card"><div class="row" style="justify-content:space-between;align-items:center;"><p class="section-label" style="margin-bottom:0;">全児童の状況一覧（CSV）</p><button class="btn" onclick="exportStatusCSV()">📥 状況をCSVで保存</button></div>';
+  html += '<p class="sibling-note">学年・児童ごとに「引き渡し済み／欠席／未引き渡し」の最終状況を1行ずつ記録します。1日の締めの記録用です。</p></div>';
+
+  html += '<div class="card"><div class="row" style="justify-content:space-between;align-items:center;"><p class="section-label" style="margin-bottom:0;">引き渡し記録</p><button class="btn" onclick="exportLogCSV()" '+(sorted.length===0?'disabled':'')+'>📥 記録をCSVで保存</button></div>';
   if(sorted.length===0){
     html += '<div class="empty">記録はまだありません。</div>';
   }else{
