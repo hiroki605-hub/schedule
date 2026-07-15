@@ -264,7 +264,7 @@ function initApp(){
       +'<button onclick="openRankingModal()" style="background:#e8f0fe;border:1px solid #c5d8fd;color:#1a56c4;border-radius:8px;padding:7px;font-size:12px;font-weight:700;width:100%;cursor:pointer">📊 最終評価一覧</button>';
     if(S.addOpen){
       sb+='<div style="background:#f5f8ff;border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:6px">'
-        +'<input id="nName" placeholder="名前"><input id="nNum" placeholder="出席番号">'
+        +'<input id="nNum" placeholder="出席番号">'
         +'<select id="nCls">'+DB.classes.map(function(c){return'<option>'+c+'</option>';}).join('')+'</select>'
         +'<div style="display:flex;gap:4px">'
         +'<button class="btn-primary btn-sm" onclick="doAddStu()" style="flex:1">追加</button>'
@@ -277,7 +277,7 @@ function initApp(){
     list.forEach(function(s){
       if(S.delConf===s.id){
         sb+='<div style="background:#fce8e6;border-radius:8px;padding:8px;font-size:12px">'
-          +'<p style="margin-bottom:6px">「'+s.name+'」を削除しますか？</p>'
+          +'<p style="margin-bottom:6px">「'+s.cls+' '+s.number+'番」を削除しますか？</p>'
           +'<div style="display:flex;gap:4px">'
           +'<button class="btn-danger btn-sm" onclick="doDelStu(\''+s.id+'\')" style="flex:1">削除</button>'
           +'<button class="btn-sm" onclick="cancelDel()" style="flex:1">戻る</button>'
@@ -285,9 +285,9 @@ function initApp(){
       } else {
         sb+='<div class="stu-card'+(S.selId===s.id?' active':'')+'" onclick="pickStu(\''+s.id+'\')">'
           +'<div style="flex:1;min-width:0">'
-          +'<div style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+s.name+'</div>'
+          +'<div style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+s.number+'番</div>'
           +'<div style="font-size:11px;color:#888;display:flex;align-items:center;gap:4px;margin-top:2px">'
-          +'<span>'+s.cls+' #'+s.number+'</span>'
+          +'<span>'+s.cls+'</span>'
 
           +'</div></div>'
           +'<button class="btn-icon" style="font-size:14px" onclick="event.stopPropagation();confirmDel(\''+s.id+'\')">🗑</button></div>';
@@ -322,7 +322,7 @@ function initApp(){
     var allCls=uniq(students.map(function(s){return s.cls;})).sort();
     var filtered=S.sFilterCls?students.filter(function(s){return s.cls===S.sFilterCls;}):[];
     var clsOpts='<option value="">クラスを選んでください</option>'+allCls.map(function(c){return'<option value="'+c+'"'+(S.sFilterCls===c?' selected':'')+'>'+c+'</option>';}).join('');
-    var nameOpts='<option value="">名前を選んでください</option>'+filtered.map(function(s){return'<option value="'+s.id+'">'+s.number+'番　'+s.name+'</option>';}).join('');
+    var nameOpts='<option value="">出席番号を選んでください</option>'+filtered.map(function(s){return'<option value="'+s.id+'">'+s.number+'番</option>';}).join('');
     return '<div style="max-width:380px;margin:0 auto;padding:2rem 1.5rem">'
       +'<button onclick="goPage(\'home\')" style="border:none;background:none;color:#888;padding:0 0 1.5rem;font-size:13px">← ホームに戻る</button>'
       +'<h2 style="font-size:18px;font-weight:700;margin-bottom:4px">生徒ログイン</h2>'
@@ -330,9 +330,9 @@ function initApp(){
       +'<div style="display:flex;flex-direction:column;gap:12px">'
       +'<div><label style="font-size:12px;color:#888;display:block;margin-bottom:4px">① クラス</label>'
       +'<select onchange="setSFilterCls(this.value)">'+clsOpts+'</select></div>'
-      +'<div><label style="font-size:12px;color:#888;display:block;margin-bottom:4px">② 名前</label>'
+      +'<div><label style="font-size:12px;color:#888;display:block;margin-bottom:4px">② 出席番号</label>'
       +'<select id="sName"'+(!S.sFilterCls?' disabled':'')+'>'+nameOpts+'</select>'
-      +(!S.sFilterCls?'<p style="font-size:11px;color:#aaa;margin-top:3px">クラスを選ぶと名前が表示されます</p>':'')+'</div>'
+      +(!S.sFilterCls?'<p style="font-size:11px;color:#aaa;margin-top:3px">クラスを選ぶと出席番号が表示されます</p>':'')+'</div>'
       +'<div><label style="font-size:12px;color:#888;display:block;margin-bottom:4px">③ パスワード <span style="color:#aaa">（初期：出席番号）</span></label>'
       +'<input type="password" id="sPw" placeholder="パスワードを入力" onkeydown="if(event.key===\'Enter\')doSLogin()"></div>'
       +(S.sErr?'<p style="color:#d93025;font-size:13px">'+S.sErr+'</p>':"")
@@ -351,7 +351,7 @@ function initApp(){
     var html='<div style="max-width:680px;margin:0 auto;padding:1rem">'
       +'<div style="display:flex;align-items:center;gap:8px;border-bottom:1px solid #dde4f8;padding-bottom:12px;margin-bottom:14px">'
       +'<button onclick="goSLogin()" style="border:none;background:none;color:#888;font-size:20px;padding:4px">←</button>'
-      +'<h2 style="font-size:16px;font-weight:700;margin:0;flex:1">'+s.name+' さん</h2>'
+      +'<h2 style="font-size:16px;font-weight:700;margin:0;flex:1">'+s.cls+' '+s.number+'番</h2>'
       +'<button onclick="openPwModal()" style="font-size:12px;padding:6px 12px">🔑 PW変更</button>'
       +'</div>';
     if(s.isDefault)html+='<div style="background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:10px 14px;font-size:13px;color:#7a5c00;margin-bottom:12px">⚠️ 初期パスワード（出席番号）のままです。「PW変更」から変更してください。</div>';
@@ -389,8 +389,7 @@ function initApp(){
     var skillCount=SKILLS[gradeFromCls(s.cls)].length;
     return '<div class="summary-box">'
       +'<div class="grade-circle" style="'+gcStyle(grade)+'">'+grade+'</div>'
-      +'<div style="flex:1"><div style="font-weight:700;font-size:16px">'+s.name+'</div>'
-      +'<div style="font-size:12px;color:#888">'+s.cls+' #'+s.number+'</div></div>'
+      +'<div style="flex:1"><div style="font-weight:700;font-size:16px">'+s.cls+' '+s.number+'番</div></div>'
       +'<div style="text-align:right">'
       +'<div style="font-size:22px;font-weight:700">'+total+'<span style="font-size:12px;color:#888;font-weight:400">/'+maxPts+'</span></div>'
       +'<div style="font-size:11px;color:#888">'+done+'/'+skillCount+'種目</div>'
@@ -475,8 +474,14 @@ function initApp(){
         +'<select id="bCls">'+DB.classes.map(function(c){return'<option>'+c+'</option>';}).join('')+'</select></div>'
         +'<div><label style="font-size:12px;color:#888;display:block;margin-bottom:4px">開始番号</label>'
         +'<input type="number" id="bStart" value="1" min="1" style="max-width:120px"></div>'
-        +'<div><label style="font-size:12px;color:#888;display:block;margin-bottom:6px">名簿入力（1行1人）</label>'
-        +'<textarea id="bNames" rows="10" placeholder="山田太郎&#10;鈴木花子&#10;..." style="font-family:monospace;font-size:13px"></textarea></div>'
+        +'<div><label style="font-size:12px;color:#888;display:block;margin-bottom:6px">出席番号（1行1人・開始番号から自動採番も可能）</label>'
+        +'<div style="background:#f0f4ff;border:1px solid #c5d8fd;border-radius:8px;padding:8px 12px;font-size:12px;color:#1a3a6a;margin-bottom:8px">'
+        +'個人が特定されないよう、名前は使わず出席番号だけで管理します。<br>下の「人数」を入力して連番作成を押すか、出席番号を1行に1つずつ直接入力してください。</div>'
+        +'<div style="display:flex;gap:8px;margin-bottom:8px">'
+        +'<input type="number" id="bCount" min="1" max="99" placeholder="人数（例：35）" style="flex:1">'
+        +'<button class="btn-sm" onclick="genBulkSeq()" style="white-space:nowrap">連番で作成</button>'
+        +'</div>'
+        +'<textarea id="bNames" rows="10" placeholder="1&#10;2&#10;3" style="font-family:monospace;font-size:13px"></textarea></div>'
         +'<p style="font-size:12px;color:#888">※ 初期パスワードは出席番号</p>'
         +'<div style="display:flex;gap:8px">'
         +'<button class="btn-primary" onclick="doBulkAdd()" style="flex:1">追加する</button>'
@@ -530,8 +535,7 @@ function initApp(){
         var gcS=gcStyle(grade);
         tableRows+='<tr style="border-bottom:1px solid #f0ede6;'+(done===skills.length?'background:#f5f8ff':'')+'">'
           +'<td style="padding:5px 8px;font-size:12px;white-space:nowrap;border-right:1px solid #f0ede6">'+s.cls+'</td>'
-          +'<td style="padding:5px 8px;font-size:12px;border-right:1px solid #f0ede6">'+s.number+'</td>'
-          +'<td style="padding:5px 8px;font-size:13px;font-weight:600;white-space:nowrap;border-right:1px solid #f0ede6">'+s.name+'</td>'
+          +'<td style="padding:5px 8px;font-size:13px;font-weight:600;border-right:1px solid #f0ede6">'+s.number+'番</td>'
           +skillCells
           +'<td style="text-align:center;padding:5px 8px;font-size:14px;font-weight:700;border-right:1px solid #f0ede6">'+total+'</td>'
           +'<td style="text-align:center;padding:5px 8px"><span style="'+gcS+';padding:2px 10px;border-radius:6px;font-weight:700;font-size:13px">'+grade+'</span></td>'
@@ -557,8 +561,7 @@ function initApp(){
         +'<table style="border-collapse:collapse;width:100%;font-size:12px">'
         +'<thead><tr style="background:#f0f4ff;border-bottom:2px solid #dde4f8">'
         +'<th style="padding:6px 8px;text-align:left;border-right:1px solid #dde4f8">クラス</th>'
-        +'<th style="padding:6px 8px;border-right:1px solid #dde4f8">#</th>'
-        +'<th style="padding:6px 8px;text-align:left;border-right:1px solid #dde4f8">名前</th>'
+        +'<th style="padding:6px 8px;text-align:left;border-right:1px solid #dde4f8">出席番号</th>'
         +skillHeaders
         +'<th style="padding:6px 8px;text-align:center;border-right:1px solid #dde4f8">合計</th>'
         +'<th style="padding:6px 8px;text-align:center">評価</th>'
@@ -584,9 +587,9 @@ function initApp(){
     var selEl=document.getElementById("sName");
     var id=selEl?selEl.value:"";
     var pw=document.getElementById("sPw")?document.getElementById("sPw").value:"";
-    if(!id){S.sErr="名前を選んでください";render();return;}
+    if(!id){S.sErr="出席番号を選んでください";render();return;}
     var stu=DB.students[id];
-    if(!stu||stu.password!==pw){S.sErr="名前またはパスワードが違います";render();return;}
+    if(!stu||stu.password!==pw){S.sErr="出席番号またはパスワードが違います";render();return;}
     S.logStu=stu;S.stuScores=DB.scores[id]||{};S.stuExpanded=null;S.page="stuview";render();
   };
   window.setSFilterCls=function(v){S.sFilterCls=v;S.sErr="";render();};
@@ -648,23 +651,28 @@ function initApp(){
   };
 
   window.doAddStu=function(){
-    var name=document.getElementById("nName").value.trim();
     var num=document.getElementById("nNum").value.trim();
     var cls=document.getElementById("nCls").value;
-    if(!name||!num){alert("名前と出席番号を入力してください");return;}
+    if(!num){alert("出席番号を入力してください");return;}
     var id=genId();
-    dbSet('students/'+id,{id:id,name:name,number:num,cls:cls,grade:gradeFromCls(cls),password:num,isDefault:true},function(){S.addOpen=false;render();});
+    dbSet('students/'+id,{id:id,number:num,cls:cls,grade:gradeFromCls(cls),password:num,isDefault:true},function(){S.addOpen=false;render();});
+  };
+  window.genBulkSeq=function(){
+    var n=parseInt(document.getElementById("bCount").value,10);
+    if(!n||n<1){alert("人数を入力してください");return;}
+    var start=parseInt(document.getElementById("bStart").value)||1;
+    var seq=[];for(var i=0;i<n;i++)seq.push(String(start+i));
+    document.getElementById("bNames").value=seq.join("\n");
   };
   window.doBulkAdd=function(){
     var cls=document.getElementById("bCls").value;
-    var start=parseInt(document.getElementById("bStart").value)||1;
     var lines=document.getElementById("bNames").value.split("\n").map(function(n){return n.trim();}).filter(function(n){return n;});
-    if(!lines.length){alert("名前を入力してください");return;}
+    if(!lines.length){alert("出席番号を入力してください");return;}
     var count=0,total=lines.length;
-    lines.forEach(function(line,i){
-      var name=line.trim();
-      var num=String(start+i);var id=genId();
-      dbSet('students/'+id,{id:id,name:name,number:num,cls:cls,grade:gradeFromCls(cls),password:num,isDefault:true},function(){
+    lines.forEach(function(line){
+      var m=line.match(/\d+/);
+      var num=m?m[0]:line;var id=genId();
+      dbSet('students/'+id,{id:id,number:num,cls:cls,grade:gradeFromCls(cls),password:num,isDefault:true},function(){
         count++;if(count===total){S.bulkOpen=false;alert(count+"人を追加しました！");render();}
       });
     });
@@ -688,7 +696,7 @@ function initApp(){
   window.downloadCSV=function(){
     var students=getStudents();
     var rList=S.rankingFilterCls==="all"?students:students.filter(function(s){return s.cls===S.rankingFilterCls;});
-    var headers=["クラス","出席番号","名前"];
+    var headers=["クラス","出席番号"];
     SKILLS[1].forEach(function(sk,i){headers.push((i+1)+"."+sk.name);});
     headers.push("合計点","評価");
     var rows=[headers];
@@ -697,7 +705,7 @@ function initApp(){
       var skills=SKILLS[gradeFromCls(s.cls)];
       var total=calcTotal(sc,skills);
       var grade=calcGrade(total,s.grade);
-      var row=[s.cls,s.number,s.name];
+      var row=[s.cls,s.number];
       skills.forEach(function(sk){var cur=sc[sk.id];row.push(cur?cur.grade:"");});
       row.push(total,grade);rows.push(row);
     });
