@@ -202,16 +202,6 @@ async function updateRecEventRemote(id, patch){
   await db.ref('stRecords/'+id).update(patch);
 }
 
-// ── 名前パース（番号は数字のみ） ──────────────────────────────────
-function parseLine(line,autoNum){
-  line=line.trim();if(!line)return null;
-  const ci=line.search(/[,，]/);
-  if(ci>=0){const b=line.slice(0,ci).trim(),a=line.slice(ci+1).trim();if(a)return{num:b,name:a}}
-  const m=line.match(/^(\d+)\s+(.+)$/);
-  if(m)return{num:m[1],name:m[2].trim()};
-  return{num:String(autoNum),name:line};
-}
-
 // ── 提出コード ─────────────────────────────────────────────────────
 // ── ルーター ──────────────────────────────────────────────────────
 let PAGE='top',STATE={};
@@ -300,10 +290,10 @@ function tmplStuPick(){
   ${!stus.length?`<div class="card" style="text-align:center;padding:32px"><p style="font-size:32px;margin-bottom:8px">👤</p><p style="font-weight:600;margin-bottom:4px">生徒が登録されていません</p><p class="sub">先生に生徒の登録をお願いしてください</p></div>`:`
   <div style="max-width:360px;display:flex;flex-direction:column;gap:12px">
     <div>
-      <p class="lbl">出席番号・氏名</p>
+      <p class="lbl">出席番号</p>
       <select id="spick" style="margin-bottom:0" onchange="onStuPick(this.value)">
         <option value="">-- 選択してください --</option>
-        ${stus.map(s=>`<option value="${esc(s.num)}|||${esc(s.name)}">${s.num}番　${esc(s.name)}</option>`).join('')}
+        ${stus.map(s=>`<option value="${esc(s.num)}">${s.num}番</option>`).join('')}
       </select>
     </div>
     <div id="gdiv" style="display:none">
@@ -314,9 +304,9 @@ function tmplStuPick(){
   </div>`}
   </div>`
 }
-function onStuPick(v){const btn=document.getElementById('snxt'),gd=document.getElementById('gdiv');if(!v){if(btn){btn.disabled=true;btn.style.opacity='0.4';}if(gd)gd.style.display='none';return;}const p=v.split('|||');STATE.num=p[0];STATE.name=p[1];if(gd)gd.style.display='block';if(btn){btn.disabled=false;btn.style.opacity='1';}}
+function onStuPick(v){const btn=document.getElementById('snxt'),gd=document.getElementById('gdiv');if(!v){if(btn){btn.disabled=true;btn.style.opacity='0.4';}if(gd)gd.style.display='none';return;}STATE.num=v;if(gd)gd.style.display='block';if(btn){btn.disabled=false;btn.style.opacity='1';}}
 function pickG(v){STATE.gender=v.replace('子','');document.querySelectorAll('.seg button').forEach(b=>{b.className=b.textContent===v?'on':'';})}
-function goTest(){if(!STATE.name)return;STATE.vals={};nav('stu_test',STATE)}
+function goTest(){if(!STATE.num)return;STATE.vals={};nav('stu_test',STATE)}
 
 // ── 生徒：テスト入力 ──────────────────────────────────────────────
 function tmplStuTest(){
@@ -325,7 +315,7 @@ function tmplStuTest(){
   const rat=done?getRating_:null,rs=rat?RI[rat]:null;
   const rt=RT[String(STATE.grade)];
   return`<div>${backBtn("nav('stu_pick')")}
-  <p class="sub">${esc(STATE.cls)}　${esc(STATE.num)}番　${esc(STATE.name)}（${STATE.gender}子・中${STATE.grade}）</p>
+  <p class="sub">${esc(STATE.cls)}　${esc(STATE.num)}番（${STATE.gender}子・中${STATE.grade}）</p>
   <h2>測定記録を入力</h2>
   <div class="ev-grid">
     ${EV.map(e=>{const s=scores[e.id],v=STATE.vals[e.id]||'';return`
@@ -414,7 +404,7 @@ async function doSubmit(){
   const rs=RI[rat];
   const rec={
     cid:STATE.cid,cls:STATE.cls,num:STATE.num,
-    name:STATE.name,grade:STATE.grade,gender:STATE.gender,
+    grade:STATE.grade,gender:STATE.gender,
     vals:{...STATE.vals},scores,total:tot,rating:rat,ratingPt:rs.p,
     confirmed:false,ts:Date.now(),tsStr:new Date().toLocaleString('ja-JP')
   };
@@ -471,7 +461,7 @@ function tmplStuDone(){
   <div style="text-align:center;margin-bottom:20px">
     <div class="done-circle">✅</div>
     <h2>送信完了！</h2>
-    <p class="sub">${rec.cls}　${rec.num}番　${rec.name}</p>
+    <p class="sub">${rec.cls}　${rec.num}番</p>
   </div>
   <div class="sum-box" style="margin-bottom:14px">
     <div class="rat-row">
@@ -666,7 +656,7 @@ function tmplRecords(){
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:3px">
           <span class="tag" style="background:${r.confirmed?'#E1F5EE':'#FAECE7'};color:${r.confirmed?'#0F6E56':'#993C1D'}">${r.confirmed?'確認済':'未確認'}</span>
           <strong>${esc(r.cls)}</strong>
-          <strong>${esc(r.num)}番　${esc(r.name)}</strong>
+          <strong>${esc(r.num)}番</strong>
           <span style="font-size:12px;color:#666">${r.gender}子・中${r.grade}</span>
         </div>
         <p style="font-size:11px;color:#888">${r.tsStr}</p>
@@ -764,8 +754,8 @@ function deleteEvent(recId,evId){
 function exportCSV(){
   let recs=getRecs();if(TFILTER!=='全て')recs=recs.filter(r=>r.cls===TFILTER);
   recs=recs.sort((a,b)=>{const ca=a.cls||'',cb=b.cls||'';if(ca!==cb)return ca.localeCompare(cb,'ja');return(+a.num||0)-(+b.num||0);});
-  const hdr=['クラス','出席番号','氏名','性別','学年',...EV.flatMap(e=>[e.lb+'(記録)',e.lb+'(得点)']),'合計得点','総合評価','評価点','送信日時','確認済み'];
-  const rows=recs.map(r=>[r.cls,r.num,r.name,r.gender+'子','中'+r.grade,...EV.flatMap(e=>[r.vals[e.id]||'',r.scores[e.id]||'']),r.total,r.rating,r.ratingPt,r.tsStr,r.confirmed?'○':'—']);
+  const hdr=['クラス','出席番号','性別','学年',...EV.flatMap(e=>[e.lb+'(記録)',e.lb+'(得点)']),'合計得点','総合評価','評価点','送信日時','確認済み'];
+  const rows=recs.map(r=>[r.cls,r.num,r.gender+'子','中'+r.grade,...EV.flatMap(e=>[r.vals[e.id]||'',r.scores[e.id]||'']),r.total,r.rating,r.ratingPt,r.tsStr,r.confirmed?'○':'—']);
   const csv='\uFEFF'+[hdr,...rows].map(row=>row.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
   a.download=`体力テスト_${TFILTER==='全て'?'全クラス':TFILTER}_${new Date().toLocaleDateString('ja-JP').replace(/\//g,'-')}.csv`;a.click();
@@ -811,30 +801,48 @@ function deleteCls(id){
 function tmplStuEdit(cid){
   const cl=getClasses().find(c=>c.id===cid);if(!cl)return'';
   const stus=getStus(cid);stus.sort((a,b)=>(+a.num||0)-(+b.num||0));
-  const txt=stus.map(s=>s.name).join('\n');
+  const txt=stus.map(s=>s.num).join('\n');
   return`<div>
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
     <h3>${esc(cl.name)} の生徒</h3>
     <span style="font-size:12px;color:#888">${stus.length}人</span>
   </div>
   <div class="info-box" style="background:#f0f7ff;border-color:#c0d8f0">
-    <strong>入力形式（1行に1人）</strong><br>
-    　名前のみ　→ 番号は自動採番（例：<code>大里 悟子</code>）<br>
-    　番号あり　→ 先頭に数字（例：<code>1 大里 悟子</code>）<br>
-    　カンマも可（例：<code>1,大里悟子</code>）
+    <strong>個人が特定されないよう、名前は使わず出席番号だけで管理します。</strong><br>
+    人数を入力して「連番で作成」を押すか、出席番号を1行に1つずつ直接入力してください。
   </div>
-  <textarea id="sta_${esc(cid)}" style="height:180px" placeholder="大里 悟子&#10;小川 真生&#10;河野 那津">${esc(txt)}</textarea>
+  <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:8px">
+    <div style="flex:1">
+      <p class="lbl">人数（1番から連番で作成）</p>
+      <input type="number" id="stcnt_${esc(cid)}" min="1" max="99" placeholder="例：35">
+    </div>
+    <button class="btn" onclick="genStuSeq('${esc(cid)}')">連番で作成</button>
+  </div>
+  <textarea id="sta_${esc(cid)}" style="height:180px" placeholder="1&#10;2&#10;3">${esc(txt)}</textarea>
   <button class="btn-primary" style="width:100%;margin-top:8px" onclick="saveStuBulk('${esc(cid)}')">💾 保存</button>
   <p id="stmsg_${esc(cid)}" style="font-size:12px;color:#0F6E56;margin-top:6px;min-height:16px"></p>
   ${stus.length?`<div style="margin-top:8px;max-height:180px;overflow-y:auto;border-top:1px solid #eee;padding-top:8px">
-    ${stus.map(s=>`<div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid #f0f0f0;font-size:13px"><span style="color:#888;width:30px;flex-shrink:0">${s.num}</span><span>${esc(s.name)}</span></div>`).join('')}
+    ${stus.map(s=>`<div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid #f0f0f0;font-size:13px"><span style="color:#888;width:30px;flex-shrink:0">${s.num}番</span></div>`).join('')}
   </div>`:''}
   </div>`
+}
+function genStuSeq(cid){
+  const n=parseInt(document.getElementById('stcnt_'+cid).value,10);
+  if(!n||n<1)return alert('人数を入力してください');
+  const ta=document.getElementById('sta_'+cid);
+  if(ta) ta.value=Array.from({length:n},(_,i)=>String(i+1)).join('\n');
 }
 function saveStuBulk(cid){
   const ta=document.getElementById('sta_'+cid);if(!ta)return;
   const lines=ta.value.split('\n').map(l=>l.trim()).filter(Boolean);
-  let auto=1;const arr=lines.map(l=>{const r=parseLine(l,auto);if(r)auto++;return r;}).filter(x=>x&&x.name);
+  const seen=new Set();
+  const arr=lines.map(l=>{
+    const m=l.match(/\d+/);
+    return m?m[0]:null;
+  }).filter(n=>{
+    if(!n||seen.has(n))return false;
+    seen.add(n);return true;
+  }).map(num=>({num}));
   setStus(cid,arr);
   const msg=document.getElementById('stmsg_'+cid);if(msg){msg.textContent=`✓ ${arr.length}人を保存しました`;setTimeout(()=>{if(msg)msg.textContent=''},2500);}
   // 一覧更新
