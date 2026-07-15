@@ -249,7 +249,7 @@ function initApp(){
 
     if(S.addOpen){
       sb+='<div style="background:#fffaf6;border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:6px">'
-        +'<input id="nName" placeholder="名前"><input id="nNum" placeholder="出席番号">'
+        +'<input id="nNum" placeholder="出席番号">'
         +'<select id="nCls">'+DB.classes.map(function(c){return'<option>'+c+'</option>';}).join('')+'</select>'
         +'<select id="nGender"><option value="男子">男子</option><option value="女子">女子</option></select>'
         +'<div style="display:flex;gap:4px">'
@@ -264,7 +264,7 @@ function initApp(){
     list.forEach(function(s){
       if(S.delConf===s.id){
         sb+='<div style="background:#fce8e6;border-radius:8px;padding:8px;font-size:12px">'
-          +'<p style="margin-bottom:6px">「'+s.name+'」を削除しますか？</p>'
+          +'<p style="margin-bottom:6px">「'+s.cls+' '+s.number+'番」を削除しますか？</p>'
           +'<div style="display:flex;gap:4px">'
           +'<button class="btn-danger btn-sm" onclick="doDelStu(\''+s.id+'\')" style="flex:1">削除</button>'
           +'<button class="btn-sm" onclick="cancelDel()" style="flex:1">戻る</button>'
@@ -272,9 +272,9 @@ function initApp(){
       } else {
         sb+='<div class="stu-card'+(S.selId===s.id?' active':'')+'" onclick="pickStu(\''+s.id+'\')">'
           +'<div style="flex:1;min-width:0">'
-          +'<div style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+s.name+'</div>'
+          +'<div style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+s.number+'番</div>'
           +'<div style="font-size:11px;color:#888;display:flex;align-items:center;gap:4px;margin-top:2px">'
-          +'<span>'+s.cls+' #'+s.number+'</span>'
+          +'<span>'+s.cls+'</span>'
           +'<span onclick="event.stopPropagation();toggleGender(\''+s.id+'\',\''+s.gender+'\')" class="'+(s.gender==="女子"?"tag-f":"tag-m")+'" style="cursor:pointer">'+s.gender+'</span>'
           +'</div></div>'
           +'<button class="btn-icon" style="font-size:14px" onclick="event.stopPropagation();confirmDel(\''+s.id+'\')">🗑</button></div>';
@@ -296,8 +296,7 @@ function initApp(){
       var gTag='<span class="'+(sel.gender==="女子"?"tag-f":"tag-m")+'">'+sel.gender+'</span>';
       panel+='<div class="summary-box">'
         +'<div id="sum-grade" class="grade-circle" style="'+gcStyle(grade)+'">'+grade+'</div>'
-        +'<div style="flex:1"><div style="font-weight:700;font-size:16px;display:flex;align-items:center;gap:6px">'+sel.name+' '+gTag+'</div>'
-        +'<div style="font-size:12px;color:#888">'+sel.cls+' #'+sel.number+'</div></div>'
+        +'<div style="flex:1"><div style="font-weight:700;font-size:16px;display:flex;align-items:center;gap:6px">'+sel.cls+' '+sel.number+'番 '+gTag+'</div></div>'
         +'<div style="text-align:right">'
         +'<div id="sum-pts" style="font-size:22px;font-weight:700">'+total+'<span style="font-size:12px;color:#888;font-weight:400">/88</span></div>'
         +'<div id="sum-count" style="font-size:11px;color:#888">'+done+'/11種目</div>'
@@ -371,10 +370,11 @@ function initApp(){
         +'<select id="bCls">'+DB.classes.map(function(c){return'<option>'+c+'</option>';}).join('')+'</select></div>'
         +'<div><label style="font-size:12px;color:#888;display:block;margin-bottom:4px">開始番号</label>'
         +'<input type="number" id="bStart" value="1" min="1" style="max-width:120px"></div>'
-        +'<div><label style="font-size:12px;color:#888;display:block;margin-bottom:6px">名簿入力（1行1人）</label>'
+        +'<div><label style="font-size:12px;color:#888;display:block;margin-bottom:6px">性別を1行に1人ずつ入力（出席番号は開始番号から自動採番）</label>'
         +'<div style="background:#f0f4ff;border:1px solid #c5d8fd;border-radius:8px;padding:8px 12px;font-size:12px;color:#1a3a6a;margin-bottom:8px">'
-        +'名前の後に「男」か「女」をつけてください<br>例：山田太郎男 / 鈴木花子女</div>'
-        +'<textarea id="bNames" rows="10" placeholder="山田太郎男&#10;鈴木花子女&#10;..." style="font-family:monospace;font-size:13px"></textarea></div>'
+        +'個人が特定されないよう、名前は使わず出席番号だけで管理します。<br>「男」または「女」を1行に1人ずつ入力してください。'
+        +'<br>例：<br>男<br>女<br>男</div>'
+        +'<textarea id="bNames" rows="10" placeholder="男&#10;女&#10;男&#10;..." style="font-family:monospace;font-size:13px"></textarea></div>'
         +'<p style="font-size:12px;color:#888">※ 初期パスワードは出席番号になります</p>'
         +'<div style="display:flex;gap:8px">'
         +'<button class="btn-primary" onclick="doBulkAdd()" style="flex:1">追加する</button>'
@@ -432,8 +432,7 @@ function initApp(){
         var gcS=gcStyle(grade);
         tableRows+='<tr style="border-bottom:1px solid #f0ede6;'+(done===11?'background:#fffef0':'')+'">'
           +'<td style="padding:5px 8px;font-size:12px;white-space:nowrap;border-right:1px solid #f0ede6">'+s.cls+'</td>'
-          +'<td style="padding:5px 8px;font-size:12px;white-space:nowrap;border-right:1px solid #f0ede6">'+s.number+'</td>'
-          +'<td style="padding:5px 8px;font-size:13px;font-weight:600;white-space:nowrap;border-right:1px solid #f0ede6">'+s.name+'</td>'
+          +'<td style="padding:5px 8px;font-size:13px;font-weight:600;white-space:nowrap;border-right:1px solid #f0ede6">'+s.number+'番</td>'
           +'<td style="padding:5px 8px;text-align:center;border-right:1px solid #f0ede6"><span class="'+(s.gender==="女子"?"tag-f":"tag-m")+'">'+s.gender+'</span></td>'
           +skillCells
           +'<td style="text-align:center;padding:5px 8px;font-size:14px;font-weight:700;border-right:1px solid #f0ede6">'+total+'</td>'
@@ -462,8 +461,7 @@ function initApp(){
         +'<table style="border-collapse:collapse;width:100%;font-size:12px">'
         +'<thead><tr style="background:#f0ede6;border-bottom:2px solid #e0dbd0">'
         +'<th style="padding:6px 8px;text-align:left;white-space:nowrap;border-right:1px solid #e0dbd0">クラス</th>'
-        +'<th style="padding:6px 8px;text-align:left;border-right:1px solid #e0dbd0">#</th>'
-        +'<th style="padding:6px 8px;text-align:left;white-space:nowrap;border-right:1px solid #e0dbd0">名前</th>'
+        +'<th style="padding:6px 8px;text-align:left;border-right:1px solid #e0dbd0">出席番号</th>'
         +'<th style="padding:6px 8px;border-right:1px solid #e0dbd0">性別</th>'
         +skillHeaders
         +'<th style="padding:6px 8px;text-align:center;white-space:nowrap;border-right:1px solid #e0dbd0">合計</th>'
@@ -486,7 +484,7 @@ function initApp(){
     var allCls=uniq(students.map(function(s){return s.cls;})).sort();
     var filtered=S.sFilterCls?students.filter(function(s){return s.cls===S.sFilterCls;}):[];
     var clsOpts='<option value="">クラスを選んでください</option>'+allCls.map(function(c){return'<option value="'+c+'"'+(S.sFilterCls===c?' selected':'')+'>'+c+'</option>';}).join('');
-    var nameOpts='<option value="">名前を選んでください</option>'+filtered.map(function(s){return'<option value="'+s.id+'">'+s.number+'番　'+s.name+'</option>';}).join('');
+    var nameOpts='<option value="">出席番号を選んでください</option>'+filtered.map(function(s){return'<option value="'+s.id+'">'+s.number+'番</option>';}).join('');
     return '<div style="max-width:380px;margin:0 auto;padding:2rem 1.5rem">'
       +'<button onclick="goPage(\'home\')" style="border:none;background:none;color:#888;padding:0 0 1.5rem;font-size:13px">← ホームに戻る</button>'
       +'<h2 style="font-size:18px;font-weight:700;margin-bottom:4px">生徒ログイン</h2>'
@@ -494,9 +492,9 @@ function initApp(){
       +'<div style="display:flex;flex-direction:column;gap:12px">'
       +'<div><label style="font-size:12px;color:#888;display:block;margin-bottom:4px">① クラス</label>'
       +'<select onchange="setSFilterCls(this.value)">'+clsOpts+'</select></div>'
-      +'<div><label style="font-size:12px;color:#888;display:block;margin-bottom:4px">② 名前</label>'
+      +'<div><label style="font-size:12px;color:#888;display:block;margin-bottom:4px">② 出席番号</label>'
       +'<select id="sName"'+(!S.sFilterCls?' disabled':'')+'>'+nameOpts+'</select>'
-      +(!S.sFilterCls?'<p style="font-size:11px;color:#aaa;margin-top:3px">クラスを選ぶと名前が表示されます</p>':'')+'</div>'
+      +(!S.sFilterCls?'<p style="font-size:11px;color:#aaa;margin-top:3px">クラスを選ぶと出席番号が表示されます</p>':'')+'</div>'
       +'<div><label style="font-size:12px;color:#888;display:block;margin-bottom:4px">③ パスワード <span style="color:#aaa">（初期：出席番号）</span></label>'
       +'<input type="password" id="sPw" placeholder="パスワードを入力" onkeydown="if(event.key===\'Enter\')doSLogin()"></div>'
       +(S.sErr?'<p style="color:#d93025;font-size:13px">'+S.sErr+'</p>':"")
@@ -515,7 +513,7 @@ function initApp(){
     var html='<div style="max-width:680px;margin:0 auto;padding:1rem">'
       +'<div style="display:flex;align-items:center;gap:8px;border-bottom:1px solid #e8d0c0;padding-bottom:12px;margin-bottom:14px">'
       +'<button onclick="goSLogin()" style="border:none;background:none;color:#888;font-size:20px;padding:4px">←</button>'
-      +'<h2 style="font-size:16px;font-weight:700;margin:0;flex:1;display:flex;align-items:center;gap:8px">'+s.name+' さん'
+      +'<h2 style="font-size:16px;font-weight:700;margin:0;flex:1;display:flex;align-items:center;gap:8px">'+s.cls+' '+s.number+'番'
       +' <span class="'+(s.gender==="女子"?"tag-f":"tag-m")+'">'+s.gender+'</span></h2>'
       +'<button onclick="openPwModal()" style="font-size:12px;padding:6px 12px">🔑 PW変更</button>'
       +'</div>';
@@ -614,7 +612,7 @@ function initApp(){
     var rList=S.rankingFilterCls==="all"?students:students.filter(function(s){return s.cls===S.rankingFilterCls;});
     var sampleSkills=SKILLS[1];
     // ヘッダー行
-    var headers=["クラス","出席番号","名前","性別"];
+    var headers=["クラス","出席番号","性別"];
     sampleSkills.forEach(function(sk,i){headers.push((i+1)+"."+sk.name);});
     headers.push("合計点","評価");
     var rows=[headers];
@@ -623,7 +621,7 @@ function initApp(){
       var skills=SKILLS[s.grade];
       var total=calcTotal(sc,skills);
       var grade=calcGrade(total);
-      var row=[s.cls,s.number,s.name,s.gender];
+      var row=[s.cls,s.number,s.gender];
       skills.forEach(function(sk){
         var hasAny=(sc[sk.id+"_d"]!==undefined||sc[sk.id+"_k"]!==undefined);
         row.push(hasAny?skillTotal(sc,sk):"");
@@ -672,9 +670,9 @@ function initApp(){
     var selEl=document.getElementById("sName");
     var id=selEl?selEl.value:"";
     var pw=document.getElementById("sPw")?document.getElementById("sPw").value:"";
-    if(!id){S.sErr="名前を選んでください";render();return;}
+    if(!id){S.sErr="出席番号を選んでください";render();return;}
     var stu=DB.students[id];
-    if(!stu||stu.password!==pw){S.sErr="名前またはパスワードが違います";render();return;}
+    if(!stu||stu.password!==pw){S.sErr="出席番号またはパスワードが違います";render();return;}
     S.logStu=stu;
     S.stuScores=DB.scores[id]||{};
     S.stuExpanded=null;
@@ -781,13 +779,12 @@ function initApp(){
   };
 
   window.doAddStu=function(){
-    var name=document.getElementById("nName").value.trim();
     var num=document.getElementById("nNum").value.trim();
     var cls=document.getElementById("nCls").value;
     var gender=document.getElementById("nGender").value;
-    if(!name||!num){alert("名前と出席番号を入力してください");return;}
+    if(!num){alert("出席番号を入力してください");return;}
     var id=genId();
-    dbSet('students/'+id,{id:id,name:name,number:num,cls:cls,grade:gradeFromCls(cls),gender:gender,password:num,isDefault:true},function(){
+    dbSet('students/'+id,{id:id,number:num,cls:cls,grade:gradeFromCls(cls),gender:gender,password:num,isDefault:true},function(){
       S.addOpen=false;render();
     });
   };
@@ -795,23 +792,13 @@ function initApp(){
     var cls=document.getElementById("bCls").value;
     var start=parseInt(document.getElementById("bStart").value)||1;
     var lines=document.getElementById("bNames").value.split("\n").map(function(n){return n.trim();}).filter(function(n){return n;});
-    if(!lines.length){alert("名前を入力してください");return;}
+    if(!lines.length){alert("性別を1行に1人ずつ入力してください");return;}
     var count=0,total=lines.length;
     lines.forEach(function(line,i){
-      var parts=line.split(/[\s　]+/);
-      var name,gender;
-      if(parts.length>=2){
-        var last=parts[parts.length-1];
-        if(last==="女"||last==="女子"){gender="女子";name=parts.slice(0,-1).join("");}
-        else if(last==="男"||last==="男子"){gender="男子";name=parts.slice(0,-1).join("");}
-        else{gender=(line.endsWith("女")||line.endsWith("女子"))?"女子":"男子";name=line.replace(/[男女]子?$/,"").trim();}
-      } else {
-        gender=(line.endsWith("女")||line.endsWith("女子"))?"女子":"男子";
-        name=line.replace(/[男女]子?$/,"").trim();
-      }
+      var gender=(line==="女"||line==="女子")?"女子":"男子";
       var num=String(start+i);
       var id=genId();
-      dbSet('students/'+id,{id:id,name:name,number:num,cls:cls,grade:gradeFromCls(cls),gender:gender,password:num,isDefault:true},function(){
+      dbSet('students/'+id,{id:id,number:num,cls:cls,grade:gradeFromCls(cls),gender:gender,password:num,isDefault:true},function(){
         count++;
         if(count===total){S.bulkOpen=false;alert(count+"人を追加しました！初期パスワードは出席番号です。");render();}
       });
