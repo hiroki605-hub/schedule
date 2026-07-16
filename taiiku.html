@@ -1554,18 +1554,37 @@ ${rubric}
     const shikouIds = tpl.ratingGroups[1].items.map(i=>i.id);
     const headers = ['学年','クラス','出席番号','主体的に取り組む態度(合計)','思考・判断(合計)','感想AI採点(内容)','文字数加点','総合計'];
     const lines = [headers.join(',')];
-    state.r_responses.forEach(r=>{
-      const taidoTotal = taidoIds.reduce((s,id)=> s + (r.ratings[id]||0), 0);
-      const shikouTotal = shikouIds.reduce((s,id)=> s + (r.ratings[id]||0), 0);
-      const row = [
-        r.grade||'', r.className, r.entry,
-        taidoTotal, shikouTotal,
-        r.aiScore?r.aiScore.ai:'',
-        r.aiScore?r.aiScore.bonus:'',
-        r.aiScore?r.aiScore.total:'',
-      ];
-      lines.push(row.join(','));
+
+    // このテンプレートの対象学年の中で、今絞り込んでいるクラス（未指定なら全クラス）を対象にする
+    const grade = tpl.targetGrade;
+    const classes = (state.r_classFilter!=='all' && state.r_gradeFilter!=='all')
+      ? [state.r_classFilter]
+      : (state.config.classesByGrade[grade] || []);
+
+    classes.forEach(cls=>{
+      // 名簿の出席番号順に並べ、欠席などで回答が無い番号は空欄の行にして「飛び」を可視化する
+      const roster = (state.config.rosters[rosterKey(grade, cls)] || [])
+        .slice()
+        .sort((a,b)=> (parseInt(a,10)||0) - (parseInt(b,10)||0));
+      roster.forEach(num=>{
+        const r = state.r_responses.find(x=>x.grade===grade && x.className===cls && x.entry===num);
+        if(r){
+          const taidoTotal = taidoIds.reduce((s,id)=> s + (r.ratings[id]||0), 0);
+          const shikouTotal = shikouIds.reduce((s,id)=> s + (r.ratings[id]||0), 0);
+          lines.push([
+            grade, cls, num,
+            taidoTotal, shikouTotal,
+            r.aiScore?r.aiScore.ai:'',
+            r.aiScore?r.aiScore.bonus:'',
+            r.aiScore?r.aiScore.total:'',
+          ].join(','));
+        } else {
+          // 回答が無い出席番号：他の列は空欄のまま行だけ作る（欠席などで抜けているのが分かるように）
+          lines.push([grade, cls, num, '', '', '', '', ''].join(','));
+        }
+      });
     });
+
     const blob = new Blob(["\uFEFF"+lines.join('\n')], {type:'text/csv'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
