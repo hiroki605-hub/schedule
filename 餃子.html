@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ぎょうざ注文フォーム</title>
+<title>ぎょうざの丸岡 注文フォーム</title>
 <style>
   :root {
     --dough: #F3E9D2;
@@ -59,6 +59,35 @@
     opacity: 0.75;
   }
 
+  .deadline-banner {
+    background: #FFF0EA;
+    color: var(--accent);
+    text-align: center;
+    padding: 10px;
+    font-weight: 800;
+    font-size: 0.95rem;
+    border-bottom: 2px dashed var(--accent);
+  }
+  .deadline-banner input {
+    border: none;
+    border-bottom: 1.5px solid var(--accent);
+    background: transparent;
+    color: var(--accent);
+    font-weight: 800;
+    font-size: 1.05rem;
+    width: 200px;
+    text-align: center;
+    margin-left: 6px;
+    transition: all 0.2s;
+  }
+  .deadline-banner input:focus {
+    outline: none;
+    background: #fff;
+    border-radius: 6px;
+    border-bottom-color: transparent;
+    box-shadow: 0 2px 8px rgba(196,82,42,0.2);
+  }
+
   .tabs {
     display: flex;
     max-width: 640px;
@@ -108,7 +137,7 @@
     letter-spacing: 0.03em;
   }
 
-  select, input[type=text], input[type=number] {
+  select, input[type=text]:not(#input-deadline), input[type=number] {
     width: 100%;
     padding: 11px 12px;
     border-radius: 10px;
@@ -352,9 +381,13 @@
 <body>
 
 <header>
-  <h1><span class="gyoza-icon"></span>ぎょうざ注文フォーム</h1>
-  <p>先生方の注文をまとめて集計します</p>
+  <h1><span class="gyoza-icon"></span>ぎょうざの丸岡 注文フォーム</h1>
+  <p>先生方の注文をまとめて集計します（FAX: 0986-46-5546）</p>
 </header>
+
+<div class="deadline-banner">
+  📢 注文締切: <input type="text" id="input-deadline" placeholder="例: 7/20(水) 17:00">
+</div>
 
 <div class="tabs">
   <button class="tab-btn active" data-tab="order">注文する</button>
@@ -450,7 +483,8 @@ let storageWorks = true;
 // 追加金額用の変数
 let deliveryFee = 0;
 let boxCount = 0;
-let boxPrice = 100; // デフォルトで1箱100円設定
+let boxPrice = 100;
+let deadlineText = ""; // 締切日時の共有用
 
 // Firebaseの設定
 const firebaseConfig = {
@@ -493,7 +527,7 @@ async function saveData() {
   let lastErr = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      await docRef.set({ teachers, orders, deliveryFee, boxCount, boxPrice });
+      await docRef.set({ teachers, orders, deliveryFee, boxCount, boxPrice, deadlineText });
       storageWorks = true;
       lastFirebaseError = "";
       return true;
@@ -519,12 +553,14 @@ async function loadData() {
       deliveryFee = data.deliveryFee || 0;
       boxCount = data.boxCount || 0;
       boxPrice = data.boxPrice !== undefined ? data.boxPrice : 100;
+      deadlineText = data.deadlineText || "";
     } else {
       teachers = [];
       orders = [];
       deliveryFee = 0;
       boxCount = 0;
       boxPrice = 100;
+      deadlineText = "";
     }
   } catch (e) {
     console.error('loadData failed:', e);
@@ -544,8 +580,10 @@ function subscribeRealtime() {
     deliveryFee = data.deliveryFee || 0;
     boxCount = data.boxCount || 0;
     boxPrice = data.boxPrice !== undefined ? data.boxPrice : 100;
+    deadlineText = data.deadlineText || "";
     
     updateExtraInputs();
+    updateDeadlineUI();
     renderTeacherSelect();
     const historyPanel = document.getElementById('panel-history');
     if (historyPanel && historyPanel.style.display !== 'none') {
@@ -591,10 +629,23 @@ function renderItems() {
   MENU.forEach(cat => {
     const catDiv = document.createElement('div');
     catDiv.className = 'category';
+    
     const title = document.createElement('div');
     title.className = 'category-title';
     title.textContent = cat.category;
     catDiv.appendChild(title);
+
+    // 「たれ」カテゴリーの注意書き
+    if (cat.category === "たれ") {
+      const note = document.createElement('div');
+      note.style.color = '#D93025';
+      note.style.fontSize = '0.78rem';
+      note.style.fontWeight = 'bold';
+      note.style.marginBottom = '8px';
+      note.style.lineHeight = '1.4';
+      note.textContent = '※タレ類は餃子パック数×２倍まで同梱可能（水餃子のスープ・ぎょうざの鍋の素は別）';
+      catDiv.appendChild(note);
+    }
 
     cat.items.forEach(item => {
       const row = document.createElement('div');
@@ -726,6 +777,23 @@ submitBtn.addEventListener('click', async () => {
   submitBtn.disabled = false;
 });
 
+// ----- 締切日時の共有ロジック -----
+function updateDeadlineUI() {
+  const el = document.getElementById('input-deadline');
+  if (document.activeElement !== el) {
+    el.value = deadlineText;
+  }
+}
+document.getElementById('input-deadline').addEventListener('change', async (e) => {
+  deadlineText = e.target.value.trim();
+  const ok = await saveData();
+  if (ok) {
+    showToast('締切日時を全員の画面に反映しました！');
+  } else {
+    showToast(`保存失敗。理由: ${lastFirebaseError}`);
+  }
+});
+
 function updateExtraInputs() {
   if (document.activeElement !== inputDeliveryFee) inputDeliveryFee.value = deliveryFee;
   if (document.activeElement !== inputBoxCount) inputBoxCount.value = boxCount;
@@ -791,6 +859,10 @@ document.getElementById('btn-fax-summary').addEventListener('click', () => {
 
   let html = `<div style="background: #fff; padding: 16px; border-radius: 12px; border: 2.5px solid var(--soy); box-shadow: 0 4px 10px rgba(0,0,0,0.1);">`;
   html += `<h3 style="margin: 0 0 12px; color: var(--soy); border-bottom: 2px solid var(--dough-dark); padding-bottom: 8px;">📠 お店へのFAX送信用 控え</h3>`;
+  
+  // ★FAX番号を大きく表示
+  html += `<p style="font-weight: 800; color: var(--accent); font-size: 1.15rem; text-align: center; margin: 0 0 16px; background: #FFF0EA; padding: 8px; border-radius: 8px;">送信先 FAX: 0986-46-5546</p>`;
+  
   html += `<table style="width: 100%; border-collapse: collapse; font-size: 0.95rem;">`;
   html += `<thead><tr>
             <th style="text-align: left; padding: 4px; border-bottom: 1px solid var(--soy-light); color: var(--soy-light);">商品名</th>
@@ -994,10 +1066,12 @@ document.getElementById('reset-all-btn').addEventListener('click', async () => {
   orders = [];
   deliveryFee = 0;
   boxCount = 0;
+  deadlineText = ""; // リセット時に締切日時も消す場合はここに追加
   const ok = await saveData();
   if (ok) {
     renderHistory();
     updateExtraInputs();
+    updateDeadlineUI();
     showToast('全ての注文をリセットしました');
   } else {
     orders = backup;
@@ -1015,6 +1089,7 @@ async function init() {
   }
   await loadData();
   updateExtraInputs();
+  updateDeadlineUI();
   renderTeacherSelect();
   renderItems();
   updateTotal();
