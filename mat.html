@@ -168,7 +168,12 @@ function initApp(){
     return{fg:"#8a6000",bg:"#fef7e0",border:"#f9e0a0"};
   }
   function gcStyle(g){if(g==="A"||g==="A+")return"background:#e6f4ea;color:#1e6b2e";if(g==="B"||g==="B+")return"background:#e8f0fe;color:#1a56c4";if(g==="C")return"background:#fef7e0;color:#8a6000";return"background:#fce8e6;color:#a50e0e";}
-  function calcTotal(sc,skills){return skills.reduce(function(s,sk){return s+(sc[sk.id]?sc[sk.id].pts:0);},0);}
+  function calcTotal(sc,skills){
+    var base=skills.reduce(function(s,sk){return s+(sc[sk.id]?sc[sk.id].pts:0);},0);
+    var done=skills.filter(function(sk){return sc[sk.id];}).length;
+    var bonus=(skills.length>0&&done===skills.length)?4:0;
+    return base+bonus;
+  }
   function calcGrade(t,yr){
     if(yr===1){
       if(t>=42)return"A";if(t>=31)return"B";if(t>=20)return"C";return"D";
@@ -385,14 +390,15 @@ function initApp(){
 
   // ─── 共通部品 ───
   function renderSummaryBox(s,total,grade,done,isTeacher){
-    var maxPts=BASE_MAX[gradeFromCls(s.cls)];
     var skillCount=SKILLS[gradeFromCls(s.cls)].length;
+    var maxPts=BASE_MAX[gradeFromCls(s.cls)]+4;
+    var allDone=done===skillCount;
     return '<div class="summary-box">'
       +'<div class="grade-circle" style="'+gcStyle(grade)+'">'+grade+'</div>'
       +'<div style="flex:1"><div style="font-weight:700;font-size:16px">'+s.cls+' '+s.number+'番</div></div>'
       +'<div style="text-align:right">'
       +'<div style="font-size:22px;font-weight:700">'+total+'<span style="font-size:12px;color:#888;font-weight:400">/'+maxPts+'</span></div>'
-      +'<div style="font-size:11px;color:#888">'+done+'/'+skillCount+'種目</div>'
+      +'<div style="font-size:11px;color:#888">'+done+'/'+skillCount+'種目'+(allDone?'　🎉全種目完了+4点':'')+'</div>'
       +'</div></div>';
   }
 
@@ -455,7 +461,8 @@ function initApp(){
       :[["A+","74点以上"],["A","66〜73点"],["B+","55〜65点"],["B","44〜54点"],["C","43点以下"]];
     var sklCount=SKILLS[yr]?SKILLS[yr].length:14;
     return '<div style="background:#fff;border:1px solid #dde4f8;border-radius:10px;padding:12px 14px;margin-top:8px">'
-      +'<p style="font-size:12px;color:#888;margin-bottom:8px">評価基準（'+sklCount+'種目 '+BASE_MAX[yr]+'点満点）</p>'
+      +'<p style="font-size:12px;color:#888;margin-bottom:4px">評価基準（'+sklCount+'種目 '+BASE_MAX[yr]+'点満点＋全種目完了で+4点）</p>'
+      +'<p style="font-size:11px;color:#aaa;margin-bottom:8px">全'+sklCount+'種目すべてに得点が入ると、合計に自動で+4点されます（最大'+(BASE_MAX[yr]+4)+'点）</p>'
       +'<div style="display:flex;flex-wrap:wrap;gap:6px">'
       +items.map(function(r){return'<span class="badge b'+gradeOf(r[0])+'"><b>'+r[0]+'</b> '+r[1]+'</span>';}).join('')
       +'</div></div>';
