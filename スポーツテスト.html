@@ -752,10 +752,22 @@ function deleteEvent(recId,evId){
   updateRecEventRemote(recId, patch).catch(e=>alert('更新に失敗しました：'+e.message));
 }
 function exportCSV(){
-  let recs=getRecs();if(TFILTER!=='全て')recs=recs.filter(r=>r.cls===TFILTER);
-  recs=recs.sort((a,b)=>{const ca=a.cls||'',cb=b.cls||'';if(ca!==cb)return ca.localeCompare(cb,'ja');return(+a.num||0)-(+b.num||0);});
+  const allClasses=getClasses();
+  const targetClasses=TFILTER==='全て'?allClasses:allClasses.filter(c=>c.name===TFILTER);
   const hdr=['クラス','出席番号','性別','学年',...EV.flatMap(e=>[e.lb+'(記録)',e.lb+'(得点)']),'合計得点','総合評価','評価点','送信日時','確認済み'];
-  const rows=recs.map(r=>[r.cls,r.num,r.gender+'子','中'+r.grade,...EV.flatMap(e=>[r.vals[e.id]||'',r.scores[e.id]||'']),r.total,r.rating,r.ratingPt,r.tsStr,r.confirmed?'○':'—']);
+  const rows=[];
+  targetClasses.forEach(cl=>{
+    // 名簿（出席番号）順に並べ、欠席などで記録が無い番号は空欄の行にして「飛び」を可視化する
+    const roster=getStus(cl.id).slice().sort((a,b)=>(+a.num||0)-(+b.num||0));
+    roster.forEach(s=>{
+      const r=getRecs().find(rec=>rec.cls===cl.name && String(rec.num)===String(s.num));
+      if(r){
+        rows.push([r.cls,r.num,r.gender+'子','中'+r.grade,...EV.flatMap(e=>[r.vals[e.id]||'',r.scores[e.id]||'']),r.total,r.rating,r.ratingPt,r.tsStr,r.confirmed?'○':'—']);
+      }else{
+        rows.push([cl.name,s.num,'','中'+cl.grade,...EV.flatMap(()=>['','']),'','','','','']);
+      }
+    });
+  });
   const csv='\uFEFF'+[hdr,...rows].map(row=>row.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
   a.download=`体力テスト_${TFILTER==='全て'?'全クラス':TFILTER}_${new Date().toLocaleDateString('ja-JP').replace(/\//g,'-')}.csv`;a.click();
