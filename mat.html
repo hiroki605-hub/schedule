@@ -68,7 +68,12 @@ window.addEventListener('load',function(){
   s1.onload=function(){
     var s2=document.createElement('script');
     s2.src='https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js';
-    s2.onload=function(){initApp();};
+    s2.onload=function(){
+      var s3=document.createElement('script');
+      s3.src='https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js';
+      s3.onload=function(){initApp();};
+      document.head.appendChild(s3);
+    };
     document.head.appendChild(s2);
   };
   document.head.appendChild(s1);
@@ -85,7 +90,8 @@ function initApp(){
     appId:"1:745424328407:web:4c8cb8ff701350381d8292"
   },'mat1');
   var db=firebase.database(fbApp);
-  var TEACHER_PASS="azaz1221";
+  var auth=firebase.auth(fbApp);
+  var teacherUnlocked=false;
   var DB={classes:[],students:{},scores:{}};
 
   function syncBar(type,msg){var b=document.getElementById('syncBar');b.textContent=msg;b.className=type;}
@@ -229,7 +235,7 @@ function initApp(){
       +'📐 各種目A・B・C評価　接転技群・ほん転技群・平均立ち技群</div>'
       +'<div style="display:flex;flex-direction:column;gap:10px">'
       +mBtn("👤","生徒モード","自分の評価を自分で入力する（生徒パスワード）","goSLogin()")
-      +mBtn("📋","教師モード","全生徒の評価を確認・修正する（教師パスワード）","goTLogin()")
+      +mBtn("📋","教師モード","全生徒の評価を確認・修正する（先生ログイン）","goTLoginOrTeacher()")
       +'</div></div>';
   }
   function mBtn(ico,title,sub,fn){
@@ -246,8 +252,9 @@ function initApp(){
       +'<h2 style="font-size:18px;font-weight:700;margin-bottom:4px">教師ログイン</h2>'
       +'<p style="font-size:12px;color:#aaa;margin-bottom:1.5rem">全生徒の評価確認・修正ができます</p>'
       +'<div style="display:flex;flex-direction:column;gap:10px">'
-      +'<input type="password" id="tpw" placeholder="教師パスワードを入力"'+(S.tErr?' style="border-color:#d93025"':'')+' onkeydown="if(event.key===\'Enter\')doTLogin()">'
-      +(S.tErr?'<p style="color:#d93025;font-size:13px">パスワードが違います</p>':"")
+      +'<input type="email" id="tEmail" placeholder="メールアドレス">'
+      +'<input type="password" id="tpw" placeholder="パスワード"'+(S.tErr?' style="border-color:#d93025"':'')+' onkeydown="if(event.key===\'Enter\')doTLogin()">'
+      +(S.tErr?'<p style="color:#d93025;font-size:13px">'+S.tErr+'</p>':"")
       +'<button class="btn-primary" onclick="doTLogin()">ログイン</button>'
       +'</div></div>';
   }
@@ -260,6 +267,7 @@ function initApp(){
     var sb='<div style="width:220px;border-right:1px solid #dde4f8;padding:12px 10px;overflow-y:auto;flex-shrink:0;display:flex;flex-direction:column;gap:6px">'
       +'<div style="display:flex;justify-content:space-between;align-items:center">'
       +'<button onclick="goPage(\'home\')" style="border:none;background:none;color:#888;font-size:12px;padding:0">← 戻る</button>'
+      +'<button onclick="doTLogout()" style="border:none;background:none;color:#d93025;font-size:12px;padding:0">🚪 ログアウト</button>'
       +'<div style="display:flex;gap:2px">'
       +'<button class="btn-icon" onclick="openResetModal()" style="color:#d93025">🗑</button>'
       +'<button class="btn-icon" onclick="openClassModal()">⚙</button>'
@@ -516,7 +524,6 @@ function initApp(){
         +'<div style="text-align:center;margin-bottom:16px"><div style="font-size:40px">⚠️</div>'
         +'<h3 style="font-size:17px;font-weight:700;color:#d93025;margin-bottom:8px">全データを削除しますか？</h3></div>'
         +'<div style="display:flex;flex-direction:column;gap:8px">'
-        +'<input type="password" id="resetPw" placeholder="教師パスワードを入力">'
         +(S.resetErr?'<p style="color:#d93025;font-size:13px">'+S.resetErr+'</p>':"")
         +'<button onclick="doResetAll()" style="background:#d93025;color:#fff;border-color:#d93025;font-weight:700;padding:10px">削除する</button>'
         +'<button onclick="closeResetModal()">キャンセル</button>'
@@ -583,12 +590,27 @@ function initApp(){
 
   // ─── アクション ───
   window.goPage=function(p){S.page=p;S.tErr=false;S.sErr="";render();};
-  window.goTLogin=function(){S.page="tlogin";render();};
+  window.goTLoginOrTeacher=function(){
+    if(teacherUnlocked){S.page="teacher";render();}
+    else{S.page="tlogin";render();}
+  };
   window.goSLogin=function(){S.page="slogin";S.sErr="";render();};
   window.doTLogin=function(){
+    var email=(document.getElementById("tEmail").value||"").trim();
     var pw=document.getElementById("tpw").value;
-    if(pw===TEACHER_PASS){S.tErr=false;S.page="teacher";}else S.tErr=true;
-    render();
+    if(!email||!pw){S.tErr="メールアドレスとパスワードを入力してください";render();return;}
+    auth.signInWithEmailAndPassword(email,pw).then(function(){
+      S.tErr=false;S.page="teacher";render();
+    }).catch(function(err){
+      var known=["auth/wrong-password","auth/user-not-found","auth/invalid-credential","auth/invalid-email"];
+      S.tErr=known.indexOf(err.code)>=0?"メールアドレスまたはパスワードが違います":("ログインに失敗しました："+err.message);
+      render();
+    });
+  };
+  window.doTLogout=function(){
+    auth.signOut().then(function(){
+      teacherUnlocked=false;S.page="home";render();
+    });
   };
   window.doSLogin=function(){
     var selEl=document.getElementById("sName");
@@ -696,8 +718,6 @@ function initApp(){
     dbSet('students/'+S.logStu.id+'/isDefault',false,function(){S.logStu=Object.assign({},S.logStu,{password:n,isDefault:false});S.pwOk=true;render();});
   };
   window.doResetAll=function(){
-    var pw=document.getElementById("resetPw").value;
-    if(pw!==TEACHER_PASS){S.resetErr="パスワードが違います";render();return;}
     dbRemove('students');dbRemove('scores');S.selId=null;S.tScores={};S.resetModal=false;S.resetErr="";alert("✅ 全データを削除しました。");render();
   };
   window.downloadCSV=function(){
@@ -754,6 +774,12 @@ function initApp(){
     if(S.page==='teacher'||S.page==='stuview')render({keepScroll:true});
     else render();
   },function(err){syncBar('err','❌ 接続エラー: '+err.message);render();});
+
+  auth.onAuthStateChanged(function(user){
+    teacherUnlocked=!!user;
+    if(!user && S.page==='teacher'){S.page='home';}
+    render();
+  });
 
   render();
 }
