@@ -609,25 +609,44 @@ function initApp(){
   // ─── アクション ───
   window.downloadCSV=function(){
     var students=getStudents();
-    var rList=S.rankingFilterCls==="all"?students:students.filter(function(s){return s.cls===S.rankingFilterCls;});
+    var classesToExport=S.rankingFilterCls==="all"?uniq(students.map(function(s){return s.cls;})):[S.rankingFilterCls];
     var sampleSkills=SKILLS[1];
     // ヘッダー行
     var headers=["クラス","出席番号","性別"];
     sampleSkills.forEach(function(sk,i){headers.push((i+1)+"."+sk.name);});
     headers.push("合計点","評価");
     var rows=[headers];
-    rList.forEach(function(s){
-      var sc=DB.scores[s.id]||{};
-      var skills=SKILLS[s.grade];
-      var total=calcTotal(sc,skills);
-      var grade=calcGrade(total);
-      var row=[s.cls,s.number,s.gender];
-      skills.forEach(function(sk){
-        var hasAny=(sc[sk.id+"_d"]!==undefined||sc[sk.id+"_k"]!==undefined);
-        row.push(hasAny?skillTotal(sc,sk):"");
+    classesToExport.forEach(function(cls){
+      // 出席番号順に並べ、欠席などで登録・記録が無い番号は空欄の行にして「飛び」を可視化する
+      var clsStudents=students.filter(function(s){return s.cls===cls;});
+      var byNum={};
+      var maxNum=0;
+      clsStudents.forEach(function(s){
+        var n=parseInt(s.number,10)||0;
+        byNum[n]=s;
+        if(n>maxNum)maxNum=n;
       });
-      row.push(total,grade);
-      rows.push(row);
+      for(var n=1;n<=maxNum;n++){
+        var s=byNum[n];
+        if(s){
+          var sc=DB.scores[s.id]||{};
+          var skills=SKILLS[s.grade];
+          var total=calcTotal(sc,skills);
+          var grade=calcGrade(total);
+          var row=[s.cls,s.number,s.gender];
+          skills.forEach(function(sk){
+            var hasAny=(sc[sk.id+"_d"]!==undefined||sc[sk.id+"_k"]!==undefined);
+            row.push(hasAny?skillTotal(sc,sk):"");
+          });
+          row.push(total,grade);
+          rows.push(row);
+        }else{
+          var blankRow=[cls,String(n),""];
+          sampleSkills.forEach(function(){blankRow.push("");});
+          blankRow.push("","");
+          rows.push(blankRow);
+        }
+      }
     });
     // CSV文字列生成
     var csv="﻿"+rows.map(function(row){
