@@ -75,10 +75,11 @@
     color: var(--accent);
     font-weight: 800;
     font-size: 1.05rem;
-    width: 200px;
+    width: 160px;
     text-align: center;
     margin-left: 6px;
     transition: all 0.2s;
+    cursor: pointer;
   }
   .deadline-banner input:focus {
     outline: none;
@@ -375,6 +376,7 @@
   }
 </style>
 
+<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 </head>
@@ -386,7 +388,8 @@
 </header>
 
 <div class="deadline-banner">
-  📢 注文締切: <input type="text" id="input-deadline" placeholder="例: 7/20(水) 17:00">
+  <!-- typeをdateに変更しました -->
+  📢 注文締切日: <input type="date" id="input-deadline">
 </div>
 
 <div class="tabs">
@@ -395,6 +398,7 @@
 </div>
 
 <main>
+  <!-- ORDER PANEL -->
   <section class="panel" id="panel-order">
     <label class="field-label">先生を選択</label>
     <div class="teacher-row">
@@ -418,13 +422,16 @@
   <button class="submit-btn" id="submit-btn">この内容で注文を送信する</button>
   <p class="notice">送信内容は「注文一覧・集計」タブで全員が確認できます。</p>
 
+  <!-- HISTORY PANEL -->
   <section class="panel top-round" id="panel-history" style="display:none;">
     
+    <!-- FAX送信用集計＆CSVダウンロードボタン -->
     <button class="btn-small" id="btn-fax-summary" style="width: 100%; margin-bottom: 8px; background: var(--soy); font-size: 1rem; padding: 12px;">📠 画面で商品ごとの合計を確認する</button>
     <button class="btn-small" id="btn-download-csv" style="width: 100%; margin-bottom: 16px; background: #287a3c; font-size: 1rem; padding: 12px;">📊 FAX用紙と同じ形式でCSVをダウンロード</button>
     
     <div id="fax-summary-container" style="display: none; margin-bottom: 20px;"></div>
 
+    <!-- 配送料・箱代の共同負担設定エリア -->
     <div class="summary-box" style="background: #FFF0EA; border: 1.5px solid var(--accent); margin-bottom: 18px;">
       <h3 style="color: var(--accent); margin-top: 0; font-size: 0.95rem; font-weight: 800;">🚚 配送料・箱代の共同負担設定</h3>
       <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;">
@@ -607,6 +614,7 @@ const inputBoxCount = document.getElementById('input-box-count');
 const inputBoxPrice = document.getElementById('input-box-price');
 const btnSaveExtra = document.getElementById('btn-save-extra');
 const extraCalcPreview = document.getElementById('extra-calc-preview');
+const inputDeadline = document.getElementById('input-deadline');
 
 function showToast(msg) {
   toastEl.textContent = msg;
@@ -779,18 +787,27 @@ submitBtn.addEventListener('click', async () => {
 
 // ----- 締切日時の共有ロジック -----
 function updateDeadlineUI() {
-  const el = document.getElementById('input-deadline');
-  if (document.activeElement !== el) {
-    el.value = deadlineText;
+  if (document.activeElement !== inputDeadline) {
+    inputDeadline.value = deadlineText;
   }
 }
-document.getElementById('input-deadline').addEventListener('change', async (e) => {
-  deadlineText = e.target.value.trim();
+inputDeadline.addEventListener('change', async (e) => {
+  deadlineText = e.target.value;
   const ok = await saveData();
   if (ok) {
-    showToast('締切日時を全員の画面に反映しました！');
+    showToast('締切日を全員の画面に反映しました！');
   } else {
     showToast(`保存失敗。理由: ${lastFirebaseError}`);
+  }
+});
+// ダブルクリックでカレンダーを強制的に開く（対応ブラウザのみ）
+inputDeadline.addEventListener('dblclick', function(e) {
+  try {
+    if (typeof this.showPicker === 'function') {
+      this.showPicker();
+    }
+  } catch (err) {
+    // 未対応ブラウザは何もしない
   }
 });
 
@@ -860,7 +877,6 @@ document.getElementById('btn-fax-summary').addEventListener('click', () => {
   let html = `<div style="background: #fff; padding: 16px; border-radius: 12px; border: 2.5px solid var(--soy); box-shadow: 0 4px 10px rgba(0,0,0,0.1);">`;
   html += `<h3 style="margin: 0 0 12px; color: var(--soy); border-bottom: 2px solid var(--dough-dark); padding-bottom: 8px;">📠 お店へのFAX送信用 控え</h3>`;
   
-  // ★FAX番号を大きく表示
   html += `<p style="font-weight: 800; color: var(--accent); font-size: 1.15rem; text-align: center; margin: 0 0 16px; background: #FFF0EA; padding: 8px; border-radius: 8px;">送信先 FAX: 0986-46-5546</p>`;
   
   html += `<table style="width: 100%; border-collapse: collapse; font-size: 0.95rem;">`;
@@ -1066,7 +1082,7 @@ document.getElementById('reset-all-btn').addEventListener('click', async () => {
   orders = [];
   deliveryFee = 0;
   boxCount = 0;
-  deadlineText = ""; // リセット時に締切日時も消す場合はここに追加
+  deadlineText = ""; 
   const ok = await saveData();
   if (ok) {
     renderHistory();
