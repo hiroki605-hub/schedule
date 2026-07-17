@@ -399,21 +399,32 @@
     line-height: 1.5;
   }
 
-  .deadline-setting .field-hint {
+  .field-hint {
     font-size: 0.72rem;
     color: var(--soy-light);
     margin: -8px 0 12px;
   }
-  .deadline-setting .split-row {
+  .split-row {
     display: flex;
     gap: 8px;
   }
-  .deadline-setting .split-row input { flex: 1; }
+  .split-row input { flex: 1; }
   .deadline-setting hr {
     border: none;
     border-top: 1px dashed var(--dough-dark);
     margin: 14px 0;
   }
+  #cost-split-box select,
+  #cost-split-box input[type=number] {
+    width: 100%;
+    padding: 11px 12px;
+    border-radius: 10px;
+    border: 1.5px solid var(--dough-dark);
+    background: #fff;
+    font-size: 1rem;
+    color: var(--soy);
+  }
+  #cost-split-box .btn-small { width: 100%; margin-top: 4px; }
 
   .csv-btn {
     display: inline-flex;
@@ -479,25 +490,6 @@
         <label class="field-label">配送日・お届け予定日</label>
         <input type="date" id="delivery-input">
       </div>
-
-      <hr>
-
-      <div class="setting-field">
-        <label class="field-label">送料・箱代の分担設定</label>
-        <div class="split-row">
-          <input type="number" min="0" id="shipping-input" placeholder="送料（円）">
-          <input type="number" min="0" id="box-price-input" placeholder="箱代 1箱（円）">
-          <input type="number" min="0" id="box-count-input" placeholder="箱の個数">
-        </div>
-      </div>
-      <div class="field-hint">合計 = 送料 ＋（箱代 × 箱の個数）。これを注文した先生方で分担します。</div>
-      <div class="setting-field">
-        <label class="field-label">分担方法</label>
-        <select id="split-method-select">
-          <option value="equal">注文した先生で均等に割る</option>
-          <option value="proportional">注文金額に応じて按分する</option>
-        </select>
-      </div>
       <button class="btn-small" id="btn-save-settings">この内容で設定を保存する</button>
     </div>
 
@@ -526,6 +518,25 @@
   <!-- HISTORY PANEL -->
   <section class="panel top-round" id="panel-history" style="display:none;">
     <button class="csv-btn" id="csv-download-btn">⬇ 集計をCSVでダウンロード</button>
+
+    <div class="summary-box" id="cost-split-box">
+      <h3>送料・箱代を分担する</h3>
+      <div class="split-row">
+        <input type="number" min="0" id="hist-shipping-input" placeholder="送料（円）">
+        <input type="number" min="0" id="hist-box-price-input" placeholder="箱代 1箱（円）">
+        <input type="number" min="0" id="hist-box-count-input" placeholder="箱の個数">
+      </div>
+      <div class="field-hint">合計 ＝ 送料 ＋（箱代 × 箱の個数）を、注文した先生方で分担します。</div>
+      <div class="setting-field">
+        <label class="field-label">分担方法</label>
+        <select id="hist-split-method-select">
+          <option value="equal">注文した先生で均等に割る</option>
+          <option value="proportional">注文金額に応じて按分する</option>
+        </select>
+      </div>
+      <button class="btn-small" id="hist-calc-btn">この内容で計算する</button>
+    </div>
+
     <div id="history-content"></div>
     <button class="reset-all" id="reset-all-btn">すべての注文をリセットする（担当の先生用）</button>
   </section>
@@ -805,10 +816,6 @@ document.getElementById('deadline-toggle').addEventListener('click', () => {
     document.getElementById('accepting-select').value = accepting;
     if (deadline) document.getElementById('deadline-input').value = deadline;
     if (deliveryDate) document.getElementById('delivery-input').value = deliveryDate;
-    document.getElementById('shipping-input').value = shippingFee || '';
-    document.getElementById('box-price-input').value = boxPrice || '';
-    document.getElementById('box-count-input').value = boxCount || '';
-    document.getElementById('split-method-select').value = splitMethod;
   }
 });
 
@@ -818,14 +825,6 @@ document.getElementById('btn-save-settings').addEventListener('click', async () 
   const deliveryVal = document.getElementById('delivery-input').value;
   deadline = deadlineVal || null;
   deliveryDate = deliveryVal || null;
-
-  const shippingVal = parseInt(document.getElementById('shipping-input').value, 10);
-  const boxPriceVal = parseInt(document.getElementById('box-price-input').value, 10);
-  const boxCountVal = parseInt(document.getElementById('box-count-input').value, 10);
-  shippingFee = isNaN(shippingVal) || shippingVal < 0 ? 0 : shippingVal;
-  boxPrice = isNaN(boxPriceVal) || boxPriceVal < 0 ? 0 : boxPriceVal;
-  boxCount = isNaN(boxCountVal) || boxCountVal < 0 ? 0 : boxCountVal;
-  splitMethod = document.getElementById('split-method-select').value === 'proportional' ? 'proportional' : 'equal';
 
   renderStatusBanner();
   const ok = await saveData();
@@ -907,7 +906,13 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     submitBtn.style.display = tab === 'order' ? 'block' : 'none';
     document.querySelector('.notice').style.display = tab === 'order' ? 'block' : 'none';
     document.getElementById('panel-history').style.display = tab === 'history' ? 'block' : 'none';
-    if (tab === 'history') renderHistory();
+    if (tab === 'history') {
+      document.getElementById('hist-shipping-input').value = shippingFee || '';
+      document.getElementById('hist-box-price-input').value = boxPrice || '';
+      document.getElementById('hist-box-count-input').value = boxCount || '';
+      document.getElementById('hist-split-method-select').value = splitMethod;
+      renderHistory();
+    }
   });
 });
 
@@ -1035,6 +1040,20 @@ function downloadCSV() {
 }
 
 document.getElementById('csv-download-btn').addEventListener('click', downloadCSV);
+
+document.getElementById('hist-calc-btn').addEventListener('click', async () => {
+  const shippingVal = parseInt(document.getElementById('hist-shipping-input').value, 10);
+  const boxPriceVal = parseInt(document.getElementById('hist-box-price-input').value, 10);
+  const boxCountVal = parseInt(document.getElementById('hist-box-count-input').value, 10);
+  shippingFee = isNaN(shippingVal) || shippingVal < 0 ? 0 : shippingVal;
+  boxPrice = isNaN(boxPriceVal) || boxPriceVal < 0 ? 0 : boxPriceVal;
+  boxCount = isNaN(boxCountVal) || boxCountVal < 0 ? 0 : boxCountVal;
+  splitMethod = document.getElementById('hist-split-method-select').value === 'proportional' ? 'proportional' : 'equal';
+
+  renderHistory();
+  const ok = await saveData();
+  showToast(ok ? '計算して保存しました' : '計算しましたが保存に失敗しました');
+});
 
 // ----- History -----
 function renderHistory() {
