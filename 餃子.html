@@ -480,6 +480,35 @@
   td.paid-cell { text-align: center; }
   .order-card .order-head { flex-wrap: wrap; row-gap: 6px; }
   .order-card .paid-toggle { margin-left: 8px; }
+
+  .notify-box textarea {
+    width: 100%;
+    padding: 11px 12px;
+    border-radius: 10px;
+    border: 1.5px solid var(--dough-dark);
+    font-size: 0.92rem;
+    font-family: inherit;
+    color: var(--soy);
+    background: #fff;
+    resize: vertical;
+    margin-bottom: 10px;
+  }
+  .notify-box textarea:focus {
+    outline: 2px solid var(--chive);
+    outline-offset: 1px;
+  }
+  .notify-send-btn {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 10px;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 800;
+    font-size: 0.95rem;
+    cursor: pointer;
+  }
+  .notify-send-btn:hover { background: #A8421F; }
 </style>
 
 <!-- Firebase (GitHub Pages等、Claude以外の場所でホストする場合の共有データ保存に使用) -->
@@ -549,6 +578,12 @@
   <section class="panel top-round" id="panel-history" style="display:none;">
     <button class="csv-btn" id="csv-download-btn">⬇ 集計をCSVでダウンロード</button>
 
+    <div class="summary-box notify-box" id="chat-notify-box">
+      <h3>📣 チャットに通知を送る</h3>
+      <textarea id="notify-message-input" rows="3">🥟 ぎょうざが届きました！職員室前に届いていますので、取りに来てください。</textarea>
+      <button class="notify-send-btn" id="btn-send-notify">この内容でチャットに送信する</button>
+    </div>
+
     <div class="summary-box" id="cost-split-box">
       <h3>送料・箱代を分担する</h3>
       <div class="split-row">
@@ -597,19 +632,17 @@ const MENU = [
 
 let teachers = [];
 let orders = [];
-let deadline = null; // 'YYYY-MM-DD' or null（表示用の参考情報）
-let deliveryDate = null; // 'YYYY-MM-DD' or null
-let accepting = 'open'; // 'open' | 'closed'（担当の先生が手動で切り替え）
-let shippingFee = 0; // 送料（円）
-let boxPrice = 0; // 箱代 1箱あたり（円）
-let boxCount = 0; // 箱の個数
-let splitMethod = 'equal'; // 'equal' | 'proportional'
-let paidStatus = {}; // teacherName -> true(集金済み) / false・未設定(未収金)
-let currentQty = {}; // itemId -> qty
-let storageWorks = true; // becomes false if persistent storage is unavailable, falls back to local-only
+let deadline = null;
+let deliveryDate = null;
+let accepting = 'open';
+let shippingFee = 0;
+let boxPrice = 0;
+let boxCount = 0;
+let splitMethod = 'equal';
+let paidStatus = {};
+let currentQty = {};
+let storageWorks = true;
 
-// ===================== ここにFirebaseの設定を貼り付けてください =====================
-// Firebaseコンソール > プロジェクトの設定 > マイアプリ で表示される firebaseConfig をそのまま貼り付け
 const firebaseConfig = {
   apiKey: "AIzaSyCe1Tk1vfeaPp9AUtTJ29qibN94o9LBYtY",
   authDomain: "gyoza-order-d3a16.firebaseapp.com",
@@ -618,7 +651,11 @@ const firebaseConfig = {
   messagingSenderId: "589641862175",
   appId: "1:589641862175:web:55f31ab32d68b74e91192a"
 };
-// ================================================================================
+
+// ===================== ここにApps ScriptのウェブアプリURLを貼り付けてください =====================
+// 「チャットに通知を送る」ボタン用（Apps Scriptを「ウェブアプリ」としてデプロイした時のURL、.../exec で終わるもの）
+const NOTIFY_URL = 'https://script.google.com/a/macros/e-net.nara.jp/s/AKfycbxJ_1KKcQ8A7MccUW7ZBySarX6XFMPKWVo6N8fhsaPY6ghCqNJJhzRI4F3xJ_8IsP55Fg/exec';
+// ====================================================================================
 
 let db = null;
 let docRef = null;
@@ -626,7 +663,7 @@ let firebaseReady = false;
 
 function initFirebase() {
   if (firebaseConfig.apiKey === "YOUR_API_KEY") {
-    console.warn('firebaseConfigが未設定です。上部の firebaseConfig に実際の値を貼り付けてください。');
+    console.warn('firebaseConfigが未設定です。');
     return;
   }
   try {
@@ -675,33 +712,16 @@ async function loadData() {
       splitMethod = data.splitMethod === 'proportional' ? 'proportional' : 'equal';
       paidStatus = (data.paidStatus && typeof data.paidStatus === 'object') ? data.paidStatus : {};
     } else {
-      teachers = [];
-      orders = [];
-      deadline = null;
-      deliveryDate = null;
-      accepting = 'open';
-      shippingFee = 0;
-      boxPrice = 0;
-      boxCount = 0;
-      splitMethod = 'equal';
-      paidStatus = {};
+      teachers = []; orders = []; deadline = null; deliveryDate = null; accepting = 'open';
+      shippingFee = 0; boxPrice = 0; boxCount = 0; splitMethod = 'equal'; paidStatus = {};
     }
   } catch (e) {
     console.error('loadData failed:', e);
-    teachers = [];
-    orders = [];
-    deadline = null;
-    deliveryDate = null;
-    accepting = 'open';
-    shippingFee = 0;
-    boxPrice = 0;
-    boxCount = 0;
-    splitMethod = 'equal';
-    paidStatus = {};
+    teachers = []; orders = []; deadline = null; deliveryDate = null; accepting = 'open';
+    shippingFee = 0; boxPrice = 0; boxCount = 0; splitMethod = 'equal'; paidStatus = {};
   }
 }
 
-// 他の端末からの更新をリアルタイムで反映（先生選択リストと注文一覧を自動更新）
 function subscribeRealtime() {
   if (!firebaseReady) return;
   docRef.onSnapshot(snap => {
@@ -924,13 +944,12 @@ submitBtn.addEventListener('click', async () => {
     renderItems();
     updateTotal();
   } else {
-    orders.pop(); // roll back so a retry won't duplicate
+    orders.pop();
     showToast('保存に失敗しました。電波状況を確認し、もう一度送信してください');
   }
   submitBtn.disabled = false;
 });
 
-// ----- Tabs -----
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -951,13 +970,11 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
   });
 });
 
-// ----- 送料・箱代の分担計算 -----
 function getExtraCost() {
   const cost = (shippingFee || 0) + (boxPrice || 0) * (boxCount || 0);
   return cost > 0 ? cost : 0;
 }
 
-// 端数は多い順に1円ずつ配分し、合計が必ずextraCostと一致するようにする
 function computeShares(byTeacher, grandTotal) {
   const names = Object.keys(byTeacher);
   const shares = {};
@@ -981,7 +998,6 @@ function computeShares(byTeacher, grandTotal) {
       shares[remainders[i % remainders.length].name] += 1;
     }
   } else {
-    // 均等割り（先生ごとに注文金額に関わらず同額）
     const base = Math.floor(extraCost / names.length);
     let leftover = extraCost - base * names.length;
     names.forEach(name => shares[name] = base);
@@ -992,14 +1008,12 @@ function computeShares(byTeacher, grandTotal) {
   return shares;
 }
 
-// ----- CSVダウンロード -----
 function csvEscape(val) {
   const s = String(val);
   if (/[",\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
   return s;
 }
 
-// FAX注文用紙（ぎょうざの丸岡）と同じ商品の並び順・単位
 const FAX_ORDER_LAYOUT = [
   { id: 'g50', unit: 'パック' },
   { id: 'g40', unit: 'パック' },
@@ -1018,8 +1032,6 @@ function downloadCSV() {
   if (orders.length === 0) { showToast('まだ注文がありません'); return; }
 
   const rows = [];
-
-  // セクション1：商品別 集計（FAX注文用紙と同じ商品構成・並び順・単位で合計個数を出力）
   rows.push(['商品別 集計（FAX注文用紙と同じ並び順）']);
   rows.push(['商品名', '単価（円）', '個数', '単位', '小計（円）']);
   const itemTotals = {};
@@ -1042,7 +1054,6 @@ function downloadCSV() {
   rows.push(['', '', '', '合計', grandTotal]);
   rows.push([]);
 
-  // セクション2：配達希望日・配達時間帯・FAX番号（注文用紙下部と同じ内容）
   const WEEKDAY_JP = ['日', '月', '火', '水', '木', '金', '土'];
   let deliveryDateStr = '　　月　　日　　曜日';
   if (deliveryDate) {
@@ -1075,6 +1086,18 @@ function downloadCSV() {
 
 document.getElementById('csv-download-btn').addEventListener('click', downloadCSV);
 
+document.getElementById('btn-send-notify').addEventListener('click', () => {
+  const msg = document.getElementById('notify-message-input').value.trim();
+  if (!msg) { showToast('メッセージを入力してください'); return; }
+  if (!NOTIFY_URL || NOTIFY_URL.includes('ここに')) {
+    showToast('NOTIFY_URLが未設定です（コード上部を確認してください）');
+    return;
+  }
+  fetch(`${NOTIFY_URL}?msg=${encodeURIComponent(msg)}`, { mode: 'no-cors' })
+    .then(() => showToast('チャットに送信しました'))
+    .catch(() => showToast('送信に失敗しました'));
+});
+
 document.getElementById('hist-calc-btn').addEventListener('click', async () => {
   const shippingVal = parseInt(document.getElementById('hist-shipping-input').value, 10);
   const boxPriceVal = parseInt(document.getElementById('hist-box-price-input').value, 10);
@@ -1089,7 +1112,6 @@ document.getElementById('hist-calc-btn').addEventListener('click', async () => {
   showToast(ok ? '計算して保存しました' : '計算しましたが保存に失敗しました');
 });
 
-// ----- History -----
 function renderHistory() {
   const container = document.getElementById('history-content');
   if (orders.length === 0) {
@@ -1097,7 +1119,6 @@ function renderHistory() {
     return;
   }
 
-  // Per-teacher summary
   const byTeacher = {};
   orders.forEach(o => {
     if (!byTeacher[o.teacher]) byTeacher[o.teacher] = { count: 0, total: 0 };
@@ -1129,7 +1150,6 @@ function renderHistory() {
     </table>
   </div>`;
 
-  // Individual order cards, newest first
   const sorted = [...orders].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
   html += sorted.map(o => {
     const date = new Date(o.timestamp);
@@ -1202,7 +1222,6 @@ document.getElementById('reset-all-btn').addEventListener('click', async () => {
   }
 });
 
-// ----- Init -----
 async function init() {
   initFirebase();
   if (!firebaseReady) {
