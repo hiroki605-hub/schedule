@@ -451,6 +451,35 @@
     margin: -4px 0 12px;
   }
   table.summary-table td.share { color: var(--soy-light); }
+
+  .paid-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 1.5px solid var(--dough-dark);
+    background: #fff;
+    color: var(--soy-light);
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 20px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .paid-toggle.is-paid {
+    background: #E4EEDD;
+    border-color: var(--chive);
+    color: var(--chive-dark);
+  }
+  .paid-toggle.is-unpaid {
+    background: #F3DCD5;
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .paid-toggle:hover { opacity: 0.85; }
+  td.paid-cell { text-align: center; }
+  .order-card .order-head { flex-wrap: wrap; row-gap: 6px; }
+  .order-card .paid-toggle { margin-left: 8px; }
 </style>
 
 <!-- Firebase (GitHub Pages等、Claude以外の場所でホストする場合の共有データ保存に使用) -->
@@ -575,6 +604,7 @@ let shippingFee = 0; // 送料（円）
 let boxPrice = 0; // 箱代 1箱あたり（円）
 let boxCount = 0; // 箱の個数
 let splitMethod = 'equal'; // 'equal' | 'proportional'
+let paidStatus = {}; // teacherName -> true(集金済み) / false・未設定(未収金)
 let currentQty = {}; // itemId -> qty
 let storageWorks = true; // becomes false if persistent storage is unavailable, falls back to local-only
 
@@ -615,7 +645,7 @@ async function saveData() {
   let lastErr = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      await docRef.set({ teachers, orders, deadline, deliveryDate, accepting, shippingFee, boxPrice, boxCount, splitMethod });
+      await docRef.set({ teachers, orders, deadline, deliveryDate, accepting, shippingFee, boxPrice, boxCount, splitMethod, paidStatus });
       storageWorks = true;
       return true;
     } catch (e) {
@@ -629,7 +659,7 @@ async function saveData() {
 }
 
 async function loadData() {
-  if (!firebaseReady) { teachers = []; orders = []; deadline = null; deliveryDate = null; accepting = 'open'; shippingFee = 0; boxPrice = 0; boxCount = 0; splitMethod = 'equal'; return; }
+  if (!firebaseReady) { teachers = []; orders = []; deadline = null; deliveryDate = null; accepting = 'open'; shippingFee = 0; boxPrice = 0; boxCount = 0; splitMethod = 'equal'; paidStatus = {}; return; }
   try {
     const snap = await docRef.get();
     if (snap.exists) {
@@ -643,6 +673,7 @@ async function loadData() {
       boxPrice = typeof data.boxPrice === 'number' ? data.boxPrice : 0;
       boxCount = typeof data.boxCount === 'number' ? data.boxCount : 0;
       splitMethod = data.splitMethod === 'proportional' ? 'proportional' : 'equal';
+      paidStatus = (data.paidStatus && typeof data.paidStatus === 'object') ? data.paidStatus : {};
     } else {
       teachers = [];
       orders = [];
@@ -653,6 +684,7 @@ async function loadData() {
       boxPrice = 0;
       boxCount = 0;
       splitMethod = 'equal';
+      paidStatus = {};
     }
   } catch (e) {
     console.error('loadData failed:', e);
@@ -665,6 +697,7 @@ async function loadData() {
     boxPrice = 0;
     boxCount = 0;
     splitMethod = 'equal';
+    paidStatus = {};
   }
 }
 
@@ -683,6 +716,7 @@ function subscribeRealtime() {
     boxPrice = typeof data.boxPrice === 'number' ? data.boxPrice : 0;
     boxCount = typeof data.boxCount === 'number' ? data.boxCount : 0;
     splitMethod = data.splitMethod === 'proportional' ? 'proportional' : 'equal';
+    paidStatus = (data.paidStatus && typeof data.paidStatus === 'object') ? data.paidStatus : {};
     renderTeacherSelect();
     renderStatusBanner();
     const historyPanel = document.getElementById('panel-history');
@@ -1085,13 +1119,13 @@ function renderHistory() {
     <h3>先生別 集計</h3>
     ${extraCostNote}
     <table class="summary-table">
-      <thead><tr><th>先生</th><th class="num">個数合計</th><th class="num">注文金額</th>${extraCost > 0 ? '<th class="num">送料・箱代</th><th class="num">お支払い合計</th>' : ''}</tr></thead>
+      <thead><tr><th>先生</th><th class="num">個数合計</th><th class="num">注文金額</th>${extraCost > 0 ? '<th class="num">送料・箱代</th><th class="num">お支払い合計</th>' : ''}<th>集金状況</th></tr></thead>
       <tbody>
         ${Object.keys(byTeacher).map(name => `
-          <tr><td>${name}</td><td class="num">${byTeacher[name].count}</td><td class="num">${yen(byTeacher[name].total)}</td>${extraCost > 0 ? `<td class="num share">${yen(shares[name])}</td><td class="num"><strong>${yen(byTeacher[name].total + shares[name])}</strong></td>` : ''}</tr>
+          <tr><td>${name}</td><td class="num">${byTeacher[name].count}</td><td class="num">${yen(byTeacher[name].total)}</td>${extraCost > 0 ? `<td class="num share">${yen(shares[name])}</td><td class="num"><strong>${yen(byTeacher[name].total + shares[name])}</strong></td>` : ''}<td class="paid-cell"><button class="paid-toggle ${paidStatus[name] ? 'is-paid' : 'is-unpaid'}" data-teacher="${name}">${paidStatus[name] ? '✔ 集金済み' : '未収金'}</button></td></tr>
         `).join('')}
       </tbody>
-      <tfoot><tr><td><strong>合計</strong></td><td></td><td class="num"><strong>${yen(grandTotal)}</strong></td>${extraCost > 0 ? `<td class="num"><strong>${yen(extraCost)}</strong></td><td class="num"><strong>${yen(grandTotal + extraCost)}</strong></td>` : ''}</tr></tfoot>
+      <tfoot><tr><td><strong>合計</strong></td><td></td><td class="num"><strong>${yen(grandTotal)}</strong></td>${extraCost > 0 ? `<td class="num"><strong>${yen(extraCost)}</strong></td><td class="num"><strong>${yen(grandTotal + extraCost)}</strong></td>` : ''}<td></td></tr></tfoot>
     </table>
   </div>`;
 
@@ -1104,6 +1138,7 @@ function renderHistory() {
       <button class="delete-btn" data-id="${o.id}">削除</button>
       <div class="order-head">
         <span class="teacher-name">${o.teacher} 先生</span>
+        <button class="paid-toggle ${paidStatus[o.teacher] ? 'is-paid' : 'is-unpaid'}" data-teacher="${o.teacher}">${paidStatus[o.teacher] ? '✔ 集金済み' : '未収金'}</button>
         <span class="order-time">${dateStr}</span>
       </div>
       <ul>
@@ -1128,6 +1163,21 @@ function renderHistory() {
       } else {
         orders = backup;
         showToast('削除に失敗しました。もう一度お試しください');
+      }
+    });
+  });
+
+  container.querySelectorAll('.paid-toggle').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const name = btn.dataset.teacher;
+      const backup = { ...paidStatus };
+      paidStatus = { ...paidStatus, [name]: !paidStatus[name] };
+      renderHistory();
+      const ok = await saveData();
+      if (!ok) {
+        paidStatus = backup;
+        renderHistory();
+        showToast('集金状況の保存に失敗しました。もう一度お試しください');
       }
     });
   });
