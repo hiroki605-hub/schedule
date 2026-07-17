@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+html_code = """<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -874,7 +874,7 @@ function renderHistory() {
         <span class="order-time">${dateStr}</span>
       </div>
       <ul>
-        ${o.items.map(i => `<li>${i.name} × ${i.qty}　${yen(i.subtotal)}</li>`).join('')}
+        ${o.items.map(i => `<li>${i.name} × ${i.qty} ${yen(i.subtotal)}</li>`).join('')}
       </ul>
       <div class="order-total">${yen(o.total)}</div>
     </div>`;
@@ -911,38 +911,32 @@ function renderHistory() {
       }));
 
       // CSV生成 (BOM付きでExcelの文字化け防止)
-      let csv = '﻿商品名,個数,単位
-';
+      let csv = '\uFEFF商品名,個数,単位\n';
       
       // 写真と同じ並び順・表記のマッピング
       const rows = [
-        { id: "g50", label: "ぎょうざ 50個入　（税込 1,550円）", unit: "パック" },
-        { id: "g40", label: "ぎょうざ 40個入　（税込 1,240円）", unit: "パック" },
-        { id: "sg50", label: "しょうが入り餃子 50個入　（税込 1,550円）", unit: "パック" },
-        { id: "sg40", label: "しょうが入り餃子 40個入　（税込 1,240円）", unit: "パック" },
-        { id: "t_yaki", label: "焼きぎょうざのたれ　（税込 114円）", unit: "本" },
-        { id: "s_mizu", label: "水ぎょうざのスープ　（税込 18円）", unit: "袋" },
-        { id: "t_miso", label: "ぎょうざのたれ みそ　（税込 225円）", unit: "本" },
-        { id: "t_yuzu", label: "ぎょうざのたれ 柚子こしょう　（税込 245円）", unit: "本" },
-        { id: "t_hinata", label: "日向夏のたれ【14g×6袋】　（税込 123円）", unit: "セット" },
-        { id: "s_nabe", label: "餃子鍋すうぷ　（税込 198円）", unit: "本" },
-        { id: "s_shio", label: "ぎょうざ鍋の素【塩味】　（税込 175円）", unit: "セット" }
+        { id: "g50", label: "ぎょうざ 50個入 （税込 1,550円）", unit: "パック" },
+        { id: "g40", label: "ぎょうざ 40個入 （税込 1,240円）", unit: "パック" },
+        { id: "sg50", label: "しょうが入り餃子 50個入 （税込 1,550円）", unit: "パック" },
+        { id: "sg40", label: "しょうが入り餃子 40個入 （税込 1,240円）", unit: "パック" },
+        { id: "t_yaki", label: "焼きぎょうざのたれ （税込 114円）", unit: "本" },
+        { id: "s_mizu", label: "水ぎょうざのスープ （税込 18円）", unit: "袋" },
+        { id: "t_miso", label: "ぎょうざのたれ みそ （税込 225円）", unit: "本" },
+        { id: "t_yuzu", label: "ぎょうざのたれ 柚子こしょう （税込 245円）", unit: "本" },
+        { id: "t_hinata", label: "日向夏のたれ【14g×6袋】 （税込 123円）", unit: "セット" },
+        { id: "s_nabe", label: "餃子鍋すうぷ （税込 198円）", unit: "本" },
+        { id: "s_shio", label: "ぎょうざ鍋の素【塩味】 （税込 175円）", unit: "セット" }
       ];
 
       rows.forEach(r => {
         const q = totals[r.id] || ''; // 個数0の時は空欄にする
-        csv += `"${r.label}",${q},${r.unit}
-`;
+        csv += `"${r.label}",${q},${r.unit}\n`;
       });
 
       // フォーム下部の配達希望日等の欄を追加
-      csv += '
-配達希望日,　　月　　日,曜日
-';
-      csv += '配達時間帯,指定なし 14-16時 16-18時 18時-20時 19-21時,
-';
-      csv += '通信欄,,
-';
+      csv += '\n配達希望日,  月  日,曜日\n';
+      csv += '配達時間帯,指定なし 14-16時 16-18時 18時-20時 19-21時,\n';
+      csv += '通信欄,,\n';
 
       const blob = new Blob([csv], { type: 'text/csv' });
       const url = URL.createObjectURL(blob);
@@ -987,3 +981,9 @@ init();
 </script>
 </body>
 </html>
+"""
+
+with open("/mnt/data/餃子注文フォーム-v2.html", "w", encoding="utf-8") as f:
+    f.write(html_code)
+
+print("[file-tag: 餃子注文フォーム-v2.html]")
