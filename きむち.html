@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>韓国食材注文フォーム</title>
+
+<!-- Firebase (GitHub Pages等、Claude以外の場所でホストする場合の共有データ保存に使用) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<style>
+  :root {
+    --dough: #F3E4D2;
+    --dough-dark: #E6CBA8;
+    --soy: #4A2E1F;
+    --soy-light: #7A5039;
+    --chive: #B23A2E;
+    --chive-dark: #8C2A20;
+    --paper: #FFFBF3;
+    --accent: #C4522A;
+    --shadow: rgba(74, 46, 31, 0.15);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif;
+    background: var(--dough);
+    background-image:
+      radial-gradient(circle at 20% 10%, rgba(255,255,255,0.4) 0%, transparent 40%),
+      radial-gradient(circle at 90% 80%, rgba(196,82,42,0.06) 0%, transparent 45%);
+    color: var(--soy);
+    min-height: 100vh;
+    padding-bottom: 60px;
+  }
+  header {
+    background: var(--soy);
+    color: var(--dough);
+    padding: 22px 20px 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  header h1 {
+    margin: 0;
+    font-size: 1.5rem;
+    letter-spacing: 0.02em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  header .icon {
+    font-size: 1.5rem;
+  }
+  header p {
+    margin: 6px 0 0;
+    font-size: 0.85rem;
+    opacity: 0.75;
+  }
+
+  .tabs {
+    display: flex;
+    max-width: 640px;
+    margin: 18px auto 0;
+    padding: 0 16px;
+    gap: 8px;
+  }
+  .tab-btn {
+    flex: 1;
+    padding: 12px 8px;
+    border: none;
+    background: var(--paper);
+    color: var(--soy-light);
+    font-size: 0.92rem;
+    font-weight: 600;
+    border-radius: 12px 12px 0 0;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+  }
+  .tab-btn.active {
+    opacity: 1;
+    color: var(--soy);
+    box-shadow: 0 -2px 8px var(--shadow);
+  }
+  .tab-btn:not(.active):hover { opacity: 0.85; }
+
+  main {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 0 16px;
+  }
+  .panel {
+    background: var(--paper);
+    border-radius: 0 0 16px 16px;
+    padding: 20px 18px 26px;
+    box-shadow: 0 4px 20px var(--shadow);
+  }
+  .panel.top-round { border-radius: 16px; margin-top: 18px; }
+
+  .field-label {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--soy-light);
+    margin-bottom: 6px;
+    display: block;
+    letter-spacing: 0.03em;
+  }
+
+  select, input[type=text] {
+    width: 100%;
+    padding: 11px 12px;
+    border-radius: 10px;
+    border: 1.5px solid var(--dough-dark);
+    background: #fff;
+    font-size: 1rem;
+    color: var(--soy);
+  }
+  select:focus, input[type=text]:focus, input[type=number]:focus {
+    outline: 2px solid var(--chive);
+    outline-offset: 1px;
+  }
+
+  .teacher-row { display: flex; gap: 8px; margin-bottom: 18px; }
+  .teacher-row select { flex: 1; }
+  .add-teacher-inline {
+    display: none;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .add-teacher-inline.show { display: flex; }
+  .btn-small {
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: none;
+    background: var(--chive);
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .btn-small:hover { background: var(--chive-dark); }
+
+  .category {
+    margin-bottom: 20px;
+  }
+  .category-title {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--accent);
+    border-bottom: 2px dashed var(--dough-dark);
+    padding-bottom: 6px;
+    margin-bottom: 10px;
+  }
+  .item-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 0;
+    border-bottom: 1px solid #F0E2CC;
+    gap: 10px;
+  }
+  .item-row:last-child { border-bottom: none; }
+  .item-info { flex: 1; min-width: 0; }
+  .item-name { font-size: 0.93rem; font-weight: 600; }
+  .item-price { font-size: 0.8rem; color: var(--soy-light); margin-top: 1px; }
+  .qty-control {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .qty-btn {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    border: 1.5px solid var(--chive);
+    background: #fff;
+    color: var(--chive-dark);
+    font-size: 1.1rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .qty-btn:hover { background: var(--chive); color: #fff; }
+  .qty-input {
+    width: 44px;
+    text-align: center;
+    padding: 6px 2px;
+    border-radius: 8px;
+    border: 1.5px solid var(--dough-dark);
+    font-size: 0.95rem;
+  }
+
+  .total-bar {
+    position: sticky;
+    bottom: 0;
+    background: var(--paper);
+    border-top: 2px solid var(--dough-dark);
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-radius: 0 0 16px 16px;
+    margin-top: 4px;
+  }
+  .total-label { font-size: 0.85rem; color: var(--soy-light); }
+  .total-amount { font-size: 1.4rem; font-weight: 800; color: var(--accent); }
+  .submit-btn {
+    width: 100%;
+    margin-top: 14px;
+    padding: 14px;
+    border: none;
+    border-radius: 12px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 1.05rem;
+    font-weight: 800;
+    cursor: pointer;
+    letter-spacing: 0.03em;
+    box-shadow: 0 3px 10px rgba(196,82,42,0.35);
+  }
+  .submit-btn:hover { background: #A8421F; }
+  .submit-btn:disabled { background: #C9B79A; cursor: not-allowed; box-shadow: none; }
+
+  .toast {
+    position: fixed;
+    top: 16px; left: 50%;
+    transform: translateX(-50%) translateY(-20px);
+    background: var(--chive-dark);
+    color: #fff;
+    padding: 12px 22px;
+    border-radius: 30px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    opacity: 0;
+    transition: all 0.25s ease;
+    z-index: 100;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* History panel */
+  .summary-box {
+    background: var(--dough);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 18px;
+  }
+  .summary-box h3 {
+    margin: 0 0 10px;
+    font-size: 0.95rem;
+    color: var(--soy);
+  }
+  table.summary-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+  table.summary-table th, table.summary-table td {
+    text-align: left;
+    padding: 6px 4px;
+    border-bottom: 1px solid var(--dough-dark);
+  }
+  table.summary-table th { color: var(--soy-light); font-weight: 700; }
+  table.summary-table td.num, table.summary-table th.num { text-align: right; }
+
+  .order-card {
+    background: #fff;
+    border: 1.5px solid var(--dough-dark);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    position: relative;
+  }
+  .order-card .order-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+  }
+  .order-card .teacher-name {
+    font-weight: 800;
+    font-size: 1rem;
+    color: var(--soy);
+  }
+  .order-card .order-time {
+    font-size: 0.72rem;
+    color: var(--soy-light);
+  }
+  .order-card ul {
+    margin: 0 0 8px;
+    padding-left: 18px;
+    font-size: 0.87rem;
+  }
+  .order-card .order-total {
+    text-align: right;
+    font-weight: 800;
+    color: var(--accent);
+    font-size: 1rem;
+  }
+  .delete-btn {
+    position: absolute;
+    top: 10px; right: 10px;
+    background: none;
+    border: none;
+    color: var(--soy-light);
+    font-size: 0.75rem;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+  .delete-btn:hover { color: var(--accent); }
+
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--soy-light);
+    font-size: 0.9rem;
+  }
+  .empty-state .icon-big { font-size: 2.5rem; display: block; margin-bottom: 10px; }
+
+  .reset-all {
+    display: block;
+    margin: 20px auto 0;
+    background: none;
+    border: 1px solid var(--soy-light);
+    color: var(--soy-light);
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    cursor: pointer;
+  }
+  .reset-all:hover { border-color: var(--accent); color: var(--accent); }
+
+  .notice {
+    font-size: 0.72rem;
+    color: var(--soy-light);
+    text-align: center;
+    margin-top: 14px;
+    line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span class="icon">🥬</span>韓国食材 注文フォーム</h1>
+  <p>先生方の注文をまとめて集計します</p>
+</header>
+
+<div class="tabs">
+  <button class="tab-btn active" data-tab="order">注文する</button>
+  <button class="tab-btn" data-tab="history">注文一覧・集計</button>
+</div>
+
+<main>
+  <!-- ORDER PANEL -->
+  <section class="panel" id="panel-order">
+    <label class="field-label">先生を選択</label>
+    <div class="teacher-row">
+      <select id="teacher-select"></select>
+      <button class="btn-small" id="btn-new-teacher">＋登録</button>
+    </div>
+    <div class="add-teacher-inline" id="new-teacher-row">
+      <input type="text" id="new-teacher-input" placeholder="お名前を入力（例：山田）">
+      <button class="btn-small" id="btn-add-teacher">追加</button>
+    </div>
+
+    <div id="items-container"></div>
+  </section>
+
+  <div class="panel total-bar" id="total-bar-panel">
+    <div>
+      <div class="total-label">合計金額</div>
+      <div class="total-amount" id="total-amount">¥0</div>
+    </div>
+  </div>
+  <button class="submit-btn" id="submit-btn">この内容で注文を送信する</button>
+  <p class="notice">送信内容は「注文一覧・集計」タブで全員が確認できます。</p>
+
+  <!-- HISTORY PANEL -->
+  <section class="panel top-round" id="panel-history" style="display:none;">
+    <div id="history-content"></div>
+    <button class="reset-all" id="reset-all-btn">すべての注文をリセットする（担当の先生用）</button>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const MENU = [
+  { category: "野菜", items: [
+    { id: "hakusai", name: "白菜（500g）", price: 800 },
+    { id: "daikon", name: "大根（500g）", price: 800 },
+    { id: "kyuri", name: "きゅうり（300g）", price: 800 },
+    { id: "yamaimo", name: "山イモ（300g）", price: 800 },
+  ]},
+  { category: "調味料", items: [
+    { id: "kochujang", name: "コチュジャン（400g）", price: 600 },
+    { id: "changja", name: "チャンジャ（200g）", price: 800 },
+    { id: "tashida", name: "タシダ（1袋）", price: 300 },
+    { id: "furikake", name: "ふりかけ（70g）", price: 800 },
+  ]},
+  { category: "乾物・おつまみ", items: [
+    { id: "surume", name: "スルメ（80g）", price: 500 },
+    { id: "nori", name: "のり（70g）", price: 500 },
+    { id: "bento_nori", name: "弁当海苔（1袋）", price: 250 },
+    { id: "ebisen", name: "えびせん（1袋）", price: 300 },
+  ]},
+  { category: "麺・粉類", items: [
+    { id: "ramen", name: "ラーメン（1袋）", price: 250 },
+    { id: "chijimiko", name: "チヂミ粉（1袋）", price: 700 },
+  ]},
+  { category: "飲み物・スープ", items: [
+    { id: "yuzucha", name: "ゆず茶（1本）", price: 1000 },
+    { id: "makgeolli", name: "マッコリ（1本）", price: 800 },
+    { id: "samgyetang", name: "参鶏湯（1袋）", price: 1800 },
+  ]},
+  { category: "油", items: [
+    { id: "gomaabura", name: "ゴマ油（1本）", price: 2600 },
+  ]},
+];
+
+let teachers = [];
+let orders = [];
+let currentQty = {}; // itemId -> qty
+let storageWorks = true;
+
+// ===================== ここにFirebaseの設定を貼り付けてください =====================
+// Firebaseコンソール > プロジェクトの設定 > マイアプリ で表示される firebaseConfig をそのまま貼り付け
+const firebaseConfig = {
+  apiKey: "AIzaSyCe1Tk1vfeaPp9AUtTJ29qibN94o9LBYtY",
+  authDomain: "gyoza-order-d3a16.firebaseapp.com",
+  projectId: "gyoza-order-d3a16",
+  storageBucket: "gyoza-order-d3a16.firebasestorage.app",
+  messagingSenderId: "589641862175",
+  appId: "1:589641862175:web:55f31ab32d68b74e91192a"
+};
+// ================================================================================
+// 注意：ぎょうざ注文アプリと同じFirebaseプロジェクトを使い回してもOKです。
+// その場合、下の docRef のコレクション名 'kimchi' が 'gyoza' の 'gyoza' コレクションと
+// 別の場所（別ドキュメント）にデータが保存されるので、注文データが混ざる心配はありません。
+
+let db = null;
+let docRef = null;
+let firebaseReady = false;
+
+function initFirebase() {
+  if (firebaseConfig.apiKey === "YOUR_API_KEY") {
+    console.warn('firebaseConfigが未設定です。上部の firebaseConfig に実際の値を貼り付けてください。');
+    return;
+  }
+  try {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    docRef = db.collection('kimchi').doc('shared');
+    firebaseReady = true;
+  } catch (e) {
+    console.error('Firebase初期化エラー:', e);
+    firebaseReady = false;
+  }
+}
+
+async function saveData() {
+  if (!firebaseReady) { storageWorks = false; return false; }
+  let lastErr = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await docRef.set({ teachers, orders });
+      storageWorks = true;
+      return true;
+    } catch (e) {
+      lastErr = e;
+    }
+    await new Promise(r => setTimeout(r, 300 * (attempt + 1)));
+  }
+  console.error('saveData failed after retries:', lastErr);
+  storageWorks = false;
+  return false;
+}
+
+async function loadData() {
+  if (!firebaseReady) { teachers = []; orders = []; return; }
+  try {
+    const snap = await docRef.get();
+    if (snap.exists) {
+      const data = snap.data();
+      teachers = Array.isArray(data.teachers) ? data.teachers : [];
+      orders = Array.isArray(data.orders) ? data.orders : [];
+    } else {
+      teachers = [];
+      orders = [];
+    }
+  } catch (e) {
+    console.error('loadData failed:', e);
+    teachers = [];
+    orders = [];
+  }
+}
+
+function subscribeRealtime() {
+  if (!firebaseReady) return;
+  docRef.onSnapshot(snap => {
+    if (!snap.exists) return;
+    const data = snap.data();
+    teachers = Array.isArray(data.teachers) ? data.teachers : [];
+    orders = Array.isArray(data.orders) ? data.orders : [];
+    renderTeacherSelect();
+    const historyPanel = document.getElementById('panel-history');
+    if (historyPanel && historyPanel.style.display !== 'none') renderHistory();
+  }, err => console.error('realtime sync error:', err));
+}
+
+const teacherSelect = document.getElementById('teacher-select');
+const itemsContainer = document.getElementById('items-container');
+const totalAmountEl = document.getElementById('total-amount');
+const toastEl = document.getElementById('toast');
+const submitBtn = document.getElementById('submit-btn');
+
+function showToast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  setTimeout(() => toastEl.classList.remove('show'), 2200);
+}
+
+function yen(n) { return '¥' + n.toLocaleString('ja-JP'); }
+
+function renderItems() {
+  itemsContainer.innerHTML = '';
+  MENU.forEach(cat => {
+    const catDiv = document.createElement('div');
+    catDiv.className = 'category';
+    const title = document.createElement('div');
+    title.className = 'category-title';
+    title.textContent = cat.category;
+    catDiv.appendChild(title);
+
+    cat.items.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'item-row';
+      row.innerHTML = `
+        <div class="item-info">
+          <div class="item-name">${item.name}</div>
+          <div class="item-price">${yen(item.price)}</div>
+        </div>
+        <div class="qty-control">
+          <button class="qty-btn" data-action="dec" data-id="${item.id}">−</button>
+          <input class="qty-input" type="number" min="0" value="${currentQty[item.id]||0}" data-id="${item.id}">
+          <button class="qty-btn" data-action="inc" data-id="${item.id}">＋</button>
+        </div>
+      `;
+      catDiv.appendChild(row);
+    });
+    itemsContainer.appendChild(catDiv);
+  });
+
+  itemsContainer.querySelectorAll('.qty-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      const cur = currentQty[id] || 0;
+      if (btn.dataset.action === 'inc') currentQty[id] = cur + 1;
+      else currentQty[id] = Math.max(0, cur - 1);
+      renderItems();
+      updateTotal();
+    });
+  });
+  itemsContainer.querySelectorAll('.qty-input').forEach(inp => {
+    inp.addEventListener('change', () => {
+      const id = inp.dataset.id;
+      let v = parseInt(inp.value, 10);
+      if (isNaN(v) || v < 0) v = 0;
+      currentQty[id] = v;
+      renderItems();
+      updateTotal();
+    });
+  });
+}
+
+function findItem(id) {
+  for (const cat of MENU) {
+    const found = cat.items.find(i => i.id === id);
+    if (found) return found;
+  }
+  return null;
+}
+
+function updateTotal() {
+  let total = 0;
+  Object.keys(currentQty).forEach(id => {
+    const qty = currentQty[id] || 0;
+    if (qty > 0) {
+      const item = findItem(id);
+      if (item) total += item.price * qty;
+    }
+  });
+  totalAmountEl.textContent = yen(total);
+  return total;
+}
+
+function renderTeacherSelect() {
+  const prevValue = teacherSelect.value;
+  teacherSelect.innerHTML = '<option value="">選択してください</option>' +
+    teachers.map(t => `<option value="${t}">${t}</option>`).join('');
+  if (teachers.includes(prevValue)) teacherSelect.value = prevValue;
+}
+
+document.getElementById('btn-new-teacher').addEventListener('click', () => {
+  const row = document.getElementById('new-teacher-row');
+  row.classList.toggle('show');
+  if (row.classList.contains('show')) document.getElementById('new-teacher-input').focus();
+});
+
+document.getElementById('btn-add-teacher').addEventListener('click', async () => {
+  const input = document.getElementById('new-teacher-input');
+  const name = input.value.trim();
+  if (!name) return;
+  if (teachers.includes(name)) {
+    showToast('その名前はすでに登録されています');
+    return;
+  }
+  teachers.push(name);
+  renderTeacherSelect();
+  teacherSelect.value = name;
+  input.value = '';
+  document.getElementById('new-teacher-row').classList.remove('show');
+  const ok = await saveData();
+  showToast(ok ? `「${name}」先生を登録しました` : `「${name}」先生を登録しました（この端末のみ・保存に失敗しました）`);
+});
+
+submitBtn.addEventListener('click', async () => {
+  const teacher = teacherSelect.value;
+  if (!teacher) { showToast('先生を選択してください'); return; }
+
+  const orderedItems = [];
+  Object.keys(currentQty).forEach(id => {
+    const qty = currentQty[id] || 0;
+    if (qty > 0) {
+      const item = findItem(id);
+      orderedItems.push({ id, name: item.name, price: item.price, qty, subtotal: item.price * qty });
+    }
+  });
+  if (orderedItems.length === 0) { showToast('1つ以上の商品を選択してください'); return; }
+
+  const total = orderedItems.reduce((s, i) => s + i.subtotal, 0);
+  const order = {
+    id: 'o_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+    teacher,
+    items: orderedItems,
+    total,
+    timestamp: new Date().toISOString(),
+  };
+
+  submitBtn.disabled = true;
+  orders.push(order);
+  const ok = await saveData();
+  if (ok) {
+    showToast(`${teacher}先生の注文を送信しました（${yen(total)}）`);
+    currentQty = {};
+    renderItems();
+    updateTotal();
+  } else {
+    orders.pop();
+    showToast('保存に失敗しました。電波状況を確認し、もう一度送信してください');
+  }
+  submitBtn.disabled = false;
+});
+
+// ----- Tabs -----
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const tab = btn.dataset.tab;
+    document.getElementById('panel-order').style.display = tab === 'order' ? 'block' : 'none';
+    document.getElementById('total-bar-panel').style.display = tab === 'order' ? 'flex' : 'none';
+    submitBtn.style.display = tab === 'order' ? 'block' : 'none';
+    document.querySelector('.notice').style.display = tab === 'order' ? 'block' : 'none';
+    document.getElementById('panel-history').style.display = tab === 'history' ? 'block' : 'none';
+    if (tab === 'history') renderHistory();
+  });
+});
+
+// ----- History -----
+function renderHistory() {
+  const container = document.getElementById('history-content');
+  if (orders.length === 0) {
+    container.innerHTML = `<div class="empty-state"><span class="icon-big">🥬</span>まだ注文がありません</div>`;
+    return;
+  }
+
+  const byTeacher = {};
+  orders.forEach(o => {
+    if (!byTeacher[o.teacher]) byTeacher[o.teacher] = { count: 0, total: 0 };
+    const qtySum = o.items.reduce((s, i) => s + i.qty, 0);
+    byTeacher[o.teacher].count += qtySum;
+    byTeacher[o.teacher].total += o.total;
+  });
+  const grandTotal = orders.reduce((s, o) => s + o.total, 0);
+
+  let html = `<div class="summary-box">
+    <h3>先生別 集計</h3>
+    <table class="summary-table">
+      <thead><tr><th>先生</th><th class="num">個数合計</th><th class="num">金額合計</th></tr></thead>
+      <tbody>
+        ${Object.keys(byTeacher).map(name => `
+          <tr><td>${name}</td><td class="num">${byTeacher[name].count}</td><td class="num">${yen(byTeacher[name].total)}</td></tr>
+        `).join('')}
+      </tbody>
+      <tfoot><tr><td><strong>合計</strong></td><td></td><td class="num"><strong>${yen(grandTotal)}</strong></td></tr></tfoot>
+    </table>
+  </div>`;
+
+  const sorted = [...orders].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  html += sorted.map(o => {
+    const date = new Date(o.timestamp);
+    const dateStr = `${date.getMonth()+1}/${date.getDate()} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
+    return `<div class="order-card">
+      <button class="delete-btn" data-id="${o.id}">削除</button>
+      <div class="order-head">
+        <span class="teacher-name">${o.teacher} 先生</span>
+        <span class="order-time">${dateStr}</span>
+      </div>
+      <ul>
+        ${o.items.map(i => `<li>${i.name} × ${i.qty}　${yen(i.subtotal)}</li>`).join('')}
+      </ul>
+      <div class="order-total">${yen(o.total)}</div>
+    </div>`;
+  }).join('');
+
+  container.innerHTML = html;
+
+  container.querySelectorAll('.delete-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('この注文を削除しますか？')) return;
+      const id = btn.dataset.id;
+      const backup = orders;
+      orders = orders.filter(o => o.id !== id);
+      const ok = await saveData();
+      if (ok) {
+        renderHistory();
+        showToast('注文を削除しました');
+      } else {
+        orders = backup;
+        showToast('削除に失敗しました。もう一度お試しください');
+      }
+    });
+  });
+}
+
+document.getElementById('reset-all-btn').addEventListener('click', async () => {
+  if (!confirm('全ての注文履歴を削除します。よろしいですか？（この操作は元に戻せません）')) return;
+  const backup = orders;
+  orders = [];
+  const ok = await saveData();
+  if (ok) {
+    renderHistory();
+    showToast('全ての注文をリセットしました');
+  } else {
+    orders = backup;
+    showToast('リセットに失敗しました。もう一度お試しください');
+  }
+});
+
+// ----- Init -----
+async function init() {
+  initFirebase();
+  if (!firebaseReady) {
+    showToast('⚠️ firebaseConfigが未設定です。コード上部に貼り付けてください');
+  } else {
+    subscribeRealtime();
+  }
+  await loadData();
+  renderTeacherSelect();
+  renderItems();
+  updateTotal();
+}
+init();
+</script>
+</body>
+</html>
