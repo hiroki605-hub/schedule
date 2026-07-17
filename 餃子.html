@@ -965,14 +965,29 @@ function csvEscape(val) {
   return s;
 }
 
+// FAX注文用紙（ぎょうざの丸岡）と同じ商品の並び順・単位
+const FAX_ORDER_LAYOUT = [
+  { id: 'g50', unit: 'パック' },
+  { id: 'g40', unit: 'パック' },
+  { id: 'sg50', unit: 'パック' },
+  { id: 'sg40', unit: 'パック' },
+  { id: 't_yaki', unit: '本' },
+  { id: 's_mizu', unit: '袋' },
+  { id: 't_miso', unit: '本' },
+  { id: 't_yuzu', unit: '本' },
+  { id: 't_hinata', unit: 'セット' },
+  { id: 's_nabe', unit: '本' },
+  { id: 's_shio', unit: 'セット' },
+];
+
 function downloadCSV() {
   if (orders.length === 0) { showToast('まだ注文がありません'); return; }
 
   const rows = [];
 
-  // セクション1：商品別 集計（FAX注文用紙と同じ商品構成・合計個数を反映）
-  rows.push(['商品別 集計']);
-  rows.push(['商品名', '単価（円）', '合計個数', '小計（円）']);
+  // セクション1：商品別 集計（FAX注文用紙と同じ商品構成・並び順・単位で合計個数を出力）
+  rows.push(['商品別 集計（FAX注文用紙と同じ並び順）']);
+  rows.push(['商品名', '単価（円）', '個数', '単位', '小計（円）']);
   const itemTotals = {};
   orders.forEach(o => {
     o.items.forEach(i => {
@@ -981,24 +996,22 @@ function downloadCSV() {
       itemTotals[i.id].subtotal += i.subtotal;
     });
   });
-  MENU.forEach(cat => {
-    cat.items.forEach(item => {
-      const t = itemTotals[item.id];
-      if (t && t.qty > 0) {
-        rows.push([t.name, item.price, t.qty, t.subtotal]);
-      }
-    });
+  FAX_ORDER_LAYOUT.forEach(layout => {
+    const item = findItem(layout.id);
+    if (!item) return;
+    const t = itemTotals[layout.id];
+    const qty = t ? t.qty : 0;
+    const subtotal = t ? t.subtotal : 0;
+    rows.push([item.name, item.price, qty, layout.unit, subtotal]);
   });
   const grandTotal = orders.reduce((s, o) => s + o.total, 0);
-  rows.push(['', '', '合計', grandTotal]);
+  rows.push(['', '', '', '合計', grandTotal]);
   rows.push([]);
 
-  // セクション2：先生別 集計（送料・箱代の分担を反映）
+  // セクション2：先生別 集計（送料・箱代の分担を反映、個数は含めない）
   const byTeacher = {};
   orders.forEach(o => {
-    if (!byTeacher[o.teacher]) byTeacher[o.teacher] = { count: 0, total: 0 };
-    const qtySum = o.items.reduce((s, i) => s + i.qty, 0);
-    byTeacher[o.teacher].count += qtySum;
+    if (!byTeacher[o.teacher]) byTeacher[o.teacher] = { total: 0 };
     byTeacher[o.teacher].total += o.total;
   });
   const shares = computeShares(byTeacher, grandTotal);
@@ -1012,17 +1025,17 @@ function downloadCSV() {
     rows.push(['送料・箱代 合計（円）', extraCost]);
     rows.push(['分担方法', splitMethod === 'proportional' ? '注文金額に応じて按分' : '均等割り']);
     rows.push([]);
-    rows.push(['先生', '個数合計', '注文金額（円）', '送料・箱代 分担（円）', 'お支払い合計（円）']);
+    rows.push(['先生', '注文金額（円）', '送料・箱代 分担（円）', 'お支払い合計（円）']);
     Object.keys(byTeacher).forEach(name => {
-      rows.push([name, byTeacher[name].count, byTeacher[name].total, shares[name], byTeacher[name].total + shares[name]]);
+      rows.push([name, byTeacher[name].total, shares[name], byTeacher[name].total + shares[name]]);
     });
-    rows.push(['合計', '', grandTotal, extraCost, grandTotal + extraCost]);
+    rows.push(['合計', grandTotal, extraCost, grandTotal + extraCost]);
   } else {
-    rows.push(['先生', '個数合計', '注文金額（円）']);
+    rows.push(['先生', '注文金額（円）']);
     Object.keys(byTeacher).forEach(name => {
-      rows.push([name, byTeacher[name].count, byTeacher[name].total]);
+      rows.push([name, byTeacher[name].total]);
     });
-    rows.push(['合計', '', grandTotal]);
+    rows.push(['合計', grandTotal]);
   }
 
   const csvContent = '\uFEFF' + rows.map(r => r.map(csvEscape).join(',')).join('\n');
