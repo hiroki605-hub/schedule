@@ -1008,35 +1008,21 @@ function downloadCSV() {
   rows.push(['', '', '', '合計', grandTotal]);
   rows.push([]);
 
-  // セクション2：先生別 集計（送料・箱代の分担を反映、個数は含めない）
-  const byTeacher = {};
-  orders.forEach(o => {
-    if (!byTeacher[o.teacher]) byTeacher[o.teacher] = { total: 0 };
-    byTeacher[o.teacher].total += o.total;
-  });
-  const shares = computeShares(byTeacher, grandTotal);
-  const extraCost = getExtraCost();
-
-  rows.push(['先生別 集計']);
-  if (extraCost > 0) {
-    rows.push(['送料（円）', shippingFee]);
-    rows.push(['箱代 1箱（円）', boxPrice]);
-    rows.push(['箱の個数', boxCount]);
-    rows.push(['送料・箱代 合計（円）', extraCost]);
-    rows.push(['分担方法', splitMethod === 'proportional' ? '注文金額に応じて按分' : '均等割り']);
-    rows.push([]);
-    rows.push(['先生', '注文金額（円）', '送料・箱代 分担（円）', 'お支払い合計（円）']);
-    Object.keys(byTeacher).forEach(name => {
-      rows.push([name, byTeacher[name].total, shares[name], byTeacher[name].total + shares[name]]);
-    });
-    rows.push(['合計', grandTotal, extraCost, grandTotal + extraCost]);
-  } else {
-    rows.push(['先生', '注文金額（円）']);
-    Object.keys(byTeacher).forEach(name => {
-      rows.push([name, byTeacher[name].total]);
-    });
-    rows.push(['合計', grandTotal]);
+  // セクション2：配達希望日・配達時間帯・FAX番号（注文用紙下部と同じ内容）
+  const WEEKDAY_JP = ['日', '月', '火', '水', '木', '金', '土'];
+  let deliveryDateStr = '　　月　　日　　曜日';
+  if (deliveryDate) {
+    const d = new Date(deliveryDate + 'T00:00:00');
+    deliveryDateStr = `${d.getMonth() + 1}月${d.getDate()}日　${WEEKDAY_JP[d.getDay()]}曜日`;
   }
+
+  rows.push(['配達希望日', deliveryDateStr]);
+  rows.push(['配達時間帯', '指定なし　14－16時　16－18時　18時-20時　19-21時']);
+  rows.push(['通信欄', '']);
+  rows.push([]);
+  rows.push(['※配達日はご希望に添えない場合もあります。梱包料・送料を計算し、配達日時など弊社より連絡致します。']);
+  rows.push([]);
+  rows.push(['FAX', '0986（46）5546']);
 
   const csvContent = '\uFEFF' + rows.map(r => r.map(csvEscape).join(',')).join('\n');
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
