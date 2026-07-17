@@ -398,6 +398,47 @@
     margin-top: 14px;
     line-height: 1.5;
   }
+
+  .deadline-setting .field-hint {
+    font-size: 0.72rem;
+    color: var(--soy-light);
+    margin: -8px 0 12px;
+  }
+  .deadline-setting .split-row {
+    display: flex;
+    gap: 8px;
+  }
+  .deadline-setting .split-row input { flex: 1; }
+  .deadline-setting hr {
+    border: none;
+    border-top: 1px dashed var(--dough-dark);
+    margin: 14px 0;
+  }
+
+  .csv-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    margin-bottom: 16px;
+    padding: 11px 14px;
+    border-radius: 10px;
+    border: 1.5px solid var(--chive);
+    background: #fff;
+    color: var(--chive-dark);
+    font-weight: 700;
+    font-size: 0.88rem;
+    cursor: pointer;
+  }
+  .csv-btn:hover { background: var(--chive); color: #fff; }
+
+  .cost-note {
+    font-size: 0.78rem;
+    color: var(--soy-light);
+    margin: -4px 0 12px;
+  }
+  table.summary-table td.share { color: var(--soy-light); }
 </style>
 
 <!-- Firebase (GitHub Pages等、Claude以外の場所でホストする場合の共有データ保存に使用) -->
@@ -438,6 +479,25 @@
         <label class="field-label">配送日・お届け予定日</label>
         <input type="date" id="delivery-input">
       </div>
+
+      <hr>
+
+      <div class="setting-field">
+        <label class="field-label">送料・箱代の分担設定</label>
+        <div class="split-row">
+          <input type="number" min="0" id="shipping-input" placeholder="送料（円）">
+          <input type="number" min="0" id="box-price-input" placeholder="箱代 1箱（円）">
+          <input type="number" min="0" id="box-count-input" placeholder="箱の個数">
+        </div>
+      </div>
+      <div class="field-hint">合計 = 送料 ＋（箱代 × 箱の個数）。これを注文した先生方で分担します。</div>
+      <div class="setting-field">
+        <label class="field-label">分担方法</label>
+        <select id="split-method-select">
+          <option value="equal">注文した先生で均等に割る</option>
+          <option value="proportional">注文金額に応じて按分する</option>
+        </select>
+      </div>
       <button class="btn-small" id="btn-save-settings">この内容で設定を保存する</button>
     </div>
 
@@ -465,6 +525,7 @@
 
   <!-- HISTORY PANEL -->
   <section class="panel top-round" id="panel-history" style="display:none;">
+    <button class="csv-btn" id="csv-download-btn">⬇ 集計をCSVでダウンロード</button>
     <div id="history-content"></div>
     <button class="reset-all" id="reset-all-btn">すべての注文をリセットする（担当の先生用）</button>
   </section>
@@ -498,6 +559,10 @@ let orders = [];
 let deadline = null; // 'YYYY-MM-DD' or null（表示用の参考情報）
 let deliveryDate = null; // 'YYYY-MM-DD' or null
 let accepting = 'open'; // 'open' | 'closed'（担当の先生が手動で切り替え）
+let shippingFee = 0; // 送料（円）
+let boxPrice = 0; // 箱代 1箱あたり（円）
+let boxCount = 0; // 箱の個数
+let splitMethod = 'equal'; // 'equal' | 'proportional'
 let currentQty = {}; // itemId -> qty
 let storageWorks = true; // becomes false if persistent storage is unavailable, falls back to local-only
 
@@ -538,7 +603,7 @@ async function saveData() {
   let lastErr = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      await docRef.set({ teachers, orders, deadline, deliveryDate, accepting });
+      await docRef.set({ teachers, orders, deadline, deliveryDate, accepting, shippingFee, boxPrice, boxCount, splitMethod });
       storageWorks = true;
       return true;
     } catch (e) {
@@ -552,7 +617,7 @@ async function saveData() {
 }
 
 async function loadData() {
-  if (!firebaseReady) { teachers = []; orders = []; deadline = null; deliveryDate = null; accepting = 'open'; return; }
+  if (!firebaseReady) { teachers = []; orders = []; deadline = null; deliveryDate = null; accepting = 'open'; shippingFee = 0; boxPrice = 0; boxCount = 0; splitMethod = 'equal'; return; }
   try {
     const snap = await docRef.get();
     if (snap.exists) {
@@ -562,12 +627,20 @@ async function loadData() {
       deadline = typeof data.deadline === 'string' ? data.deadline : null;
       deliveryDate = typeof data.deliveryDate === 'string' ? data.deliveryDate : null;
       accepting = data.accepting === 'closed' ? 'closed' : 'open';
+      shippingFee = typeof data.shippingFee === 'number' ? data.shippingFee : 0;
+      boxPrice = typeof data.boxPrice === 'number' ? data.boxPrice : 0;
+      boxCount = typeof data.boxCount === 'number' ? data.boxCount : 0;
+      splitMethod = data.splitMethod === 'proportional' ? 'proportional' : 'equal';
     } else {
       teachers = [];
       orders = [];
       deadline = null;
       deliveryDate = null;
       accepting = 'open';
+      shippingFee = 0;
+      boxPrice = 0;
+      boxCount = 0;
+      splitMethod = 'equal';
     }
   } catch (e) {
     console.error('loadData failed:', e);
@@ -576,6 +649,10 @@ async function loadData() {
     deadline = null;
     deliveryDate = null;
     accepting = 'open';
+    shippingFee = 0;
+    boxPrice = 0;
+    boxCount = 0;
+    splitMethod = 'equal';
   }
 }
 
@@ -590,6 +667,10 @@ function subscribeRealtime() {
     deadline = typeof data.deadline === 'string' ? data.deadline : null;
     deliveryDate = typeof data.deliveryDate === 'string' ? data.deliveryDate : null;
     accepting = data.accepting === 'closed' ? 'closed' : 'open';
+    shippingFee = typeof data.shippingFee === 'number' ? data.shippingFee : 0;
+    boxPrice = typeof data.boxPrice === 'number' ? data.boxPrice : 0;
+    boxCount = typeof data.boxCount === 'number' ? data.boxCount : 0;
+    splitMethod = data.splitMethod === 'proportional' ? 'proportional' : 'equal';
     renderTeacherSelect();
     renderStatusBanner();
     const historyPanel = document.getElementById('panel-history');
@@ -724,6 +805,10 @@ document.getElementById('deadline-toggle').addEventListener('click', () => {
     document.getElementById('accepting-select').value = accepting;
     if (deadline) document.getElementById('deadline-input').value = deadline;
     if (deliveryDate) document.getElementById('delivery-input').value = deliveryDate;
+    document.getElementById('shipping-input').value = shippingFee || '';
+    document.getElementById('box-price-input').value = boxPrice || '';
+    document.getElementById('box-count-input').value = boxCount || '';
+    document.getElementById('split-method-select').value = splitMethod;
   }
 });
 
@@ -733,9 +818,20 @@ document.getElementById('btn-save-settings').addEventListener('click', async () 
   const deliveryVal = document.getElementById('delivery-input').value;
   deadline = deadlineVal || null;
   deliveryDate = deliveryVal || null;
+
+  const shippingVal = parseInt(document.getElementById('shipping-input').value, 10);
+  const boxPriceVal = parseInt(document.getElementById('box-price-input').value, 10);
+  const boxCountVal = parseInt(document.getElementById('box-count-input').value, 10);
+  shippingFee = isNaN(shippingVal) || shippingVal < 0 ? 0 : shippingVal;
+  boxPrice = isNaN(boxPriceVal) || boxPriceVal < 0 ? 0 : boxPriceVal;
+  boxCount = isNaN(boxCountVal) || boxCountVal < 0 ? 0 : boxCountVal;
+  splitMethod = document.getElementById('split-method-select').value === 'proportional' ? 'proportional' : 'equal';
+
   renderStatusBanner();
   const ok = await saveData();
   showToast(ok ? '設定を保存しました' : '設定の保存に失敗しました');
+  const historyPanel = document.getElementById('panel-history');
+  if (historyPanel && historyPanel.style.display !== 'none') renderHistory();
 });
 
 document.getElementById('btn-new-teacher').addEventListener('click', () => {
@@ -815,6 +911,131 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
   });
 });
 
+// ----- 送料・箱代の分担計算 -----
+function getExtraCost() {
+  const cost = (shippingFee || 0) + (boxPrice || 0) * (boxCount || 0);
+  return cost > 0 ? cost : 0;
+}
+
+// 端数は多い順に1円ずつ配分し、合計が必ずextraCostと一致するようにする
+function computeShares(byTeacher, grandTotal) {
+  const names = Object.keys(byTeacher);
+  const shares = {};
+  names.forEach(n => shares[n] = 0);
+  const extraCost = getExtraCost();
+  if (extraCost <= 0 || names.length === 0) return shares;
+
+  if (splitMethod === 'proportional' && grandTotal > 0) {
+    let remainders = [];
+    let assigned = 0;
+    names.forEach(name => {
+      const raw = extraCost * (byTeacher[name].total / grandTotal);
+      const floor = Math.floor(raw);
+      shares[name] = floor;
+      assigned += floor;
+      remainders.push({ name, frac: raw - floor });
+    });
+    let leftover = extraCost - assigned;
+    remainders.sort((a, b) => b.frac - a.frac);
+    for (let i = 0; i < leftover; i++) {
+      shares[remainders[i % remainders.length].name] += 1;
+    }
+  } else {
+    // 均等割り（先生ごとに注文金額に関わらず同額）
+    const base = Math.floor(extraCost / names.length);
+    let leftover = extraCost - base * names.length;
+    names.forEach(name => shares[name] = base);
+    for (let i = 0; i < leftover; i++) {
+      shares[names[i % names.length]] += 1;
+    }
+  }
+  return shares;
+}
+
+// ----- CSVダウンロード -----
+function csvEscape(val) {
+  const s = String(val);
+  if (/[",\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+
+function downloadCSV() {
+  if (orders.length === 0) { showToast('まだ注文がありません'); return; }
+
+  const rows = [];
+
+  // セクション1：商品別 集計（FAX注文用紙と同じ商品構成・合計個数を反映）
+  rows.push(['商品別 集計']);
+  rows.push(['商品名', '単価（円）', '合計個数', '小計（円）']);
+  const itemTotals = {};
+  orders.forEach(o => {
+    o.items.forEach(i => {
+      if (!itemTotals[i.id]) itemTotals[i.id] = { name: i.name, price: i.price, qty: 0, subtotal: 0 };
+      itemTotals[i.id].qty += i.qty;
+      itemTotals[i.id].subtotal += i.subtotal;
+    });
+  });
+  MENU.forEach(cat => {
+    cat.items.forEach(item => {
+      const t = itemTotals[item.id];
+      if (t && t.qty > 0) {
+        rows.push([t.name, item.price, t.qty, t.subtotal]);
+      }
+    });
+  });
+  const grandTotal = orders.reduce((s, o) => s + o.total, 0);
+  rows.push(['', '', '合計', grandTotal]);
+  rows.push([]);
+
+  // セクション2：先生別 集計（送料・箱代の分担を反映）
+  const byTeacher = {};
+  orders.forEach(o => {
+    if (!byTeacher[o.teacher]) byTeacher[o.teacher] = { count: 0, total: 0 };
+    const qtySum = o.items.reduce((s, i) => s + i.qty, 0);
+    byTeacher[o.teacher].count += qtySum;
+    byTeacher[o.teacher].total += o.total;
+  });
+  const shares = computeShares(byTeacher, grandTotal);
+  const extraCost = getExtraCost();
+
+  rows.push(['先生別 集計']);
+  if (extraCost > 0) {
+    rows.push(['送料（円）', shippingFee]);
+    rows.push(['箱代 1箱（円）', boxPrice]);
+    rows.push(['箱の個数', boxCount]);
+    rows.push(['送料・箱代 合計（円）', extraCost]);
+    rows.push(['分担方法', splitMethod === 'proportional' ? '注文金額に応じて按分' : '均等割り']);
+    rows.push([]);
+    rows.push(['先生', '個数合計', '注文金額（円）', '送料・箱代 分担（円）', 'お支払い合計（円）']);
+    Object.keys(byTeacher).forEach(name => {
+      rows.push([name, byTeacher[name].count, byTeacher[name].total, shares[name], byTeacher[name].total + shares[name]]);
+    });
+    rows.push(['合計', '', grandTotal, extraCost, grandTotal + extraCost]);
+  } else {
+    rows.push(['先生', '個数合計', '注文金額（円）']);
+    Object.keys(byTeacher).forEach(name => {
+      rows.push([name, byTeacher[name].count, byTeacher[name].total]);
+    });
+    rows.push(['合計', '', grandTotal]);
+  }
+
+  const csvContent = '\uFEFF' + rows.map(r => r.map(csvEscape).join(',')).join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const today = new Date();
+  const dateStr = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
+  a.href = url;
+  a.download = `ぎょうざ注文集計_${dateStr}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('CSVをダウンロードしました');
+}
+
+document.getElementById('csv-download-btn').addEventListener('click', downloadCSV);
+
 // ----- History -----
 function renderHistory() {
   const container = document.getElementById('history-content');
@@ -832,17 +1053,26 @@ function renderHistory() {
     byTeacher[o.teacher].total += o.total;
   });
   const grandTotal = orders.reduce((s, o) => s + o.total, 0);
+  const shares = computeShares(byTeacher, grandTotal);
+  const extraCost = getExtraCost();
+
+  let extraCostNote = '';
+  if (extraCost > 0) {
+    const methodLabel = splitMethod === 'proportional' ? '注文金額に応じて按分' : '注文した先生で均等割り';
+    extraCostNote = `<div class="cost-note">送料・箱代の合計 ${yen(extraCost)}（送料 ${yen(shippingFee)} ＋ 箱代 ${yen(boxPrice)} × ${boxCount}箱）を、${methodLabel}で下表に反映しています。</div>`;
+  }
 
   let html = `<div class="summary-box">
     <h3>先生別 集計</h3>
+    ${extraCostNote}
     <table class="summary-table">
-      <thead><tr><th>先生</th><th class="num">個数合計</th><th class="num">金額合計</th></tr></thead>
+      <thead><tr><th>先生</th><th class="num">個数合計</th><th class="num">注文金額</th>${extraCost > 0 ? '<th class="num">送料・箱代</th><th class="num">お支払い合計</th>' : ''}</tr></thead>
       <tbody>
         ${Object.keys(byTeacher).map(name => `
-          <tr><td>${name}</td><td class="num">${byTeacher[name].count}</td><td class="num">${yen(byTeacher[name].total)}</td></tr>
+          <tr><td>${name}</td><td class="num">${byTeacher[name].count}</td><td class="num">${yen(byTeacher[name].total)}</td>${extraCost > 0 ? `<td class="num share">${yen(shares[name])}</td><td class="num"><strong>${yen(byTeacher[name].total + shares[name])}</strong></td>` : ''}</tr>
         `).join('')}
       </tbody>
-      <tfoot><tr><td><strong>合計</strong></td><td></td><td class="num"><strong>${yen(grandTotal)}</strong></td></tr></tfoot>
+      <tfoot><tr><td><strong>合計</strong></td><td></td><td class="num"><strong>${yen(grandTotal)}</strong></td>${extraCost > 0 ? `<td class="num"><strong>${yen(extraCost)}</strong></td><td class="num"><strong>${yen(grandTotal + extraCost)}</strong></td>` : ''}</tr></tfoot>
     </table>
   </div>`;
 
