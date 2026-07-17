@@ -103,6 +103,7 @@
   }
   .deadline-setting.show { display: block; }
   .deadline-setting input[type=date],
+  .deadline-setting input[type=number],
   .deadline-setting select {
     width: 100%;
     padding: 9px 10px;
@@ -314,7 +315,7 @@
   table.summary-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.85rem;
+    font-size: 0.82rem;
   }
   table.summary-table th, table.summary-table td {
     text-align: left;
@@ -400,7 +401,7 @@
   }
 </style>
 
-<!-- Firebase (GitHub Pages等、Claude以外の場所でホストする場合の共有データ保存に使用) -->
+<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 </head>
@@ -438,7 +439,11 @@
         <label class="field-label">配送日・お届け予定日</label>
         <input type="date" id="delivery-input">
       </div>
-      <button class="btn-small" id="btn-save-settings">この内容で設定を保存する</button>
+      <div class="setting-field">
+        <label class="field-label">配送料・箱代（全員で割り勘する合計金額）</label>
+        <input type="number" id="fee-input" placeholder="例: 1500" min="0">
+      </div>
+      <button class="btn-small" id="btn-save-settings" style="margin-top:8px;">この内容で設定を保存する</button>
     </div>
 
     <label class="field-label">先生を選択</label>
@@ -495,14 +500,14 @@ const MENU = [
 
 let teachers = [];
 let orders = [];
-let deadline = null; // 'YYYY-MM-DD' or null（表示用の参考情報）
-let deliveryDate = null; // 'YYYY-MM-DD' or null
-let accepting = 'open'; // 'open' | 'closed'（担当の先生が手動で切り替え）
-let currentQty = {}; // itemId -> qty
-let storageWorks = true; // becomes false if persistent storage is unavailable, falls back to local-only
+let deadline = null; 
+let deliveryDate = null; 
+let accepting = 'open'; 
+let sharedFee = 0; // 配送料・箱代の合計
+let currentQty = {}; 
+let storageWorks = true; 
 
-// ===================== ここにFirebaseの設定を貼り付けてください =====================
-// Firebaseコンソール > プロジェクトの設定 > マイアプリ で表示される firebaseConfig をそのまま貼り付け
+// ===================== Firebase =====================
 const firebaseConfig = {
   apiKey: "AIzaSyCe1Tk1vfeaPp9AUtTJ29qibN94o9LBYtY",
   authDomain: "gyoza-order-d3a16.firebaseapp.com",
@@ -511,17 +516,13 @@ const firebaseConfig = {
   messagingSenderId: "589641862175",
   appId: "1:589641862175:web:55f31ab32d68b74e91192a"
 };
-// ================================================================================
 
 let db = null;
 let docRef = null;
 let firebaseReady = false;
 
 function initFirebase() {
-  if (firebaseConfig.apiKey === "YOUR_API_KEY") {
-    console.warn('firebaseConfigが未設定です。上部の firebaseConfig に実際の値を貼り付けてください。');
-    return;
-  }
+  if (firebaseConfig.apiKey === "YOUR_API_KEY") return;
   try {
     firebase.initializeApp(firebaseConfig);
     db = firebase.firestore();
@@ -538,7 +539,7 @@ async function saveData() {
   let lastErr = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      await docRef.set({ teachers, orders, deadline, deliveryDate, accepting });
+      await docRef.set({ teachers, orders, deadline, deliveryDate, accepting, sharedFee });
       storageWorks = true;
       return true;
     } catch (e) {
@@ -546,13 +547,13 @@ async function saveData() {
     }
     await new Promise(r => setTimeout(r, 300 * (attempt + 1)));
   }
-  console.error('saveData failed after retries:', lastErr);
+  console.error('saveData failed:', lastErr);
   storageWorks = false;
   return false;
 }
 
 async function loadData() {
-  if (!firebaseReady) { teachers = []; orders = []; deadline = null; deliveryDate = null; accepting = 'open'; return; }
+  if (!firebaseReady) return;
   try {
     const snap = await docRef.get();
     if (snap.exists) {
@@ -562,24 +563,13 @@ async function loadData() {
       deadline = typeof data.deadline === 'string' ? data.deadline : null;
       deliveryDate = typeof data.deliveryDate === 'string' ? data.deliveryDate : null;
       accepting = data.accepting === 'closed' ? 'closed' : 'open';
-    } else {
-      teachers = [];
-      orders = [];
-      deadline = null;
-      deliveryDate = null;
-      accepting = 'open';
+      sharedFee = typeof data.sharedFee === 'number' ? data.sharedFee : 0;
     }
   } catch (e) {
     console.error('loadData failed:', e);
-    teachers = [];
-    orders = [];
-    deadline = null;
-    deliveryDate = null;
-    accepting = 'open';
   }
 }
 
-// 他の端末からの更新をリアルタイムで反映（先生選択リストと注文一覧を自動更新）
 function subscribeRealtime() {
   if (!firebaseReady) return;
   docRef.onSnapshot(snap => {
@@ -590,6 +580,8 @@ function subscribeRealtime() {
     deadline = typeof data.deadline === 'string' ? data.deadline : null;
     deliveryDate = typeof data.deliveryDate === 'string' ? data.deliveryDate : null;
     accepting = data.accepting === 'closed' ? 'closed' : 'open';
+    sharedFee = typeof data.sharedFee === 'number' ? data.sharedFee : 0;
+    
     renderTeacherSelect();
     renderStatusBanner();
     const historyPanel = document.getElementById('panel-history');
@@ -609,7 +601,7 @@ function showToast(msg) {
   setTimeout(() => toastEl.classList.remove('show'), 2200);
 }
 
-function yen(n) { return '¥' + n.toLocaleString('ja-JP'); }
+function yen(n) { return '¥' + (n||0).toLocaleString('ja-JP'); }
 
 function renderItems() {
   itemsContainer.innerHTML = '';
@@ -724,6 +716,7 @@ document.getElementById('deadline-toggle').addEventListener('click', () => {
     document.getElementById('accepting-select').value = accepting;
     if (deadline) document.getElementById('deadline-input').value = deadline;
     if (deliveryDate) document.getElementById('delivery-input').value = deliveryDate;
+    document.getElementById('fee-input').value = sharedFee || '';
   }
 });
 
@@ -733,6 +726,8 @@ document.getElementById('btn-save-settings').addEventListener('click', async () 
   const deliveryVal = document.getElementById('delivery-input').value;
   deadline = deadlineVal || null;
   deliveryDate = deliveryVal || null;
+  sharedFee = parseInt(document.getElementById('fee-input').value, 10) || 0;
+  
   renderStatusBanner();
   const ok = await saveData();
   showToast(ok ? '設定を保存しました' : '設定の保存に失敗しました');
@@ -758,7 +753,7 @@ document.getElementById('btn-add-teacher').addEventListener('click', async () =>
   input.value = '';
   document.getElementById('new-teacher-row').classList.remove('show');
   const ok = await saveData();
-  showToast(ok ? `「${name}」先生を登録しました` : `「${name}」先生を登録しました（この端末のみ・保存に失敗しました。再読み込み前に注文まで完了してください）`);
+  showToast(ok ? `「${name}」先生を登録しました` : `保存に失敗しました`);
 });
 
 submitBtn.addEventListener('click', async () => {
@@ -789,13 +784,13 @@ submitBtn.addEventListener('click', async () => {
   orders.push(order);
   const ok = await saveData();
   if (ok) {
-    showToast(`${teacher}先生の注文を送信しました（${yen(total)}）`);
+    showToast(`${teacher}先生の注文を送信しました`);
     currentQty = {};
     renderItems();
     updateTotal();
   } else {
-    orders.pop(); // roll back so a retry won't duplicate
-    showToast('保存に失敗しました。電波状況を確認し、もう一度送信してください');
+    orders.pop(); 
+    showToast('保存に失敗しました。もう一度送信してください');
   }
   submitBtn.disabled = false;
 });
@@ -831,19 +826,40 @@ function renderHistory() {
     byTeacher[o.teacher].count += qtySum;
     byTeacher[o.teacher].total += o.total;
   });
-  const grandTotal = orders.reduce((s, o) => s + o.total, 0);
+  
+  const uniqueTeachers = Object.keys(byTeacher).length;
+  // 配送料・箱代の割り勘（人数で割って切り上げ）
+  const feePerTeacher = uniqueTeachers > 0 ? Math.ceil(sharedFee / uniqueTeachers) : 0;
+  const grandTotalItems = orders.reduce((s, o) => s + o.total, 0);
+  const grandTotal = grandTotalItems + sharedFee;
 
   let html = `<div class="summary-box">
     <h3>先生別 集計</h3>
+    <div style="font-size:0.75rem; color:#7A5039; margin-bottom:10px;">※配送料等(${yen(sharedFee)})を ${uniqueTeachers}人で割った金額（${yen(feePerTeacher)}）が加算されています</div>
     <table class="summary-table">
-      <thead><tr><th>先生</th><th class="num">個数合計</th><th class="num">金額合計</th></tr></thead>
+      <thead><tr><th>先生</th><th class="num">個数</th><th class="num">商品代</th><th class="num">送料等</th><th class="num">合計</th></tr></thead>
       <tbody>
         ${Object.keys(byTeacher).map(name => `
-          <tr><td>${name}</td><td class="num">${byTeacher[name].count}</td><td class="num">${yen(byTeacher[name].total)}</td></tr>
+          <tr>
+            <td>${name}</td>
+            <td class="num">${byTeacher[name].count}</td>
+            <td class="num">${yen(byTeacher[name].total)}</td>
+            <td class="num">${yen(feePerTeacher)}</td>
+            <td class="num" style="font-weight:bold; color:#C4522A;">${yen(byTeacher[name].total + feePerTeacher)}</td>
+          </tr>
         `).join('')}
       </tbody>
-      <tfoot><tr><td><strong>合計</strong></td><td></td><td class="num"><strong>${yen(grandTotal)}</strong></td></tr></tfoot>
+      <tfoot>
+        <tr>
+          <td><strong>総合計</strong></td>
+          <td></td>
+          <td class="num">${yen(grandTotalItems)}</td>
+          <td class="num">${yen(sharedFee)}</td>
+          <td class="num" style="font-weight:bold; color:#C4522A;">${yen(grandTotal)}</td>
+        </tr>
+      </tfoot>
     </table>
+    <button class="submit-btn" id="btn-export-csv" style="padding: 10px; font-size: 0.95rem; margin-top: 16px;">📥 お店用 注文まとめをCSV出力</button>
   </div>`;
 
   // Individual order cards, newest first
@@ -866,6 +882,7 @@ function renderHistory() {
 
   container.innerHTML = html;
 
+  // 削除ボタン
   container.querySelectorAll('.delete-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       if (!confirm('この注文を削除しますか？')) return;
@@ -882,6 +899,60 @@ function renderHistory() {
       }
     });
   });
+
+  // CSV出力ボタン
+  const csvBtn = document.getElementById('btn-export-csv');
+  if (csvBtn) {
+    csvBtn.addEventListener('click', () => {
+      // 合計をIDごとに集計
+      const totals = {};
+      orders.forEach(o => o.items.forEach(i => {
+        totals[i.id] = (totals[i.id] || 0) + i.qty;
+      }));
+
+      // CSV生成 (BOM付きでExcelの文字化け防止)
+      let csv = '﻿商品名,個数,単位
+';
+      
+      // 写真と同じ並び順・表記のマッピング
+      const rows = [
+        { id: "g50", label: "ぎょうざ 50個入　（税込 1,550円）", unit: "パック" },
+        { id: "g40", label: "ぎょうざ 40個入　（税込 1,240円）", unit: "パック" },
+        { id: "sg50", label: "しょうが入り餃子 50個入　（税込 1,550円）", unit: "パック" },
+        { id: "sg40", label: "しょうが入り餃子 40個入　（税込 1,240円）", unit: "パック" },
+        { id: "t_yaki", label: "焼きぎょうざのたれ　（税込 114円）", unit: "本" },
+        { id: "s_mizu", label: "水ぎょうざのスープ　（税込 18円）", unit: "袋" },
+        { id: "t_miso", label: "ぎょうざのたれ みそ　（税込 225円）", unit: "本" },
+        { id: "t_yuzu", label: "ぎょうざのたれ 柚子こしょう　（税込 245円）", unit: "本" },
+        { id: "t_hinata", label: "日向夏のたれ【14g×6袋】　（税込 123円）", unit: "セット" },
+        { id: "s_nabe", label: "餃子鍋すうぷ　（税込 198円）", unit: "本" },
+        { id: "s_shio", label: "ぎょうざ鍋の素【塩味】　（税込 175円）", unit: "セット" }
+      ];
+
+      rows.forEach(r => {
+        const q = totals[r.id] || ''; // 個数0の時は空欄にする
+        csv += `"${r.label}",${q},${r.unit}
+`;
+      });
+
+      // フォーム下部の配達希望日等の欄を追加
+      csv += '
+配達希望日,　　月　　日,曜日
+';
+      csv += '配達時間帯,指定なし 14-16時 16-18時 18時-20時 19-21時,
+';
+      csv += '通信欄,,
+';
+
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = '丸岡ぎょうざ_お店用注文まとめ.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  }
 }
 
 document.getElementById('reset-all-btn').addEventListener('click', async () => {
@@ -902,7 +973,7 @@ document.getElementById('reset-all-btn').addEventListener('click', async () => {
 async function init() {
   initFirebase();
   if (!firebaseReady) {
-    showToast('⚠️ firebaseConfigが未設定です。コード上部に貼り付けてください');
+    showToast('⚠️ firebaseConfigが未設定です。');
   } else {
     subscribeRealtime();
   }
