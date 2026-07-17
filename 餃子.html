@@ -102,15 +102,19 @@
     margin-bottom: 16px;
   }
   .deadline-setting.show { display: block; }
-  .deadline-setting input[type=date] {
-    flex: 1;
+  .deadline-setting input[type=date],
+  .deadline-setting select {
+    width: 100%;
     padding: 9px 10px;
     border-radius: 10px;
     border: 1.5px solid var(--dough-dark);
     font-size: 0.95rem;
     background: #fff;
     color: var(--soy);
+    margin-bottom: 12px;
   }
+  .deadline-setting .setting-field { margin-bottom: 4px; }
+  .deadline-setting button.btn-small { width: 100%; }
 
   .tabs {
     display: flex;
@@ -417,13 +421,24 @@
 <main>
   <!-- ORDER PANEL -->
   <section class="panel" id="panel-order">
-    <button class="deadline-toggle" id="deadline-toggle">⚙ 締切日を設定する（管理用）</button>
+    <button class="deadline-toggle" id="deadline-toggle">⚙ 受付状況・日程を設定する（管理用）</button>
     <div class="deadline-setting" id="deadline-setting">
-      <label class="field-label">締切日</label>
-      <div style="display:flex; gap:8px;">
-        <input type="date" id="deadline-input">
-        <button class="btn-small" id="btn-save-deadline">設定</button>
+      <div class="setting-field">
+        <label class="field-label">受付状況</label>
+        <select id="accepting-select">
+          <option value="open">🟢 現在受付中</option>
+          <option value="closed">🔴 現在は受け付けていません</option>
+        </select>
       </div>
+      <div class="setting-field">
+        <label class="field-label">締切日（表示用）</label>
+        <input type="date" id="deadline-input">
+      </div>
+      <div class="setting-field">
+        <label class="field-label">配送日・お届け予定日</label>
+        <input type="date" id="delivery-input">
+      </div>
+      <button class="btn-small" id="btn-save-settings">この内容で設定を保存する</button>
     </div>
 
     <label class="field-label">先生を選択</label>
@@ -480,7 +495,9 @@ const MENU = [
 
 let teachers = [];
 let orders = [];
-let deadline = null; // 'YYYY-MM-DD' or null
+let deadline = null; // 'YYYY-MM-DD' or null（表示用の参考情報）
+let deliveryDate = null; // 'YYYY-MM-DD' or null
+let accepting = 'open'; // 'open' | 'closed'（担当の先生が手動で切り替え）
 let currentQty = {}; // itemId -> qty
 let storageWorks = true; // becomes false if persistent storage is unavailable, falls back to local-only
 
@@ -521,7 +538,7 @@ async function saveData() {
   let lastErr = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      await docRef.set({ teachers, orders, deadline });
+      await docRef.set({ teachers, orders, deadline, deliveryDate, accepting });
       storageWorks = true;
       return true;
     } catch (e) {
@@ -535,7 +552,7 @@ async function saveData() {
 }
 
 async function loadData() {
-  if (!firebaseReady) { teachers = []; orders = []; deadline = null; return; }
+  if (!firebaseReady) { teachers = []; orders = []; deadline = null; deliveryDate = null; accepting = 'open'; return; }
   try {
     const snap = await docRef.get();
     if (snap.exists) {
@@ -543,16 +560,22 @@ async function loadData() {
       teachers = Array.isArray(data.teachers) ? data.teachers : [];
       orders = Array.isArray(data.orders) ? data.orders : [];
       deadline = typeof data.deadline === 'string' ? data.deadline : null;
+      deliveryDate = typeof data.deliveryDate === 'string' ? data.deliveryDate : null;
+      accepting = data.accepting === 'closed' ? 'closed' : 'open';
     } else {
       teachers = [];
       orders = [];
       deadline = null;
+      deliveryDate = null;
+      accepting = 'open';
     }
   } catch (e) {
     console.error('loadData failed:', e);
     teachers = [];
     orders = [];
     deadline = null;
+    deliveryDate = null;
+    accepting = 'open';
   }
 }
 
@@ -565,6 +588,8 @@ function subscribeRealtime() {
     teachers = Array.isArray(data.teachers) ? data.teachers : [];
     orders = Array.isArray(data.orders) ? data.orders : [];
     deadline = typeof data.deadline === 'string' ? data.deadline : null;
+    deliveryDate = typeof data.deliveryDate === 'string' ? data.deliveryDate : null;
+    accepting = data.accepting === 'closed' ? 'closed' : 'open';
     renderTeacherSelect();
     renderStatusBanner();
     const historyPanel = document.getElementById('panel-history');
@@ -671,28 +696,23 @@ function formatDateJP(dateStr) {
 }
 
 function isAcceptingOrders() {
-  if (!deadline) return true; // 締切未設定の場合は常に受付中扱い
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const dl = new Date(deadline + 'T00:00:00');
-  return today <= dl;
+  return accepting !== 'closed';
 }
 
 function renderStatusBanner() {
   const banner = document.getElementById('status-banner');
-  if (!deadline) {
-    banner.className = 'status-banner unset';
-    banner.textContent = '締切日が設定されていません（下の「締切日を設定する」から設定できます）';
-    submitBtn.disabled = false;
-    return;
-  }
+  const infoParts = [];
+  if (deadline) infoParts.push(`締切:${formatDateJP(deadline)}`);
+  if (deliveryDate) infoParts.push(`お届け予定:${formatDateJP(deliveryDate)}`);
+  const infoText = infoParts.length ? `（${infoParts.join(' / ')}）` : '';
+
   if (isAcceptingOrders()) {
     banner.className = 'status-banner open';
-    banner.textContent = `🟢 現在受付中（${formatDateJP(deadline)} まで）`;
+    banner.textContent = `🟢 現在受付中${infoText}`;
     submitBtn.disabled = false;
   } else {
     banner.className = 'status-banner closed';
-    banner.textContent = `🔴 現在は受け付けていません（${formatDateJP(deadline)} で締め切りました）`;
+    banner.textContent = `🔴 現在は受け付けていません${infoText}`;
     submitBtn.disabled = true;
   }
 }
@@ -700,19 +720,22 @@ function renderStatusBanner() {
 document.getElementById('deadline-toggle').addEventListener('click', () => {
   const row = document.getElementById('deadline-setting');
   row.classList.toggle('show');
-  if (row.classList.contains('show') && deadline) {
-    document.getElementById('deadline-input').value = deadline;
+  if (row.classList.contains('show')) {
+    document.getElementById('accepting-select').value = accepting;
+    if (deadline) document.getElementById('deadline-input').value = deadline;
+    if (deliveryDate) document.getElementById('delivery-input').value = deliveryDate;
   }
 });
 
-document.getElementById('btn-save-deadline').addEventListener('click', async () => {
-  const input = document.getElementById('deadline-input');
-  const value = input.value;
-  if (!value) { showToast('締切日を選択してください'); return; }
-  deadline = value;
+document.getElementById('btn-save-settings').addEventListener('click', async () => {
+  accepting = document.getElementById('accepting-select').value === 'closed' ? 'closed' : 'open';
+  const deadlineVal = document.getElementById('deadline-input').value;
+  const deliveryVal = document.getElementById('delivery-input').value;
+  deadline = deadlineVal || null;
+  deliveryDate = deliveryVal || null;
   renderStatusBanner();
   const ok = await saveData();
-  showToast(ok ? `締切日を ${formatDateJP(deadline)} に設定しました` : '設定の保存に失敗しました');
+  showToast(ok ? '設定を保存しました' : '設定の保存に失敗しました');
 });
 
 document.getElementById('btn-new-teacher').addEventListener('click', () => {
