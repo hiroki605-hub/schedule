@@ -1170,8 +1170,13 @@ function renderHistory() {
   container.querySelectorAll('.paid-toggle').forEach(btn => {
     btn.addEventListener('click', async () => {
       const name = btn.dataset.teacher;
+      const nowPaid = !paidStatus[name];
+      const msg = nowPaid
+        ? `${name}先生を「集金済み」にしますか？`
+        : `${name}先生を「未収金」に戻しますか？`;
+      if (!confirm(msg)) return;
       const backup = { ...paidStatus };
-      paidStatus = { ...paidStatus, [name]: !paidStatus[name] };
+      paidStatus = { ...paidStatus, [name]: nowPaid };
       renderHistory();
       const ok = await saveData();
       if (!ok) {
