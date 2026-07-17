@@ -57,6 +57,59 @@
     opacity: 0.75;
   }
 
+  .status-banner {
+    text-align: center;
+    padding: 10px 16px;
+    font-weight: 800;
+    font-size: 0.95rem;
+    letter-spacing: 0.02em;
+  }
+  .status-banner.open {
+    background: #E4EEDD;
+    color: var(--chive-dark);
+  }
+  .status-banner.closed {
+    background: #F3DCD5;
+    color: var(--accent);
+  }
+  .status-banner.unset {
+    background: var(--dough-dark);
+    color: var(--soy-light);
+    font-weight: 600;
+    font-size: 0.85rem;
+  }
+
+  .deadline-toggle {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    color: var(--soy-light);
+    font-size: 0.78rem;
+    padding: 0 0 12px;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+  .deadline-toggle:hover { color: var(--accent); }
+  .deadline-setting {
+    display: none;
+    background: var(--dough);
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 16px;
+  }
+  .deadline-setting.show { display: block; }
+  .deadline-setting input[type=date] {
+    flex: 1;
+    padding: 9px 10px;
+    border-radius: 10px;
+    border: 1.5px solid var(--dough-dark);
+    font-size: 0.95rem;
+    background: #fff;
+    color: var(--soy);
+  }
+
   .tabs {
     display: flex;
     max-width: 640px;
@@ -348,6 +401,8 @@
   <p>先生方の注文をまとめて集計します</p>
 </header>
 
+<div class="status-banner" id="status-banner"></div>
+
 <div class="tabs">
   <button class="tab-btn active" data-tab="order">注文する</button>
   <button class="tab-btn" data-tab="history">注文一覧・集計</button>
@@ -356,6 +411,15 @@
 <main>
   <!-- ORDER PANEL -->
   <section class="panel" id="panel-order">
+    <button class="deadline-toggle" id="deadline-toggle">⚙ 締切日を設定する（管理用）</button>
+    <div class="deadline-setting" id="deadline-setting">
+      <label class="field-label">締切日</label>
+      <div style="display:flex; gap:8px;">
+        <input type="date" id="deadline-input">
+        <button class="btn-small" id="btn-save-deadline">設定</button>
+      </div>
+    </div>
+
     <label class="field-label">先生を選択</label>
     <div class="teacher-row">
       <select id="teacher-select"></select>
@@ -381,11 +445,13 @@
   <!-- HISTORY PANEL -->
   <section class="panel top-round" id="panel-history" style="display:none;">
     <div id="history-content"></div>
+    <button class="reset-all" id="csv-download-btn" style="border-color: var(--chive); color: var(--chive-dark); margin-bottom: 10px;">📄 CSVでダウンロード</button>
     <button class="reset-all" id="reset-all-btn">すべての注文をリセットする（担当の先生用）</button>
   </section>
 </main>
 
 <div class="toast" id="toast"></div>
+
 
 <script>
 const MENU = [
@@ -423,6 +489,7 @@ const MENU = [
 
 let teachers = [];
 let orders = [];
+let deadline = null; // 'YYYY-MM-DD' or null
 let currentQty = {}; // itemId -> qty
 let storageWorks = true;
 
@@ -466,7 +533,7 @@ async function saveData() {
   let lastErr = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      await docRef.set({ teachers, orders });
+      await docRef.set({ teachers, orders, deadline });
       storageWorks = true;
       return true;
     } catch (e) {
@@ -480,21 +547,24 @@ async function saveData() {
 }
 
 async function loadData() {
-  if (!firebaseReady) { teachers = []; orders = []; return; }
+  if (!firebaseReady) { teachers = []; orders = []; deadline = null; return; }
   try {
     const snap = await docRef.get();
     if (snap.exists) {
       const data = snap.data();
       teachers = Array.isArray(data.teachers) ? data.teachers : [];
       orders = Array.isArray(data.orders) ? data.orders : [];
+      deadline = typeof data.deadline === 'string' ? data.deadline : null;
     } else {
       teachers = [];
       orders = [];
+      deadline = null;
     }
   } catch (e) {
     console.error('loadData failed:', e);
     teachers = [];
     orders = [];
+    deadline = null;
   }
 }
 
@@ -505,7 +575,9 @@ function subscribeRealtime() {
     const data = snap.data();
     teachers = Array.isArray(data.teachers) ? data.teachers : [];
     orders = Array.isArray(data.orders) ? data.orders : [];
+    deadline = typeof data.deadline === 'string' ? data.deadline : null;
     renderTeacherSelect();
+    renderStatusBanner();
     const historyPanel = document.getElementById('panel-history');
     if (historyPanel && historyPanel.style.display !== 'none') renderHistory();
   }, err => console.error('realtime sync error:', err));
@@ -604,6 +676,56 @@ function renderTeacherSelect() {
   if (teachers.includes(prevValue)) teacherSelect.value = prevValue;
 }
 
+function formatDateJP(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  return `${d.getMonth() + 1}月${d.getDate()}日`;
+}
+
+function isAcceptingOrders() {
+  if (!deadline) return true; // 締切未設定の場合は常に受付中扱い
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dl = new Date(deadline + 'T00:00:00');
+  return today <= dl;
+}
+
+function renderStatusBanner() {
+  const banner = document.getElementById('status-banner');
+  if (!deadline) {
+    banner.className = 'status-banner unset';
+    banner.textContent = '締切日が設定されていません（下の「締切日を設定する」から設定できます）';
+    submitBtn.disabled = false;
+    return;
+  }
+  if (isAcceptingOrders()) {
+    banner.className = 'status-banner open';
+    banner.textContent = `🟢 現在受付中（${formatDateJP(deadline)} まで）`;
+    submitBtn.disabled = false;
+  } else {
+    banner.className = 'status-banner closed';
+    banner.textContent = `🔴 現在は受け付けていません（${formatDateJP(deadline)} で締め切りました）`;
+    submitBtn.disabled = true;
+  }
+}
+
+document.getElementById('deadline-toggle').addEventListener('click', () => {
+  const row = document.getElementById('deadline-setting');
+  row.classList.toggle('show');
+  if (row.classList.contains('show') && deadline) {
+    document.getElementById('deadline-input').value = deadline;
+  }
+});
+
+document.getElementById('btn-save-deadline').addEventListener('click', async () => {
+  const input = document.getElementById('deadline-input');
+  const value = input.value;
+  if (!value) { showToast('締切日を選択してください'); return; }
+  deadline = value;
+  renderStatusBanner();
+  const ok = await saveData();
+  showToast(ok ? `締切日を ${formatDateJP(deadline)} に設定しました` : '設定の保存に失敗しました');
+});
+
 document.getElementById('btn-new-teacher').addEventListener('click', () => {
   const row = document.getElementById('new-teacher-row');
   row.classList.toggle('show');
@@ -628,6 +750,7 @@ document.getElementById('btn-add-teacher').addEventListener('click', async () =>
 });
 
 submitBtn.addEventListener('click', async () => {
+  if (!isAcceptingOrders()) { showToast('締切を過ぎているため注文できません'); return; }
   const teacher = teacherSelect.value;
   if (!teacher) { showToast('先生を選択してください'); return; }
 
@@ -747,6 +870,69 @@ function renderHistory() {
   });
 }
 
+function downloadCSV() {
+  if (orders.length === 0) {
+    showToast('注文データがありません');
+    return;
+  }
+
+  const rows = [];
+  // セクション1：注文明細（1行＝1品目）
+  rows.push(['日時', '先生', '品名', '単価', '個数', '小計']);
+  const sorted = [...orders].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+  sorted.forEach(o => {
+    const date = new Date(o.timestamp);
+    const dateStr = `${date.getFullYear()}/${date.getMonth()+1}/${date.getDate()} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
+    o.items.forEach(i => {
+      rows.push([dateStr, o.teacher, i.name, i.price, i.qty, i.subtotal]);
+    });
+  });
+
+  rows.push([]); // blank line
+
+  // セクション2：先生別 集計
+  rows.push(['先生', '個数合計', '金額合計']);
+  const byTeacher = {};
+  orders.forEach(o => {
+    if (!byTeacher[o.teacher]) byTeacher[o.teacher] = { count: 0, total: 0 };
+    const qtySum = o.items.reduce((s, i) => s + i.qty, 0);
+    byTeacher[o.teacher].count += qtySum;
+    byTeacher[o.teacher].total += o.total;
+  });
+  Object.keys(byTeacher).forEach(name => {
+    rows.push([name, byTeacher[name].count, byTeacher[name].total]);
+  });
+
+  const grandTotal = orders.reduce((s, o) => s + o.total, 0);
+  rows.push([]);
+  rows.push(['総合計', '', grandTotal]);
+
+  const csvContent = rows.map(row =>
+    row.map(cell => {
+      const s = String(cell ?? '');
+      if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+        return '"' + s.replace(/"/g, '""') + '"';
+      }
+      return s;
+    }).join(',')
+  ).join('\r\n');
+
+  // Excelで文字化けしないようUTF-8 BOMを付与
+  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const now = new Date();
+  const fname = `キムチ注文_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}.csv`;
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fname;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+document.getElementById('csv-download-btn').addEventListener('click', downloadCSV);
+
 document.getElementById('reset-all-btn').addEventListener('click', async () => {
   if (!confirm('全ての注文履歴を削除します。よろしいですか？（この操作は元に戻せません）')) return;
   const backup = orders;
@@ -771,6 +957,7 @@ async function init() {
   }
   await loadData();
   renderTeacherSelect();
+  renderStatusBanner();
   renderItems();
   updateTotal();
 }
