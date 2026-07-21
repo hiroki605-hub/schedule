@@ -637,12 +637,13 @@ function initFirebase() {
   }
 }
 
-async function saveData() {
+// 変更したい項目だけをFirestoreに書き込む（他の項目には触れない）
+async function saveData(fields) {
   if (!firebaseReady) { storageWorks = false; return false; }
   let lastErr = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      await docRef.set({ teachers, orders, deadline, deliveryDate, accepting, shippingFee, boxPrice, boxCount, splitMethod, paidStatus }, { merge: true });
+      await docRef.set(fields, { merge: true });
       storageWorks = true;
       return true;
     } catch (e) {
@@ -842,7 +843,7 @@ document.getElementById('btn-save-settings').addEventListener('click', async () 
   deliveryDate = deliveryVal || null;
 
   renderStatusBanner();
-  const ok = await saveData();
+  const ok = await saveData({ accepting, deadline, deliveryDate });
   showToast(ok ? '設定を保存しました' : '設定の保存に失敗しました');
   const historyPanel = document.getElementById('panel-history');
   if (historyPanel && historyPanel.style.display !== 'none') renderHistory();
@@ -867,7 +868,7 @@ document.getElementById('btn-add-teacher').addEventListener('click', async () =>
   teacherSelect.value = name;
   input.value = '';
   document.getElementById('new-teacher-row').classList.remove('show');
-  const ok = await saveData();
+  const ok = await saveData({ teachers });
   showToast(ok ? `「${name}」先生を登録しました` : `「${name}」先生を登録しました（この端末のみ・保存に失敗しました。再読み込み前に注文まで完了してください）`);
 });
 
@@ -897,7 +898,7 @@ submitBtn.addEventListener('click', async () => {
 
   submitBtn.disabled = true;
   orders.push(order);
-  const ok = await saveData();
+  const ok = await saveData({ orders });
   if (ok) {
     showToast(`${teacher}先生の注文を送信しました（${yen(total)}）`);
     currentQty = {};
@@ -1053,7 +1054,7 @@ document.getElementById('hist-calc-btn').addEventListener('click', async () => {
   splitMethod = document.getElementById('hist-split-method-select').value === 'proportional' ? 'proportional' : 'equal';
 
   renderHistory();
-  const ok = await saveData();
+  const ok = await saveData({ shippingFee, boxPrice, boxCount, splitMethod });
   showToast(ok ? '計算して保存しました' : '計算しましたが保存に失敗しました');
 });
 
@@ -1127,7 +1128,7 @@ function renderHistory() {
       const id = btn.dataset.id;
       const backup = orders;
       orders = orders.filter(o => o.id !== id);
-      const ok = await saveData();
+      const ok = await saveData({ orders });
       if (ok) {
         renderHistory();
         showToast('注文を削除しました');
@@ -1149,7 +1150,7 @@ function renderHistory() {
       const backup = { ...paidStatus };
       paidStatus = { ...paidStatus, [name]: nowPaid };
       renderHistory();
-      const ok = await saveData();
+      const ok = await saveData({ paidStatus });
       if (!ok) {
         paidStatus = backup;
         renderHistory();
@@ -1163,7 +1164,7 @@ document.getElementById('reset-all-btn').addEventListener('click', async () => {
   if (!confirm('全ての注文履歴を削除します。よろしいですか？（この操作は元に戻せません）')) return;
   const backup = orders;
   orders = [];
-  const ok = await saveData();
+  const ok = await saveData({ orders });
   if (ok) {
     renderHistory();
     showToast('全ての注文をリセットしました');
