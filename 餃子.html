@@ -480,35 +480,6 @@
   td.paid-cell { text-align: center; }
   .order-card .order-head { flex-wrap: wrap; row-gap: 6px; }
   .order-card .paid-toggle { margin-left: 8px; }
-
-  .notify-box textarea {
-    width: 100%;
-    padding: 11px 12px;
-    border-radius: 10px;
-    border: 1.5px solid var(--dough-dark);
-    font-size: 0.92rem;
-    font-family: inherit;
-    color: var(--soy);
-    background: #fff;
-    resize: vertical;
-    margin-bottom: 10px;
-  }
-  .notify-box textarea:focus {
-    outline: 2px solid var(--chive);
-    outline-offset: 1px;
-  }
-  .notify-send-btn {
-    width: 100%;
-    padding: 12px;
-    border: none;
-    border-radius: 10px;
-    background: var(--accent);
-    color: #fff;
-    font-weight: 800;
-    font-size: 0.95rem;
-    cursor: pointer;
-  }
-  .notify-send-btn:hover { background: #A8421F; }
 </style>
 
 <!-- Firebase (GitHub Pages等、Claude以外の場所でホストする場合の共有データ保存に使用) -->
@@ -578,12 +549,6 @@
   <section class="panel top-round" id="panel-history" style="display:none;">
     <button class="csv-btn" id="csv-download-btn">⬇ 集計をCSVでダウンロード</button>
 
-    <div class="summary-box notify-box" id="chat-notify-box">
-      <h3>📣 チャットに通知を送る</h3>
-      <textarea id="notify-message-input" rows="3">🥟 ぎょうざが届きました！職員室前に届いていますので、取りに来てください。</textarea>
-      <button class="notify-send-btn" id="btn-send-notify">この内容でチャットに送信する</button>
-    </div>
-
     <div class="summary-box" id="cost-split-box">
       <h3>送料・箱代を分担する</h3>
       <div class="split-row">
@@ -651,11 +616,6 @@ const firebaseConfig = {
   messagingSenderId: "589641862175",
   appId: "1:589641862175:web:55f31ab32d68b74e91192a"
 };
-
-// ===================== ここにApps ScriptのウェブアプリURLを貼り付けてください =====================
-// 「チャットに通知を送る」ボタン用（Apps Scriptを「ウェブアプリ」としてデプロイした時のURL、.../exec で終わるもの）
-const NOTIFY_URL = 'https://script.google.com/a/macros/e-net.nara.jp/s/AKfycbxJ_1KKcQ8A7MccUW7ZBySarX6XFMPKWVo6N8fhsaPY6ghCqNJJhzRI4F3xJ_8IsP55Fg/exec';
-// ====================================================================================
 
 let db = null;
 let docRef = null;
@@ -1085,19 +1045,6 @@ function downloadCSV() {
 }
 
 document.getElementById('csv-download-btn').addEventListener('click', downloadCSV);
-
-document.getElementById('btn-send-notify').addEventListener('click', () => {
-  const msg = document.getElementById('notify-message-input').value.trim();
-  if (!msg) { showToast('メッセージを入力してください'); return; }
-  if (!NOTIFY_URL || NOTIFY_URL.includes('ここに')) {
-    showToast('NOTIFY_URLが未設定です（コード上部を確認してください）');
-    return;
-  }
-  // <img>タグ経由でGETリクエストを送る方式（fetchのno-corsより確実に届く）
-  const img = new Image();
-  img.src = `${NOTIFY_URL}?msg=${encodeURIComponent(msg)}&_=${Date.now()}`;
-  showToast('チャットに送信しました');
-});
 
 document.getElementById('hist-calc-btn').addEventListener('click', async () => {
   const shippingVal = parseInt(document.getElementById('hist-shipping-input').value, 10);
