@@ -959,11 +959,8 @@ function computeShares(byTeacher, grandTotal) {
     }
   } else {
     const base = Math.floor(extraCost / names.length);
-    let leftover = extraCost - base * names.length;
+    // 端数は先生には割り振らない（誰にも上乗せしない）
     names.forEach(name => shares[name] = base);
-    for (let i = 0; i < leftover; i++) {
-      shares[names[i % names.length]] += 1;
-    }
   }
   return shares;
 }
@@ -1077,11 +1074,17 @@ function renderHistory() {
   const grandTotal = orders.reduce((s, o) => s + o.total, 0);
   const shares = computeShares(byTeacher, grandTotal);
   const extraCost = getExtraCost();
+  const sharesSum = Object.values(shares).reduce((s, v) => s + v, 0);
+  const unassignedRemainder = extraCost - sharesSum;
 
   let extraCostNote = '';
   if (extraCost > 0) {
     const methodLabel = splitMethod === 'proportional' ? '注文金額に応じて按分' : '注文した先生で均等割り';
     extraCostNote = `<div class="cost-note">送料・箱代の合計 ${yen(extraCost)}（送料 ${yen(shippingFee)} ＋ 箱代 ${yen(boxPrice)} × ${boxCount}箱）を、${methodLabel}で下表に反映しています。</div>`;
+
+    if (unassignedRemainder > 0) {
+      extraCostNote += `<div class="cost-note">1人あたり ${yen(sharesSum / Object.keys(byTeacher).length)} を先生方に均等割りしていますが、割り切れない端数 ${yen(unassignedRemainder)} が出ています。この端数はどの先生にも割り振っていません（下表の金額には含まれていません）。</div>`;
+    }
   }
 
   let html = `<div class="summary-box">
@@ -1094,7 +1097,7 @@ function renderHistory() {
           <tr><td>${name}</td><td class="num">${byTeacher[name].count}</td><td class="num">${yen(byTeacher[name].total)}</td>${extraCost > 0 ? `<td class="num share">${yen(shares[name])}</td><td class="num"><strong>${yen(byTeacher[name].total + shares[name])}</strong></td>` : ''}<td class="paid-cell"><button class="paid-toggle ${paidStatus[name] ? 'is-paid' : 'is-unpaid'}" data-teacher="${name}">${paidStatus[name] ? '✔ 集金済み' : '未収金'}</button></td></tr>
         `).join('')}
       </tbody>
-      <tfoot><tr><td><strong>合計</strong></td><td></td><td class="num"><strong>${yen(grandTotal)}</strong></td>${extraCost > 0 ? `<td class="num"><strong>${yen(extraCost)}</strong></td><td class="num"><strong>${yen(grandTotal + extraCost)}</strong></td>` : ''}<td></td></tr></tfoot>
+      <tfoot><tr><td><strong>合計</strong></td><td></td><td class="num"><strong>${yen(grandTotal)}</strong></td>${extraCost > 0 ? `<td class="num"><strong>${yen(sharesSum)}</strong></td><td class="num"><strong>${yen(grandTotal + sharesSum)}</strong></td>` : ''}<td></td></tr>${unassignedRemainder > 0 ? `<tr><td colspan="2"></td><td class="num" style="color: var(--soy-light);">端数（未割当）</td><td class="num" style="color: var(--soy-light);" colspan="${extraCost > 0 ? 2 : 1}">${yen(unassignedRemainder)}</td><td></td></tr>` : ''}</tfoot>
     </table>
   </div>`;
 
