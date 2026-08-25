@@ -460,7 +460,8 @@
   <!-- HISTORY PANEL -->
   <section class="panel top-round" id="panel-history" style="display:none;">
     <div id="history-content"></div>
-    <button class="reset-all" id="csv-download-btn" style="border-color: var(--chive); color: var(--chive-dark); margin-bottom: 10px;">📄 CSVでダウンロード</button>
+    <button class="reset-all" id="csv-download-btn" style="border-color: var(--chive); color: var(--chive-dark); margin-bottom: 10px;">📄 CSVでダウンロード（注文明細・先生別）</button>
+    <button class="reset-all" id="csv-paper-download-btn" style="border-color: var(--accent); color: var(--accent); margin-bottom: 10px;">🧾 注文書と同じ並びでCSVダウンロード（FAX転記用）</button>
     <button class="reset-all" id="reset-all-btn">すべての注文をリセットする（担当の先生用）</button>
   </section>
 </main>
@@ -469,38 +470,42 @@
 
 
 <script>
+// 品名・単位は「ハッキョ支援ネットワーク・なら」2026年9月版 注文書と完全に一致させています
 const MENU = [
-  { category: "野菜", items: [
-    { id: "hakusai", name: "白菜（500g）", price: 800 },
-    { id: "daikon", name: "大根（500g）", price: 800 },
-    { id: "kyuri", name: "きゅうり（300g）", price: 800 },
-    { id: "yamaimo", name: "山イモ（300g）", price: 800 },
+  { category: "キムチ", items: [
+    { id: "hakusai", name: "白菜キムチ（500g）", unit: "500g", price: 800 },
+    { id: "daikon", name: "大根キムチ（500g）", unit: "500g", price: 800 },
+    { id: "kyuri", name: "胡瓜キムチ（300g）", unit: "300g", price: 800 },
+    { id: "yamaimo", name: "山芋キムチ（300g）", unit: "300g", price: 800 },
   ]},
   { category: "調味料", items: [
-    { id: "kochujang", name: "コチュジャン（400g）", price: 600 },
-    { id: "changja", name: "チャンジャ（200g）", price: 800 },
-    { id: "tashida", name: "タシダ（1袋）", price: 300 },
-    { id: "furikake", name: "ふりかけ（70g）", price: 800 },
+    { id: "kochujang", name: "コチュジャン（400g）", unit: "400g", price: 600 },
+    { id: "changja", name: "チャンジャ（200g）", unit: "200g", price: 800 },
+    { id: "tashida", name: "ダシダ（100g）", unit: "100g", price: 300 },
+    { id: "furikake", name: "味付海苔ふりかけ（70g）", unit: "70g", price: 800 },
   ]},
   { category: "乾物・おつまみ", items: [
-    { id: "surume", name: "スルメ（80g）", price: 500 },
-    { id: "nori", name: "のり（70g）", price: 500 },
-    { id: "bento_nori", name: "弁当海苔（1袋）", price: 250 },
-    { id: "ebisen", name: "えびせん（1袋）", price: 300 },
+    { id: "surume", name: "甘辛スルメ（80g）", unit: "80g", price: 500 },
+    { id: "nori", name: "海苔キムチ（70g）", unit: "70g", price: 500 },
+    { id: "bento_nori", name: "オリーブ油弁当海苔（1袋）", unit: "1袋", price: 250 },
+    { id: "ebisen", name: "辛口えびせん（1袋）", unit: "1袋", price: 300 },
   ]},
   { category: "麺・粉類", items: [
-    { id: "ramen", name: "ラーメン（1袋）", price: 250 },
-    { id: "chijimiko", name: "チヂミ粉（1袋）", price: 700 },
+    { id: "ramen", name: "ジャガイモラーメン（1袋）", unit: "1袋", price: 250 },
+    { id: "chijimiko", name: "チヂミ粉（1kg）", unit: "1kg", price: 700 },
   ]},
   { category: "飲み物・スープ", items: [
-    { id: "yuzucha", name: "ゆず茶（1本）", price: 1000 },
-    { id: "makgeolli", name: "マッコリ（1本）", price: 800 },
-    { id: "samgyetang", name: "参鶏湯（1袋）", price: 1800 },
+    { id: "yuzucha", name: "ゆず茶（500g）", unit: "500g", price: 1000 },
+    { id: "makgeolli", name: "生マッコリ（750ml）", unit: "750ml", price: 800 },
+    { id: "samgyetang", name: "参鶏湯（800g）", unit: "800g", price: 1800 },
   ]},
   { category: "油", items: [
-    { id: "gomaabura", name: "ゴマ油（1本）", price: 2600 },
+    { id: "gomaabura", name: "ごま油（1650g）", unit: "1650g", price: 2600 },
   ]},
 ];
+
+// CSVを注文書の行順で出力するための並び順（写真の用紙と同じ上から下の順番）
+const PAPER_ORDER = ["hakusai","daikon","kyuri","yamaimo","kochujang","changja","surume","nori","bento_nori","ramen","ebisen","tashida","furikake","chijimiko","yuzucha","makgeolli","samgyetang","gomaabura"];
 
 let teachers = [];
 let orders = [];
@@ -550,7 +555,7 @@ async function saveData() {
   let lastErr = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      await docRef.set({ teachers, orders, deadline, deliveryDate, accepting }, { merge: true });
+      await docRef.set({ teachers, orders, deadline, deliveryDate, accepting });
       storageWorks = true;
       return true;
     } catch (e) {
@@ -954,7 +959,67 @@ function downloadCSV() {
   URL.revokeObjectURL(url);
 }
 
+function downloadPaperFormCSV() {
+  if (orders.length === 0) {
+    showToast('注文データがありません');
+    return;
+  }
+
+  // 品目ごとの合計数量・合計金額を集計
+  const totals = {};
+  orders.forEach(o => {
+    o.items.forEach(i => {
+      if (!totals[i.id]) totals[i.id] = { qty: 0, amount: 0 };
+      totals[i.id].qty += i.qty;
+      totals[i.id].amount += i.subtotal;
+    });
+  });
+
+  const rows = [];
+  rows.push(['ハッキョ支援ネットワーク・なら　食品販売　注文書']);
+  rows.push(['名前', '', '連絡先', '']);
+  rows.push([]);
+  rows.push(['品名', '単位', '単価', '数量', '金額']);
+
+  let grandQty = 0;
+  let grandTotal = 0;
+  PAPER_ORDER.forEach(id => {
+    const item = findItem(id);
+    if (!item) return;
+    const t = totals[id] || { qty: 0, amount: 0 };
+    grandQty += t.qty;
+    grandTotal += t.amount;
+    rows.push([item.name.replace(/（.*）/, ''), item.unit || '', item.price, t.qty || '', t.amount || '']);
+  });
+
+  rows.push(['合計', '', '', grandQty, grandTotal]);
+
+  const csvContent = rows.map(row =>
+    row.map(cell => {
+      const s = String(cell ?? '');
+      if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+        return '"' + s.replace(/"/g, '""') + '"';
+      }
+      return s;
+    }).join(',')
+  ).join('\r\n');
+
+  // Excelで文字化けしないようUTF-8 BOMを付与
+  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const now = new Date();
+  const fname = `キムチ注文書_FAX用_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}.csv`;
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fname;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 document.getElementById('csv-download-btn').addEventListener('click', downloadCSV);
+document.getElementById('csv-paper-download-btn').addEventListener('click', downloadPaperFormCSV);
 
 document.getElementById('reset-all-btn').addEventListener('click', async () => {
   if (!confirm('全ての注文履歴を削除します。よろしいですか？（この操作は元に戻せません）')) return;
