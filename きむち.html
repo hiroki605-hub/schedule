@@ -356,6 +356,35 @@
     color: var(--accent);
     font-size: 1rem;
   }
+  .order-card.is-paid {
+    background: #F3FAEF;
+    border-color: #B9DDA6;
+  }
+  .order-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .paid-toggle-btn {
+    border-radius: 20px;
+    padding: 7px 14px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    border: 1.5px solid var(--dough-dark);
+    background: #fff;
+    color: var(--soy-light);
+  }
+  .paid-toggle-btn.unpaid {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .paid-toggle-btn.paid {
+    border-color: #6FA65A;
+    background: #E4F2DC;
+    color: #3F6B2E;
+  }
   .delete-btn {
     position: absolute;
     top: 10px; right: 10px;
@@ -799,6 +828,7 @@ submitBtn.addEventListener('click', async () => {
     items: orderedItems,
     total,
     timestamp: new Date().toISOString(),
+    paid: false,
   };
 
   submitBtn.disabled = true;
@@ -848,7 +878,20 @@ function renderHistory() {
   });
   const grandTotal = orders.reduce((s, o) => s + o.total, 0);
 
+  const unpaidOrders = orders.filter(o => !o.paid);
+  const unpaidTotal = unpaidOrders.reduce((s, o) => s + o.total, 0);
+  const paidTotal = grandTotal - unpaidTotal;
+
   let html = `<div class="summary-box">
+    <h3>集金状況</h3>
+    <table class="summary-table">
+      <tbody>
+        <tr><td>集金済み</td><td class="num">${orders.length - unpaidOrders.length} 件</td><td class="num">${yen(paidTotal)}</td></tr>
+        <tr><td>未集金</td><td class="num">${unpaidOrders.length} 件</td><td class="num">${yen(unpaidTotal)}</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="summary-box">
     <h3>先生別 集計</h3>
     <table class="summary-table">
       <thead><tr><th>先生</th><th class="num">個数合計</th><th class="num">金額合計</th></tr></thead>
@@ -865,7 +908,8 @@ function renderHistory() {
   html += sorted.map(o => {
     const date = new Date(o.timestamp);
     const dateStr = `${date.getMonth()+1}/${date.getDate()} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
-    return `<div class="order-card">
+    const paid = !!o.paid;
+    return `<div class="order-card ${paid ? 'is-paid' : ''}">
       <button class="delete-btn" data-id="${o.id}">削除</button>
       <div class="order-head">
         <span class="teacher-name">${o.teacher} 先生</span>
@@ -874,11 +918,39 @@ function renderHistory() {
       <ul>
         ${o.items.map(i => `<li>${i.name} × ${i.qty}　${yen(i.subtotal)}</li>`).join('')}
       </ul>
-      <div class="order-total">${yen(o.total)}</div>
+      <div class="order-foot">
+        <button class="paid-toggle-btn ${paid ? 'paid' : 'unpaid'}" data-id="${o.id}" data-paid="${paid}">
+          ${paid ? '✅ 集金済み' : '未集金'}
+        </button>
+        <div class="order-total">${yen(o.total)}</div>
+      </div>
     </div>`;
   }).join('');
 
   container.innerHTML = html;
+
+  container.querySelectorAll('.paid-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const currentlyPaid = btn.dataset.paid === 'true';
+      const order = orders.find(o => o.id === id);
+      if (!order) return;
+      const confirmMsg = currentlyPaid
+        ? `${order.teacher}先生（${yen(order.total)}）を「未集金」に戻しますか？`
+        : `${order.teacher}先生（${yen(order.total)}）を「集金済み」にしますか？`;
+      if (!confirm(confirmMsg)) return;
+      const prevPaid = order.paid;
+      order.paid = !currentlyPaid;
+      const ok = await saveData();
+      if (ok) {
+        renderHistory();
+        showToast(order.paid ? '集金済みにしました' : '未集金に戻しました');
+      } else {
+        order.paid = prevPaid;
+        showToast('更新に失敗しました。もう一度お試しください');
+      }
+    });
+  });
 
   container.querySelectorAll('.delete-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
