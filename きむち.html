@@ -579,12 +579,15 @@ function initFirebase() {
   }
 }
 
-async function saveData() {
+async function saveData(fields) {
   if (!firebaseReady) { storageWorks = false; return false; }
   let lastErr = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      await docRef.set({ teachers, orders, deadline, deliveryDate, accepting });
+      // merge:true で、渡されたフィールドだけを更新する。
+      // これにより、例えば注文の送信・削除・集金操作が accepting/deadline を
+      // 巻き添えで上書きしてしまい、Google Chat通知が誤発火する問題を防ぐ。
+      await docRef.set(fields, { merge: true });
       storageWorks = true;
       return true;
     } catch (e) {
@@ -779,7 +782,7 @@ document.getElementById('btn-save-settings').addEventListener('click', async () 
   deadline = deadlineVal || null;
   deliveryDate = deliveryVal || null;
   renderStatusBanner();
-  const ok = await saveData();
+  const ok = await saveData({ accepting, deadline, deliveryDate });
   showToast(ok ? '設定を保存しました' : '設定の保存に失敗しました');
 });
 
@@ -802,7 +805,7 @@ document.getElementById('btn-add-teacher').addEventListener('click', async () =>
   teacherSelect.value = name;
   input.value = '';
   document.getElementById('new-teacher-row').classList.remove('show');
-  const ok = await saveData();
+  const ok = await saveData({ teachers });
   showToast(ok ? `「${name}」先生を登録しました` : `「${name}」先生を登録しました（この端末のみ・保存に失敗しました）`);
 });
 
@@ -833,7 +836,7 @@ submitBtn.addEventListener('click', async () => {
 
   submitBtn.disabled = true;
   orders.push(order);
-  const ok = await saveData();
+  const ok = await saveData({ orders });
   if (ok) {
     showToast(`${teacher}先生の注文を送信しました（${yen(total)}）`);
     currentQty = {};
@@ -941,7 +944,7 @@ function renderHistory() {
       if (!confirm(confirmMsg)) return;
       const prevPaid = order.paid;
       order.paid = !currentlyPaid;
-      const ok = await saveData();
+      const ok = await saveData({ orders });
       if (ok) {
         renderHistory();
         showToast(order.paid ? '集金済みにしました' : '未集金に戻しました');
@@ -958,7 +961,7 @@ function renderHistory() {
       const id = btn.dataset.id;
       const backup = orders;
       orders = orders.filter(o => o.id !== id);
-      const ok = await saveData();
+      const ok = await saveData({ orders });
       if (ok) {
         renderHistory();
         showToast('注文を削除しました');
@@ -1097,7 +1100,7 @@ document.getElementById('reset-all-btn').addEventListener('click', async () => {
   if (!confirm('全ての注文履歴を削除します。よろしいですか？（この操作は元に戻せません）')) return;
   const backup = orders;
   orders = [];
-  const ok = await saveData();
+  const ok = await saveData({ orders });
   if (ok) {
     renderHistory();
     showToast('全ての注文をリセットしました');
