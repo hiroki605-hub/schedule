@@ -489,8 +489,7 @@
   <!-- HISTORY PANEL -->
   <section class="panel top-round" id="panel-history" style="display:none;">
     <div id="history-content"></div>
-    <button class="reset-all" id="csv-download-btn" style="border-color: var(--chive); color: var(--chive-dark); margin-bottom: 10px;">📄 CSVでダウンロード（注文明細・先生別）</button>
-    <button class="reset-all" id="csv-paper-download-btn" style="border-color: var(--accent); color: var(--accent); margin-bottom: 10px;">🧾 注文書と同じ並びでCSVダウンロード（FAX転記用）</button>
+    <button class="reset-all" id="csv-download-btn" style="border-color: var(--accent); color: var(--accent); margin-bottom: 10px;">📄 CSVでダウンロード（注文書と同じ並び）</button>
     <button class="reset-all" id="reset-all-btn">すべての注文をリセットする（担当の先生用）</button>
   </section>
 </main>
@@ -973,67 +972,6 @@ function renderHistory() {
   });
 }
 
-function downloadCSV() {
-  if (orders.length === 0) {
-    showToast('注文データがありません');
-    return;
-  }
-
-  const rows = [];
-  // セクション1：注文明細（1行＝1品目）
-  rows.push(['日時', '先生', '品名', '単価', '個数', '小計']);
-  const sorted = [...orders].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-  sorted.forEach(o => {
-    const date = new Date(o.timestamp);
-    const dateStr = `${date.getFullYear()}/${date.getMonth()+1}/${date.getDate()} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
-    o.items.forEach(i => {
-      rows.push([dateStr, o.teacher, i.name, i.price, i.qty, i.subtotal]);
-    });
-  });
-
-  rows.push([]); // blank line
-
-  // セクション2：先生別 集計
-  rows.push(['先生', '個数合計', '金額合計']);
-  const byTeacher = {};
-  orders.forEach(o => {
-    if (!byTeacher[o.teacher]) byTeacher[o.teacher] = { count: 0, total: 0 };
-    const qtySum = o.items.reduce((s, i) => s + i.qty, 0);
-    byTeacher[o.teacher].count += qtySum;
-    byTeacher[o.teacher].total += o.total;
-  });
-  Object.keys(byTeacher).forEach(name => {
-    rows.push([name, byTeacher[name].count, byTeacher[name].total]);
-  });
-
-  const grandTotal = orders.reduce((s, o) => s + o.total, 0);
-  rows.push([]);
-  rows.push(['総合計', '', grandTotal]);
-
-  const csvContent = rows.map(row =>
-    row.map(cell => {
-      const s = String(cell ?? '');
-      if (s.includes(',') || s.includes('"') || s.includes('\n')) {
-        return '"' + s.replace(/"/g, '""') + '"';
-      }
-      return s;
-    }).join(',')
-  ).join('\r\n');
-
-  // Excelで文字化けしないようUTF-8 BOMを付与
-  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const now = new Date();
-  const fname = `キムチ注文_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}.csv`;
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = fname;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
 function downloadPaperFormCSV() {
   if (orders.length === 0) {
     showToast('注文データがありません');
@@ -1093,8 +1031,7 @@ function downloadPaperFormCSV() {
   URL.revokeObjectURL(url);
 }
 
-document.getElementById('csv-download-btn').addEventListener('click', downloadCSV);
-document.getElementById('csv-paper-download-btn').addEventListener('click', downloadPaperFormCSV);
+document.getElementById('csv-download-btn').addEventListener('click', downloadPaperFormCSV);
 
 document.getElementById('reset-all-btn').addEventListener('click', async () => {
   if (!confirm('全ての注文履歴を削除します。よろしいですか？（この操作は元に戻せません）')) return;
