@@ -208,8 +208,35 @@ function initApp(){
     rankingModal:false,rankingFilterCls:"all",
     logStu:null,stuScores:{},stuExpanded:null,
     sFilterCls:"",sErr:"",
-    pwModal:false,pwOk:false,pwErr:""
+    pwModal:false,pwOk:false,pwErr:"",
+    confirmModal:null,alertMsg:null
   };
+
+  // Google Sites 等のサンドボックス化された iframe 内では window.confirm() / alert()
+  // がブロックされ、confirm() が常に false を返すため「戻す」ボタン等が反応しない。
+  // ネイティブダイアログの代わりに、アプリ内蔵の確認・通知モーダルを使う。
+  function showConfirm(msg,action,arg){S.confirmModal={msg:msg,action:action,arg:arg};render();}
+  function showAlert(msg){S.alertMsg=msg;render();}
+  window.confirmModalYes=function(){
+    var cm=S.confirmModal;S.confirmModal=null;
+    if(!cm){render();return;}
+    if(cm.action==='resetScoreT'){
+      delete S.tScores[cm.arg];
+      dbRemove('scores/'+S.selId+'/'+cm.arg);
+      render({keepScroll:true});
+    }else if(cm.action==='resetScoreS'){
+      delete S.stuScores[cm.arg];
+      dbRemove('scores/'+S.logStu.id+'/'+cm.arg);
+      render({keepScroll:true});
+    }else if(cm.action==='delClass'){
+      dbSet('classes',DB.classes.filter(function(c){return c!==cm.arg;}));
+      render();
+    }else{
+      render();
+    }
+  };
+  window.confirmModalNo=function(){S.confirmModal=null;render();};
+  window.closeAlertModal=function(){S.alertMsg=null;render();};
 
   function render(opts){
     var app=document.getElementById("app");
@@ -393,6 +420,7 @@ function initApp(){
       }
       html+='</div></div>';
     }
+    html+=renderModals('s');
     return html;
   }
 
@@ -478,6 +506,22 @@ function initApp(){
 
   function renderModals(mode){
     var html="";
+    // 確認モーダル（window.confirm の代替）
+    if(S.confirmModal){
+      html+='<div class="modal-overlay"><div class="modal" style="max-width:340px">'
+        +'<p style="font-size:15px;font-weight:600;margin-bottom:18px;text-align:center">'+S.confirmModal.msg+'</p>'
+        +'<div style="display:flex;gap:8px">'
+        +'<button onclick="confirmModalNo()" style="flex:1">キャンセル</button>'
+        +'<button class="btn-primary" onclick="confirmModalYes()" style="flex:1">はい</button>'
+        +'</div></div></div>';
+    }
+    // 通知モーダル（window.alert の代替）
+    if(S.alertMsg){
+      html+='<div class="modal-overlay" onclick="if(event.target===this)closeAlertModal()"><div class="modal" style="max-width:340px">'
+        +'<p style="font-size:14px;margin-bottom:18px;text-align:center;white-space:pre-wrap">'+S.alertMsg+'</p>'
+        +'<button class="btn-primary" onclick="closeAlertModal()" style="width:100%">OK</button>'
+        +'</div></div>';
+    }
     // 一括追加
     if(S.bulkOpen){
       html+='<div class="modal-overlay" onclick="if(event.target===this)toggleBulk()">'
@@ -662,10 +706,7 @@ function initApp(){
     render({keepScroll:true});
   };
   window.doResetScoreT=function(skillId){
-    if(!confirm("未評価に戻しますか？"))return;
-    delete S.tScores[skillId];
-    dbRemove('scores/'+S.selId+'/'+skillId);
-    render({keepScroll:true});
+    showConfirm("未評価に戻しますか？",'resetScoreT',skillId);
   };
   window.doScoreS=function(skillId,grade,pts){
     S.stuScores[skillId]={grade:grade,pts:pts};
@@ -673,22 +714,19 @@ function initApp(){
     render({keepScroll:true});
   };
   window.doResetScoreS=function(skillId){
-    if(!confirm("未入力に戻しますか？"))return;
-    delete S.stuScores[skillId];
-    dbRemove('scores/'+S.logStu.id+'/'+skillId);
-    render({keepScroll:true});
+    showConfirm("未入力に戻しますか？",'resetScoreS',skillId);
   };
 
   window.doAddStu=function(){
     var num=document.getElementById("nNum").value.trim();
     var cls=document.getElementById("nCls").value;
-    if(!num){alert("出席番号を入力してください");return;}
+    if(!num){showAlert("出席番号を入力してください");return;}
     var id=genId();
     dbSet('students/'+id,{id:id,number:num,cls:cls,grade:gradeFromCls(cls),password:num,isDefault:true},function(){S.addOpen=false;render();});
   };
   window.genBulkSeq=function(){
     var n=parseInt(document.getElementById("bCount").value,10);
-    if(!n||n<1){alert("人数を入力してください");return;}
+    if(!n||n<1){showAlert("人数を入力してください");return;}
     var start=parseInt(document.getElementById("bStart").value)||1;
     var seq=[];for(var i=0;i<n;i++)seq.push(String(start+i));
     document.getElementById("bNames").value=seq.join("\n");
@@ -696,19 +734,19 @@ function initApp(){
   window.doBulkAdd=function(){
     var cls=document.getElementById("bCls").value;
     var lines=document.getElementById("bNames").value.split("\n").map(function(n){return n.trim();}).filter(function(n){return n;});
-    if(!lines.length){alert("出席番号を入力してください");return;}
+    if(!lines.length){showAlert("出席番号を入力してください");return;}
     var count=0,total=lines.length;
     lines.forEach(function(line){
       var m=line.match(/\d+/);
       var num=m?m[0]:line;var id=genId();
       dbSet('students/'+id,{id:id,number:num,cls:cls,grade:gradeFromCls(cls),password:num,isDefault:true},function(){
-        count++;if(count===total){S.bulkOpen=false;alert(count+"人を追加しました！");render();}
+        count++;if(count===total){S.bulkOpen=false;showAlert(count+"人を追加しました！");render();}
       });
     });
   };
   window.doDelStu=function(id){dbRemove('students/'+id);dbRemove('scores/'+id);if(S.selId===id){S.selId=null;S.tScores={};}S.delConf=null;render();};
-  window.addClassItem=function(){var v=document.getElementById("newCls").value.trim();if(!v)return;if(DB.classes.indexOf(v)>=0){alert("すでに存在するクラスです");return;}dbSet('classes',DB.classes.concat([v]));};
-  window.delClass=function(cls){if(!confirm("「"+cls+"」を削除しますか？"))return;dbSet('classes',DB.classes.filter(function(c){return c!==cls;}));};
+  window.addClassItem=function(){var v=document.getElementById("newCls").value.trim();if(!v)return;if(DB.classes.indexOf(v)>=0){showAlert("すでに存在するクラスです");return;}dbSet('classes',DB.classes.concat([v]));};
+  window.delClass=function(cls){showConfirm("「"+cls+"」を削除しますか？",'delClass',cls);};
   window.doChangePw=function(){
     var o=document.getElementById("pwOld").value,n=document.getElementById("pwNew").value,n2=document.getElementById("pwNew2").value;
     if(n!==n2){S.pwErr="新しいパスワードが一致しません";render();return;}
@@ -718,7 +756,7 @@ function initApp(){
     dbSet('students/'+S.logStu.id+'/isDefault',false,function(){S.logStu=Object.assign({},S.logStu,{password:n,isDefault:false});S.pwOk=true;render();});
   };
   window.doResetAll=function(){
-    dbRemove('students');dbRemove('scores');S.selId=null;S.tScores={};S.resetModal=false;S.resetErr="";alert("✅ 全データを削除しました。");render();
+    dbRemove('students');dbRemove('scores');S.selId=null;S.tScores={};S.resetModal=false;S.resetErr="";showAlert("✅ 全データを削除しました。");render();
   };
   window.downloadCSV=function(){
     var students=getStudents();
