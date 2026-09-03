@@ -92,7 +92,7 @@ function initApp(){
   var db=firebase.database(fbApp);
   var auth=firebase.auth(fbApp);
   var teacherUnlocked=false;
-  var DB={classes:[],students:{},scores:{}};
+  var DB={classes:[],students:{},scores:{},criteria:{}};
 
   function syncBar(type,msg){var b=document.getElementById('syncBar');b.textContent=msg;b.className=type;}
   function dbSet(path,val,cb){db.ref('mat1/'+path).set(val,cb||function(){});}
@@ -166,6 +166,23 @@ function initApp(){
   ];
   var SKILLS={1:G1,2:G2,3:G3};
   var BASE_MAX={1:56,2:70,3:70};  // 1年14種目56点、2・3年18種目70点
+  function findSkillById(id){
+    var groups=[G1,G2,G3];
+    for(var i=0;i<groups.length;i++){
+      for(var j=0;j<groups[i].length;j++){
+        if(groups[i][j].id===id)return groups[i][j];
+      }
+    }
+    return null;
+  }
+  function getCriteria(sk){
+    var ov=DB.criteria&&DB.criteria[sk.id];
+    return {
+      cA:(ov&&ov.cA)?ov.cA:sk.cA,
+      cB:(ov&&ov.cB)?ov.cB:sk.cB,
+      cC:(ov&&ov.cC)?ov.cC:sk.cC
+    };
+  }
 
   function gradeOf(c){if(!c)return"";if(c==="A"||c==="A+")return"a";if(c==="B"||c==="B+")return"b";if(c==="C")return"c";return"d";}
   function curGradeColors(g){
@@ -188,6 +205,7 @@ function initApp(){
     if(t>=74)return"A+";if(t>=66)return"A";if(t>=55)return"B+";if(t>=44)return"B";return"C";
   }
   function uniq(arr){var s={},r=[];arr.forEach(function(v){if(!s[v]){s[v]=1;r.push(v);}});return r;}
+  function escapeHtml(str){return String(str==null?"":str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
   function catKey(cat){if(cat.indexOf("接転")>=0)return"接転";if(cat.indexOf("ほん転")>=0)return"ほん転";return"平均";}
   function gradeFromCls(cls){
     // 「1年」「1-」「１年」「１-」いずれでも1年と判断
@@ -209,7 +227,7 @@ function initApp(){
     logStu:null,stuScores:{},stuExpanded:null,
     sFilterCls:"",sErr:"",
     pwModal:false,pwOk:false,pwErr:"",
-    confirmModal:null,alertMsg:null
+    confirmModal:null,alertMsg:null,editCriteria:null
   };
 
   // Google Sites 等のサンドボックス化された iframe 内では window.confirm() / alert()
@@ -237,6 +255,26 @@ function initApp(){
   };
   window.confirmModalNo=function(){S.confirmModal=null;render();};
   window.closeAlertModal=function(){S.alertMsg=null;render();};
+
+  // 評価基準（A/B/Cの説明文）の編集 ─ 教師モードのみ
+  window.openEditCriteria=function(skillId){S.editCriteria=skillId;render();};
+  window.closeEditCriteria=function(){S.editCriteria=null;render();};
+  window.saveEditCriteria=function(skillId){
+    var a=document.getElementById("ecA").value.trim();
+    var b=document.getElementById("ecB").value.trim();
+    var c=document.getElementById("ecC").value.trim();
+    if(!a||!b||!c){showAlert("A・B・Cすべての基準を入力してください");return;}
+    dbSet('criteria/'+skillId,{cA:a,cB:b,cC:c},function(){
+      DB.criteria[skillId]={cA:a,cB:b,cC:c};
+      S.editCriteria=null;render({keepScroll:true});
+    });
+  };
+  window.resetEditCriteria=function(skillId){
+    dbRemove('criteria/'+skillId);
+    delete DB.criteria[skillId];
+    S.editCriteria=null;
+    render({keepScroll:true});
+  };
 
   function render(opts){
     var app=document.getElementById("app");
@@ -446,6 +484,7 @@ function initApp(){
       html+='<span class="cat-label cat-'+ck+'">'+cat+'</span><div style="margin-bottom:14px">';
       catSk.forEach(function(sk){
         var cur=sc[sk.id];
+        var crit=getCriteria(sk);
         var isExp=(prefix==='t'?S.tExpanded:S.stuExpanded)===sk.id;
         html+='<div class="skill-row" id="'+prefix+'row-'+sk.id+'">'
           +'<div class="skill-header" onclick="toggleExp'+prefix.toUpperCase()+'(\''+sk.id+'\')">'
@@ -457,12 +496,15 @@ function initApp(){
         } else html+='<span style="font-size:11px;color:#bbb">未入力</span>';
         html+='<span style="color:#bbb;margin-left:6px">'+(isExp?'▲':'▼')+'</span></div>';
         html+='<div id="'+prefix+'detail-'+sk.id+'" class="skill-detail" style="display:'+(isExp?'block':'none')+'">';
+        if(prefix==='t'){
+          html+='<button onclick="event.stopPropagation();openEditCriteria(\''+sk.id+'\')" style="font-size:11px;color:#4A86E8;border-color:#c5d8fd;background:#eef4ff;padding:4px 10px;margin-bottom:8px">✏️ 評価基準を編集</button>';
+        }
         // A評価ボタン
         html+='<button class="grade-btn grade-btn-a'+(cur&&(cur.grade==="A"||cur.grade==="A+")?' active':'')+'"'
           +' onclick="doScore'+prefix.toUpperCase()+'(\''+sk.id+'\',\'A\','+sk.A+')">'
           +'<div class="grade-icon gi-a">A</div>'
           +'<div><div style="font-size:13px;font-weight:600">A評価 （'+sk.A+'点）</div>'
-          +'<div style="font-size:11px;color:#555;margin-top:2px">'+sk.cA+'</div></div>'
+          +'<div style="font-size:11px;color:#555;margin-top:2px">'+escapeHtml(crit.cA)+'</div></div>'
           +(cur&&(cur.grade==="A"||cur.grade==="A+")?'<span style="color:#1e6b2e;margin-left:auto">✔</span>':'')
           +'</button>';
         // B評価ボタン
@@ -470,7 +512,7 @@ function initApp(){
           +' onclick="doScore'+prefix.toUpperCase()+'(\''+sk.id+'\',\'B\','+sk.B+')">'
           +'<div class="grade-icon gi-b">B</div>'
           +'<div><div style="font-size:13px;font-weight:600">B評価 （'+sk.B+'点）</div>'
-          +'<div style="font-size:11px;color:#555;margin-top:2px">'+sk.cB+'</div></div>'
+          +'<div style="font-size:11px;color:#555;margin-top:2px">'+escapeHtml(crit.cB)+'</div></div>'
           +(cur&&(cur.grade==="B"||cur.grade==="B+")?'<span style="color:#1a56c4;margin-left:auto">✔</span>':'')
           +'</button>';
         // C評価ボタン
@@ -478,7 +520,7 @@ function initApp(){
           +' onclick="doScore'+prefix.toUpperCase()+'(\''+sk.id+'\',\'C\','+sk.C+')">'
           +'<div class="grade-icon gi-c">C</div>'
           +'<div><div style="font-size:13px;font-weight:600">C評価 （'+sk.C+'点）</div>'
-          +'<div style="font-size:11px;color:#555;margin-top:2px">'+sk.cC+'</div></div>'
+          +'<div style="font-size:11px;color:#555;margin-top:2px">'+escapeHtml(crit.cC)+'</div></div>'
           +(cur&&cur.grade==="C"?'<span style="color:#8a6000;margin-left:auto">✔</span>':'')
           +'</button>';
         if(cur){
@@ -521,6 +563,32 @@ function initApp(){
         +'<p style="font-size:14px;margin-bottom:18px;text-align:center;white-space:pre-wrap">'+S.alertMsg+'</p>'
         +'<button class="btn-primary" onclick="closeAlertModal()" style="width:100%">OK</button>'
         +'</div></div>';
+    }
+    // 評価基準の編集（教師モードのみ）
+    if(S.editCriteria){
+      var esk=findSkillById(S.editCriteria);
+      if(esk){
+        var ecrit=getCriteria(esk);
+        html+='<div class="modal-overlay" onclick="if(event.target===this)closeEditCriteria()">'
+          +'<div class="modal"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
+          +'<h3 style="font-size:16px;font-weight:700">評価基準の編集</h3>'
+          +'<button class="btn-icon" onclick="closeEditCriteria()">✕</button></div>'
+          +'<p style="font-size:13px;color:#888;margin-bottom:14px">'+esk.name+'</p>'
+          +'<div style="display:flex;flex-direction:column;gap:12px">'
+          +'<div><label style="font-size:12px;font-weight:700;color:#1e6b2e;display:block;margin-bottom:4px">A評価（'+esk.A+'点）の基準</label>'
+          +'<textarea id="ecA" rows="2">'+escapeHtml(ecrit.cA)+'</textarea></div>'
+          +'<div><label style="font-size:12px;font-weight:700;color:#1a56c4;display:block;margin-bottom:4px">B評価（'+esk.B+'点）の基準</label>'
+          +'<textarea id="ecB" rows="2">'+escapeHtml(ecrit.cB)+'</textarea></div>'
+          +'<div><label style="font-size:12px;font-weight:700;color:#8a6000;display:block;margin-bottom:4px">C評価（'+esk.C+'点）の基準</label>'
+          +'<textarea id="ecC" rows="2">'+escapeHtml(ecrit.cC)+'</textarea></div>'
+          +'</div>'
+          +'<div style="display:flex;gap:8px;margin-top:14px">'
+          +'<button class="btn-primary" onclick="saveEditCriteria(\''+esk.id+'\')" style="flex:1">保存する</button>'
+          +'<button onclick="closeEditCriteria()" style="flex:1">キャンセル</button>'
+          +'</div>'
+          +'<button onclick="resetEditCriteria(\''+esk.id+'\')" style="font-size:11px;color:#888;border-color:#ddd;background:#f5f5f5;padding:6px 10px;margin-top:10px;width:100%">↺ 初期の基準文に戻す</button>'
+          +'</div></div>';
+      }
     }
     // 一括追加
     if(S.bulkOpen){
@@ -806,7 +874,7 @@ function initApp(){
   // Firebase監視
   db.ref('mat1').on('value',function(snap){
     var val=snap.val()||{};
-    DB.classes=val.classes||[];DB.students=val.students||{};DB.scores=val.scores||{};
+    DB.classes=val.classes||[];DB.students=val.students||{};DB.scores=val.scores||{};DB.criteria=val.criteria||{};
     if(S.selId&&DB.scores[S.selId])S.tScores=DB.scores[S.selId];
     syncBar('ok','✅ リアルタイム同期中');
     if(S.page==='teacher'||S.page==='stuview')render({keepScroll:true});
