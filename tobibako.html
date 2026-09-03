@@ -103,7 +103,7 @@ function initApp(){
   var db=firebase.database(fbApp);
   var auth=firebase.auth(fbApp);
   var teacherUnlocked=false;
-  var DB={classes:[],students:{},scores:{}};
+  var DB={classes:[],students:{},scores:{},criteria:{},thresholds:{}};
 
   function syncBar(type,msg){var b=document.getElementById('syncBar');b.textContent=msg;b.className=type;}
   function dbSet(path,val,cb){db.ref('tobibako2/'+path).set(val,cb||function(){});}
@@ -160,7 +160,21 @@ function initApp(){
   }
   var SKILLS={1:makeSkills(1),2:makeSkills(2),3:makeSkills(3)};
 
-  function calcGrade(t){if(t>=71)return"A";if(t>=53)return"B";if(t>=35)return"C";return"D";}
+  var DEFAULT_THRESH=[["A",71],["B",53],["C",35]];
+  var BOTTOM_GRADE="D";
+  function getThresh(){
+    var ov=DB.thresholds&&DB.thresholds.main;
+    if(!ov)return DEFAULT_THRESH;
+    return DEFAULT_THRESH.map(function(pair){
+      var v=ov[pair[0]];
+      return [pair[0],(v!==undefined&&v!==null&&v!=="")?Number(v):pair[1]];
+    });
+  }
+  function calcGrade(t){
+    var th=getThresh();
+    for(var i=0;i<th.length;i++){if(t>=th[i][1])return th[i][0];}
+    return BOTTOM_GRADE;
+  }
   function gcStyle(g){if(g==="A")return"background:#e6f4ea;color:#1e6b2e";if(g==="B")return"background:#e8f0fe;color:#1a56c4";if(g==="C")return"background:#fef7e0;color:#8a6000";return"background:#fce8e6;color:#a50e0e";}
   function gradeOf(g){if(g==="A")return"a";if(g==="B")return"b";if(g==="C")return"c";return"d";}
   function skillTotal(sc,sk){var d=sc[sk.id+"_d"],k=sc[sk.id+"_k"];return(d?d.pts:0)+(k?k.pts:0);}
@@ -175,6 +189,25 @@ function initApp(){
   function genId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
   function getStudents(){return Object.keys(DB.students).map(function(k){return DB.students[k];}).sort(function(a,b){return a.cls.localeCompare(b.cls)||Number(a.number)-Number(b.number);});}
   function uniq(arr){var s={},r=[];arr.forEach(function(v){if(!s[v]){s[v]=1;r.push(v);}});return r;}
+  function escapeHtml(str){return String(str==null?"":str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+  function findSkillById(id){
+    for(var g=1;g<=3;g++){
+      var arr=SKILLS[g];
+      for(var i=0;i<arr.length;i++){if(arr[i].id===id)return arr[i];}
+    }
+    return null;
+  }
+  // 評価基準（各段階の説明文）の教師編集を反映した内容を返す
+  function getCriteria(sk){
+    var ov=DB.criteria&&DB.criteria[sk.id];
+    function resolve(arr,key){
+      return arr.map(function(item){
+        var v=(ov&&ov[key]&&ov[key][item.pts]!==undefined&&ov[key][item.pts]!=="")?ov[key][item.pts]:item.desc;
+        return {pts:item.pts,desc:v};
+      });
+    }
+    return {pm:resolve(sk.pm,'pm'),pf:resolve(sk.pf,'pf'),p2:resolve(sk.p2,'p2')};
+  }
 
   // 状態
   var S={
@@ -187,7 +220,104 @@ function initApp(){
     // 生徒
     logStu:null,stuScores:{},stuExpanded:null,
     sFilterCls:"",sErr:"",
-    pwModal:false,pwOk:false,pwErr:""
+    pwModal:false,pwOk:false,pwErr:"",
+    confirmModal:null,alertMsg:null,editCriteria:null,editThreshold:false
+  };
+
+  // Google Sites 等のサンドボックス化された iframe 内では window.confirm() / alert()
+  // がブロックされることがあるため、アプリ内蔵の確認・通知モーダルを使う。
+  function showConfirm(msg,action,arg){S.confirmModal={msg:msg,action:action,arg:arg};render();}
+  function showAlert(msg){S.alertMsg=msg;render();}
+  window.confirmModalYes=function(){
+    var cm=S.confirmModal;S.confirmModal=null;
+    if(!cm){render();return;}
+    if(cm.action==='resetScoreT'){
+      delete S.tScores[cm.arg];
+      dbRemove('scores/'+S.selId+'/'+cm.arg);
+      render({keepScroll:true});
+    }else if(cm.action==='resetScoreS'){
+      delete S.stuScores[cm.arg];
+      dbRemove('scores/'+S.logStu.id+'/'+cm.arg);
+      render({keepScroll:true});
+    }else if(cm.action==='delClass'){
+      dbSet('classes',DB.classes.filter(function(c){return c!==cm.arg;}));
+      render();
+    }else{
+      render();
+    }
+  };
+  window.confirmModalNo=function(){S.confirmModal=null;render();};
+  window.closeAlertModal=function(){S.alertMsg=null;render();};
+
+  // 評価基準の編集（教師モードのみ）
+  window.openEditCriteria=function(skillId){S.editCriteria=skillId;render();};
+  window.closeEditCriteria=function(){S.editCriteria=null;render();};
+  window.saveEditCriteria=function(skillId){
+    var sk=findSkillById(skillId);if(!sk)return;
+    var newOv={pm:{},pf:{},p2:{}},ok=true;
+    ['pm','pf','p2'].forEach(function(key){
+      sk[key].forEach(function(item){
+        var el=document.getElementById('ec_'+key+'_'+item.pts);
+        var v=el?el.value.trim():'';
+        if(!v)ok=false;
+        newOv[key][item.pts]=v;
+      });
+    });
+    if(!ok){showAlert("すべての基準を入力してください");return;}
+    dbSet('criteria/'+skillId,newOv,function(){
+      DB.criteria[skillId]=newOv;
+      S.editCriteria=null;
+      render({keepScroll:true});
+    });
+  };
+  window.resetEditCriteria=function(skillId){
+    dbRemove('criteria/'+skillId);
+    delete DB.criteria[skillId];
+    S.editCriteria=null;
+    render({keepScroll:true});
+  };
+  function renderGradeCriteria(isTeacher){
+    var th=getThresh();
+    var items=th.map(function(pair,i){
+      var label=pair[0],min=pair[1];
+      var text=i===0?(min+"点以上"):(min+"〜"+(th[i-1][1]-1)+"点");
+      return [label,text];
+    });
+    items.push([BOTTOM_GRADE,(th[th.length-1][1]-1)+"点以下"]);
+    var editBtn=isTeacher?'<button onclick="openEditThreshold()" style="font-size:11px;color:#E67E22;border-color:#f6c89b;background:#FEF3E8;padding:4px 10px;margin-bottom:8px">✏️ 評価基準（点数）を編集</button>':'';
+    return '<div style="background:#fff;border:1px solid #e8d0c0;border-radius:10px;padding:12px 14px;margin-top:8px">'
+      +editBtn
+      +'<p style="font-size:12px;color:#888;margin-bottom:8px">評価基準（88点満点）</p>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:6px">'
+      +items.map(function(r){return'<span class="badge b'+gradeOf(r[0])+'"><b>'+r[0]+'</b> '+r[1]+'</span>';}).join('')
+      +'</div></div>';
+  }
+
+  window.openEditThreshold=function(){S.editThreshold=true;render();};
+  window.closeEditThreshold=function(){S.editThreshold=false;render();};
+  window.saveEditThreshold=function(){
+    var newOv={},ok=true,prev=null;
+    for(var i=0;i<DEFAULT_THRESH.length;i++){
+      var label=DEFAULT_THRESH[i][0];
+      var el=document.getElementById('et_'+label);
+      var v=el?el.value.trim():'';
+      if(v===""||isNaN(Number(v))){ok=false;break;}
+      var num=Number(v);
+      if(prev!==null&&num>=prev){ok=false;break;}
+      newOv[label]=num;
+      prev=num;
+    }
+    if(!ok){showAlert("点数を正しく入力してください（上のグレードほど高い点数にしてください）");return;}
+    dbSet('thresholds/main',newOv,function(){
+      DB.thresholds.main=newOv;
+      S.editThreshold=false;render({keepScroll:true});
+    });
+  };
+  window.resetEditThreshold=function(){
+    dbRemove('thresholds/main');
+    delete DB.thresholds.main;
+    S.editThreshold=false;
+    render({keepScroll:true});
   };
 
   function render(opts){
@@ -321,7 +451,8 @@ function initApp(){
           var d=sc[sk.id+"_d"],k=sc[sk.id+"_k"];
           var st=skillTotal(sc,sk),hasAny=(d!==undefined||k!==undefined);
           var isExp=S.tExpanded===sk.id;
-          var p1=sel.gender==="女子"?sk.pf:sk.pm;
+          var crit=getCriteria(sk);
+          var p1=sel.gender==="女子"?crit.pf:crit.pm;
           panel+='<div class="skill-row" id="trow-'+sk.id+'">'
             +'<div class="skill-header" onclick="toggleTExp(\''+sk.id+'\')">'
             +'<span style="font-size:11px;color:#aaa;min-width:18px;text-align:right">'+(skills.indexOf(sk)+1)+'</span>'
@@ -330,6 +461,7 @@ function initApp(){
           else panel+='<span id="tbadge-'+sk.id+'" style="font-size:11px;color:#bbb">未評価</span>';
           panel+='<span style="color:#bbb;margin-left:6px">'+(isExp?'▲':'▼')+'</span></div>';
           panel+='<div id="tdetail-'+sk.id+'" class="skill-detail" style="display:'+(isExp?'block':'none')+'">';
+          panel+='<button onclick="event.stopPropagation();openEditCriteria(\''+sk.id+'\')" style="font-size:11px;color:#E67E22;border-color:#f6c89b;background:#FEF3E8;padding:4px 10px;margin-bottom:8px">✏️ 評価基準を編集</button>';
           panel+='<div class="score-section"><span class="section-label sl-dan">'+sk.l1+'（最大5点）'
             +(sel.gender==="女子"?'<span class="tag-f">女子</span>':'<span class="tag-m">男子</span>')+'</span>';
           p1.forEach(function(item){
@@ -337,19 +469,19 @@ function initApp(){
             panel+='<button class="score-btn '+danCls(sel.gender,item.pts)+(active?' active':'')+'"'
               +' onclick="doTScore(\''+sk.id+'\',\'d\','+item.pts+',\''+item.desc.replace(/'/g,"\\'")+'\')">'
               +'<div class="pts-circle" style="'+danCS(sel.gender,item.pts)+'">'+item.pts+'</div>'
-              +'<span style="flex:1;font-size:12px">'+item.desc+'</span>'
+              +'<span style="flex:1;font-size:12px">'+escapeHtml(item.desc)+'</span>'
               +(active?'<span style="color:#E67E22">✔</span>':"")+'</button>';
           });
           panel+='<div style="display:'+(d?'block':'none')+'" id="tdreset-'+sk.id+'">'
             +'<button onclick="doTReset(\''+sk.id+'\',\'d\')" style="font-size:11px;color:#888;border-color:#ddd;background:#f5f5f5;padding:4px 10px;margin-top:2px">↺ 未評価に戻す</button></div></div>';
           panel+='<div class="score-section"><span class="section-label sl-kata">'+sk.l2+'（最大3点）</span>';
-          sk.p2.forEach(function(item){
+          crit.p2.forEach(function(item){
             var active=k&&k.pts===item.pts;
             var kCls=item.pts===3?"sb-k3":item.pts===2?"sb-k2":"sb-k1";
             panel+='<button class="score-btn '+kCls+(active?' active':'')+'"'
               +' onclick="doTScore(\''+sk.id+'\',\'k\','+item.pts+',\''+item.desc.replace(/'/g,"\\'")+'\')">'
               +'<div class="pts-circle" style="'+kataCS(item.pts)+'">'+item.pts+'</div>'
-              +'<span style="flex:1;font-size:12px">'+item.desc+'</span>'
+              +'<span style="flex:1;font-size:12px">'+escapeHtml(item.desc)+'</span>'
               +(active?'<span style="color:#4A86E8">✔</span>':"")+'</button>';
           });
           panel+='<div style="display:'+(k!==undefined?'block':'none')+'" id="tkreset-'+sk.id+'">'
@@ -358,12 +490,7 @@ function initApp(){
         });
         panel+='</div>';
       });
-      panel+='<div style="background:#fff;border:1px solid #e8d0c0;border-radius:10px;padding:12px 14px;margin-top:8px">'
-        +'<p style="font-size:12px;color:#888;margin-bottom:8px">評価基準（88点満点）</p>'
-        +'<div style="display:flex;flex-wrap:wrap;gap:6px">'
-        +[["A","71点以上"],["B","53〜70点"],["C","35〜52点"],["D","34点以下"]].map(function(r){
-          return'<span class="badge b'+gradeOf(r[0])+'"><b>'+r[0]+'</b> '+r[1]+'</span>';
-        }).join('')+'</div></div>';
+      panel+=renderGradeCriteria(true);
     }
     panel+='</div>';
 
@@ -482,7 +609,79 @@ function initApp(){
         }).join('')
         +'</div></div></div>';
     }
-    return '<div style="display:flex;height:calc(100vh - 33px)">'+sb+panel+'</div>'+bulkModal+clsModal+resetModal+rankingModal;
+    var confirmModalHtml="";
+    if(S.confirmModal){
+      confirmModalHtml='<div class="modal-overlay"><div class="modal" style="max-width:340px">'
+        +'<p style="font-size:15px;font-weight:600;margin-bottom:18px;text-align:center">'+S.confirmModal.msg+'</p>'
+        +'<div style="display:flex;gap:8px">'
+        +'<button onclick="confirmModalNo()" style="flex:1">キャンセル</button>'
+        +'<button class="btn-primary" onclick="confirmModalYes()" style="flex:1">はい</button>'
+        +'</div></div></div>';
+    }
+    var alertModalHtml="";
+    if(S.alertMsg){
+      alertModalHtml='<div class="modal-overlay" onclick="if(event.target===this)closeAlertModal()"><div class="modal" style="max-width:340px">'
+        +'<p style="font-size:14px;margin-bottom:18px;text-align:center;white-space:pre-wrap">'+S.alertMsg+'</p>'
+        +'<button class="btn-primary" onclick="closeAlertModal()" style="width:100%">OK</button>'
+        +'</div></div>';
+    }
+    var editCritModal="";
+    if(S.editCriteria){
+      var esk=findSkillById(S.editCriteria);
+      if(esk){
+        var ecrit=getCriteria(esk);
+        var critField=function(key,item){
+          var idKey='ec_'+key+'_'+item.pts;
+          return '<div style="margin-bottom:8px"><label style="font-size:11px;color:#888;display:block;margin-bottom:2px">'+item.pts+'点</label>'
+            +'<textarea id="'+idKey+'" rows="2">'+escapeHtml(item.desc)+'</textarea></div>';
+        };
+        editCritModal='<div class="modal-overlay" onclick="if(event.target===this)closeEditCriteria()">'
+          +'<div class="modal"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
+          +'<h3 style="font-size:16px;font-weight:700">評価基準の編集</h3>'
+          +'<button class="btn-icon" onclick="closeEditCriteria()">✕</button></div>'
+          +'<p style="font-size:13px;color:#888;margin-bottom:14px">'+esk.name+'</p>'
+          +'<div style="margin-bottom:10px"><p class="section-label sl-dan" style="display:inline-flex"><span class="tag-m">男子</span>&nbsp;'+esk.l1+'</p>'
+          +ecrit.pm.map(function(item){return critField('pm',item);}).join('')
+          +'</div>'
+          +'<div style="margin-bottom:10px"><p class="section-label sl-dan" style="display:inline-flex"><span class="tag-f">女子</span>&nbsp;'+esk.l1+'</p>'
+          +ecrit.pf.map(function(item){return critField('pf',item);}).join('')
+          +'</div>'
+          +'<div style="margin-bottom:4px"><p class="section-label sl-kata" style="display:inline-flex">'+esk.l2+'</p>'
+          +ecrit.p2.map(function(item){return critField('p2',item);}).join('')
+          +'</div>'
+          +'<div style="display:flex;gap:8px;margin-top:10px">'
+          +'<button class="btn-primary" onclick="saveEditCriteria(\''+esk.id+'\')" style="flex:1">保存する</button>'
+          +'<button onclick="closeEditCriteria()" style="flex:1">キャンセル</button>'
+          +'</div>'
+          +'<button onclick="resetEditCriteria(\''+esk.id+'\')" style="font-size:11px;color:#888;border-color:#ddd;background:#f5f5f5;padding:6px 10px;margin-top:10px;width:100%">↺ 初期の基準文に戻す</button>'
+          +'</div></div>';
+      }
+    }
+    var editThreshModal="";
+    if(S.editThreshold){
+      var thBase=DEFAULT_THRESH,thCur=getThresh();
+      editThreshModal='<div class="modal-overlay" onclick="if(event.target===this)closeEditThreshold()">'
+        +'<div class="modal"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
+        +'<h3 style="font-size:16px;font-weight:700">評価基準（点数）の編集</h3>'
+        +'<button class="btn-icon" onclick="closeEditThreshold()">✕</button></div>'
+        +'<p style="font-size:13px;color:#888;margin-bottom:14px">合計点による判定基準（各グレードの「これ以上」の点数）</p>'
+        +'<div style="display:flex;flex-direction:column;gap:10px">'
+        +thBase.map(function(pair,i){
+          var label=pair[0],curVal=thCur[i][1];
+          return '<div><label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">'+label+'評価　以上の点数</label>'
+            +'<input type="number" id="et_'+label+'" value="'+curVal+'" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:14px">'
+            +'</div>';
+        }).join('')
+        +'<p style="font-size:11px;color:#aaa">'+BOTTOM_GRADE+'評価はそれ未満の点数に自動的に設定されます。上のグレードほど大きい値を入力してください。</p>'
+        +'</div>'
+        +'<div style="display:flex;gap:8px;margin-top:14px">'
+        +'<button class="btn-primary" onclick="saveEditThreshold()" style="flex:1">保存する</button>'
+        +'<button onclick="closeEditThreshold()" style="flex:1">キャンセル</button>'
+        +'</div>'
+        +'<button onclick="resetEditThreshold()" style="font-size:11px;color:#888;border-color:#ddd;background:#f5f5f5;padding:6px 10px;margin-top:10px;width:100%">↺ 初期の基準点に戻す</button>'
+        +'</div></div>';
+    }
+    return '<div style="display:flex;height:calc(100vh - 33px)">'+sb+panel+'</div>'+bulkModal+clsModal+resetModal+rankingModal+confirmModalHtml+alertModalHtml+editCritModal+editThreshModal;
   }
 
   // ─── 生徒ログイン ───
@@ -542,7 +741,8 @@ function initApp(){
         var d=sc[sk.id+"_d"],k=sc[sk.id+"_k"];
         var st=skillTotal(sc,sk),hasAny=(d!==undefined||k!==undefined);
         var isExp=S.stuExpanded===sk.id;
-        var p1=s.gender==="女子"?sk.pf:sk.pm;
+        var crit=getCriteria(sk);
+        var p1=s.gender==="女子"?crit.pf:crit.pm;
         html+='<div class="skill-row" id="srow-'+sk.id+'">'
           +'<div class="skill-header" onclick="toggleStuExp(\''+sk.id+'\')">'
           +'<span style="font-size:11px;color:#aaa;min-width:18px;text-align:right">'+(skills.indexOf(sk)+1)+'</span>'
@@ -558,19 +758,19 @@ function initApp(){
           html+='<button class="score-btn '+danCls(s.gender,item.pts)+(active?' active':'')+'"'
             +' onclick="doStuScore(\''+sk.id+'\',\'d\','+item.pts+',\''+item.desc.replace(/'/g,"\\'")+'\')">'
             +'<div class="pts-circle" style="'+danCS(s.gender,item.pts)+'">'+item.pts+'</div>'
-            +'<span style="flex:1;font-size:12px">'+item.desc+'</span>'
+            +'<span style="flex:1;font-size:12px">'+escapeHtml(item.desc)+'</span>'
             +(active?'<span style="color:#E67E22">✔</span>':"")+'</button>';
         });
         html+='<div style="display:'+(d?'block':'none')+'" id="sdreset-'+sk.id+'">'
           +'<button onclick="doStuReset(\''+sk.id+'\',\'d\')" style="font-size:11px;color:#888;border-color:#ddd;background:#f5f5f5;padding:4px 10px;margin-top:2px">↺ 未入力に戻す</button></div></div>';
         html+='<div class="score-section"><span class="section-label sl-kata">'+sk.l2+'（最大3点）</span>';
-        sk.p2.forEach(function(item){
+        crit.p2.forEach(function(item){
           var active=k&&k.pts===item.pts;
           var kCls=item.pts===3?"sb-k3":item.pts===2?"sb-k2":"sb-k1";
           html+='<button class="score-btn '+kCls+(active?' active':'')+'"'
             +' onclick="doStuScore(\''+sk.id+'\',\'k\','+item.pts+',\''+item.desc.replace(/'/g,"\\'")+'\')">'
             +'<div class="pts-circle" style="'+kataCS(item.pts)+'">'+item.pts+'</div>'
-            +'<span style="flex:1;font-size:12px">'+item.desc+'</span>'
+            +'<span style="flex:1;font-size:12px">'+escapeHtml(item.desc)+'</span>'
             +(active?'<span style="color:#4A86E8">✔</span>':"")+'</button>';
         });
         html+='<div style="display:'+(k!==undefined?'block':'none')+'" id="skreset-'+sk.id+'">'
@@ -579,12 +779,7 @@ function initApp(){
       });
       html+='</div>';
     });
-    html+='<div style="background:#fff;border:1px solid #e8d0c0;border-radius:10px;padding:12px 14px;margin-top:8px">'
-      +'<p style="font-size:12px;color:#888;margin-bottom:8px">評価基準（88点満点）</p>'
-      +'<div style="display:flex;flex-wrap:wrap;gap:6px">'
-      +[["A","71点以上"],["B","53〜70点"],["C","35〜52点"],["D","34点以下"]].map(function(r){
-        return'<span class="badge b'+gradeOf(r[0])+'"><b>'+r[0]+'</b> '+r[1]+'</span>';
-      }).join('')+'</div></div></div>';
+    html+=renderGradeCriteria(false)+'</div>';
 
     if(S.pwModal){
       html+='<div class="modal-overlay" onclick="if(event.target===this)closePwModal()">'
@@ -609,6 +804,20 @@ function initApp(){
           +'</div></div>';
       }
       html+='</div></div>';
+    }
+    if(S.confirmModal){
+      html+='<div class="modal-overlay"><div class="modal" style="max-width:340px">'
+        +'<p style="font-size:15px;font-weight:600;margin-bottom:18px;text-align:center">'+S.confirmModal.msg+'</p>'
+        +'<div style="display:flex;gap:8px">'
+        +'<button onclick="confirmModalNo()" style="flex:1">キャンセル</button>'
+        +'<button class="btn-primary" onclick="confirmModalYes()" style="flex:1">はい</button>'
+        +'</div></div></div>';
+    }
+    if(S.alertMsg){
+      html+='<div class="modal-overlay" onclick="if(event.target===this)closeAlertModal()"><div class="modal" style="max-width:340px">'
+        +'<p style="font-size:14px;margin-bottom:18px;text-align:center;white-space:pre-wrap">'+S.alertMsg+'</p>'
+        +'<button class="btn-primary" onclick="closeAlertModal()" style="width:100%">OK</button>'
+        +'</div></div>';
     }
     return html;
   }
@@ -765,11 +974,8 @@ function initApp(){
     render({keepScroll:true});
   };
   window.doTReset=function(skillId,part){
-    if(!confirm("未評価に戻しますか？"))return;
     var key=skillId+"_"+part;
-    delete S.tScores[key];
-    dbRemove('scores/'+S.selId+'/'+key);
-    render({keepScroll:true});
+    showConfirm("未評価に戻しますか？",'resetScoreT',key);
   };
   function updateTBadge(skillId){
     var sel=DB.students[S.selId];if(!sel)return;
@@ -811,18 +1017,15 @@ function initApp(){
     render({keepScroll:true});
   };
   window.doStuReset=function(skillId,part){
-    if(!confirm("未入力に戻しますか？"))return;
     var key=skillId+"_"+part;
-    delete S.stuScores[key];
-    dbRemove('scores/'+S.logStu.id+'/'+key);
-    render({keepScroll:true});
+    showConfirm("未入力に戻しますか？",'resetScoreS',key);
   };
 
   window.doAddStu=function(){
     var num=document.getElementById("nNum").value.trim();
     var cls=document.getElementById("nCls").value;
     var gender=document.getElementById("nGender").value;
-    if(!num){alert("出席番号を入力してください");return;}
+    if(!num){showAlert("出席番号を入力してください");return;}
     var id=genId();
     dbSet('students/'+id,{id:id,number:num,cls:cls,grade:gradeFromCls(cls),gender:gender,password:num,isDefault:true},function(){
       S.addOpen=false;render();
@@ -832,7 +1035,7 @@ function initApp(){
     var cls=document.getElementById("bCls").value;
     var start=parseInt(document.getElementById("bStart").value)||1;
     var lines=document.getElementById("bNames").value.split("\n").map(function(n){return n.trim();}).filter(function(n){return n;});
-    if(!lines.length){alert("性別を1行に1人ずつ入力してください");return;}
+    if(!lines.length){showAlert("性別を1行に1人ずつ入力してください");return;}
     var count=0,total=lines.length;
     lines.forEach(function(line,i){
       var gender=(line==="女"||line==="女子")?"女子":"男子";
@@ -840,7 +1043,7 @@ function initApp(){
       var id=genId();
       dbSet('students/'+id,{id:id,number:num,cls:cls,grade:gradeFromCls(cls),gender:gender,password:num,isDefault:true},function(){
         count++;
-        if(count===total){S.bulkOpen=false;alert(count+"人を追加しました！初期パスワードは出席番号です。");render();}
+        if(count===total){S.bulkOpen=false;showAlert(count+"人を追加しました！初期パスワードは出席番号です。");render();}
       });
     });
   };
@@ -852,12 +1055,11 @@ function initApp(){
   window.addClassItem=function(){
     var v=document.getElementById("newCls").value.trim();
     if(!v)return;
-    if(DB.classes.indexOf(v)>=0){alert("すでに存在するクラスです");return;}
+    if(DB.classes.indexOf(v)>=0){showAlert("すでに存在するクラスです");return;}
     dbSet('classes',DB.classes.concat([v]));
   };
   window.delClass=function(cls){
-    if(!confirm("「"+cls+"」を削除しますか？"))return;
-    dbSet('classes',DB.classes.filter(function(c){return c!==cls;}));
+    showConfirm("「"+cls+"」を削除しますか？",'delClass',cls);
   };
   window.doChangePw=function(){
     var o=document.getElementById("pwOld").value;
@@ -875,7 +1077,7 @@ function initApp(){
   window.doResetAll=function(){
     dbRemove('students');dbRemove('scores');
     S.selId=null;S.tScores={};S.resetModal=false;S.resetErr="";
-    alert("✅ 全データを削除しました。");render();
+    showAlert("✅ 全データを削除しました。");render();
   };
 
   // Firebase監視
@@ -884,6 +1086,8 @@ function initApp(){
     DB.classes=val.classes||[];
     DB.students=val.students||{};
     DB.scores=val.scores||{};
+    DB.criteria=val.criteria||{};
+    DB.thresholds=val.thresholds||{};
     // 教師が選んでいる生徒のスコアを更新
     if(S.selId&&DB.scores[S.selId]){
       S.tScores=DB.scores[S.selId];
