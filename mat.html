@@ -92,7 +92,7 @@ function initApp(){
   var db=firebase.database(fbApp);
   var auth=firebase.auth(fbApp);
   var teacherUnlocked=false;
-  var DB={classes:[],students:{},scores:{},criteria:{}};
+  var DB={classes:[],students:{},scores:{},criteria:{},thresholds:{}};
 
   function syncBar(type,msg){var b=document.getElementById('syncBar');b.textContent=msg;b.className=type;}
   function dbSet(path,val,cb){db.ref('mat1/'+path).set(val,cb||function(){});}
@@ -197,12 +197,23 @@ function initApp(){
     var bonus=(skills.length>0&&done===skills.length)?4:0;
     return base+bonus;
   }
+  var DEFAULT_THRESH={1:[["A",42],["B",31],["C",20]],23:[["A+",74],["A",66],["B+",55],["B",44]]};
+  var BOTTOM_GRADE={1:"D",23:"C"};
+  function threshKey(yr){return yr===1?1:23;}
+  function getThresh(yr){
+    var key=threshKey(yr);
+    var base=DEFAULT_THRESH[key];
+    var ov=DB.thresholds&&DB.thresholds[key];
+    if(!ov)return base;
+    return base.map(function(pair){
+      var v=ov[pair[0]];
+      return [pair[0],(v!==undefined&&v!==null&&v!=="")?Number(v):pair[1]];
+    });
+  }
   function calcGrade(t,yr){
-    if(yr===1){
-      if(t>=42)return"A";if(t>=31)return"B";if(t>=20)return"C";return"D";
-    }
-    // 2・3年共通
-    if(t>=74)return"A+";if(t>=66)return"A";if(t>=55)return"B+";if(t>=44)return"B";return"C";
+    var th=getThresh(yr);
+    for(var i=0;i<th.length;i++){if(t>=th[i][1])return th[i][0];}
+    return BOTTOM_GRADE[threshKey(yr)];
   }
   function uniq(arr){var s={},r=[];arr.forEach(function(v){if(!s[v]){s[v]=1;r.push(v);}});return r;}
   function escapeHtml(str){return String(str==null?"":str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
@@ -227,7 +238,7 @@ function initApp(){
     logStu:null,stuScores:{},stuExpanded:null,
     sFilterCls:"",sErr:"",
     pwModal:false,pwOk:false,pwErr:"",
-    confirmModal:null,alertMsg:null,editCriteria:null
+    confirmModal:null,alertMsg:null,editCriteria:null,editThreshold:null
   };
 
   // Google Sites 等のサンドボックス化された iframe 内では window.confirm() / alert()
@@ -273,6 +284,37 @@ function initApp(){
     dbRemove('criteria/'+skillId);
     delete DB.criteria[skillId];
     S.editCriteria=null;
+    render({keepScroll:true});
+  };
+
+  // 評価基準（合計点のしきい値）の編集 ─ 教師モードのみ
+  window.openEditThreshold=function(yr){S.editThreshold=yr;render();};
+  window.closeEditThreshold=function(){S.editThreshold=null;render();};
+  window.saveEditThreshold=function(yr){
+    var key=threshKey(yr);
+    var base=DEFAULT_THRESH[key];
+    var newOv={},ok=true,prev=null;
+    for(var i=0;i<base.length;i++){
+      var label=base[i][0];
+      var el=document.getElementById('et_'+label);
+      var v=el?el.value.trim():'';
+      if(v===""||isNaN(Number(v))){ok=false;break;}
+      var num=Number(v);
+      if(prev!==null&&num>=prev){ok=false;break;} // 上位グレードより小さい値でなければならない
+      newOv[label]=num;
+      prev=num;
+    }
+    if(!ok){showAlert("点数を正しく入力してください（上のグレードほど高い点数にしてください）");return;}
+    dbSet('thresholds/'+key,newOv,function(){
+      DB.thresholds[key]=newOv;
+      S.editThreshold=null;render({keepScroll:true});
+    });
+  };
+  window.resetEditThreshold=function(yr){
+    var key=threshKey(yr);
+    dbRemove('thresholds/'+key);
+    delete DB.thresholds[key];
+    S.editThreshold=null;
     render({keepScroll:true});
   };
 
@@ -386,7 +428,7 @@ function initApp(){
       panel+=renderSummaryBox(sel,total,grade,done,true);
       panel+='<div style="background:#e8f0fe;border:1px solid #c5d8fd;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:#1a56c4">✏️ 教師モード：評価の確認・修正ができます</div>';
       panel+=renderSkillList(skills,sc,sel,'t');
-      panel+=renderGradeCriteria(gradeFromCls(sel.cls));
+      panel+=renderGradeCriteria(gradeFromCls(sel.cls),true);
     }
     panel+='</div>';
 
@@ -435,7 +477,7 @@ function initApp(){
     if(s.isDefault)html+='<div style="background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:10px 14px;font-size:13px;color:#7a5c00;margin-bottom:12px">⚠️ 初期パスワード（出席番号）のままです。「PW変更」から変更してください。</div>';
     html+=renderSummaryBox(s,total,grade,done,false);
     html+=renderSkillList(skills,sc,s,'s');
-    html+=renderGradeCriteria(gradeFromCls(s.cls));
+    html+=renderGradeCriteria(gradeFromCls(s.cls),false);
     html+='</div>';
     if(S.pwModal){
       html+='<div class="modal-overlay" onclick="if(event.target===this)closePwModal()">'
@@ -533,12 +575,19 @@ function initApp(){
     return html;
   }
 
-  function renderGradeCriteria(yr){
-    var items=yr===1
-      ?[["A","42点以上"],["B","31〜41点"],["C","20〜30点"],["D","19点以下"]]
-      :[["A+","74点以上"],["A","66〜73点"],["B+","55〜65点"],["B","44〜54点"],["C","43点以下"]];
+  function renderGradeCriteria(yr,isTeacher){
+    var th=getThresh(yr);
+    var bottom=BOTTOM_GRADE[threshKey(yr)];
+    var items=th.map(function(pair,i){
+      var label=pair[0],min=pair[1];
+      var text=i===0?(min+"点以上"):(min+"〜"+(th[i-1][1]-1)+"点");
+      return [label,text];
+    });
+    items.push([bottom,(th[th.length-1][1]-1)+"点以下"]);
     var sklCount=SKILLS[yr]?SKILLS[yr].length:14;
+    var editBtn=isTeacher?'<button onclick="openEditThreshold('+yr+')" style="font-size:11px;color:#4A86E8;border-color:#c5d8fd;background:#eef4ff;padding:4px 10px;margin-bottom:8px">✏️ 評価基準（点数）を編集</button>':'';
     return '<div style="background:#fff;border:1px solid #dde4f8;border-radius:10px;padding:12px 14px;margin-top:8px">'
+      +editBtn
       +'<p style="font-size:12px;color:#888;margin-bottom:4px">評価基準（'+sklCount+'種目 '+BASE_MAX[yr]+'点満点＋全種目完了で+4点）</p>'
       +'<p style="font-size:11px;color:#aaa;margin-bottom:8px">全'+sklCount+'種目すべてに得点が入ると、合計に自動で+4点されます（最大'+(BASE_MAX[yr]+4)+'点）</p>'
       +'<div style="display:flex;flex-wrap:wrap;gap:6px">'
@@ -589,6 +638,35 @@ function initApp(){
           +'<button onclick="resetEditCriteria(\''+esk.id+'\')" style="font-size:11px;color:#888;border-color:#ddd;background:#f5f5f5;padding:6px 10px;margin-top:10px;width:100%">↺ 初期の基準文に戻す</button>'
           +'</div></div>';
       }
+    }
+    // 評価基準（合計点のしきい値）の編集（教師モードのみ）
+    if(S.editThreshold){
+      var tyr=S.editThreshold;
+      var tkey=threshKey(tyr);
+      var tbase=DEFAULT_THRESH[tkey];
+      var tth=getThresh(tyr);
+      var tbottom=BOTTOM_GRADE[tkey];
+      html+='<div class="modal-overlay" onclick="if(event.target===this)closeEditThreshold()">'
+        +'<div class="modal"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
+        +'<h3 style="font-size:16px;font-weight:700">評価基準（点数）の編集</h3>'
+        +'<button class="btn-icon" onclick="closeEditThreshold()">✕</button></div>'
+        +'<p style="font-size:13px;color:#888;margin-bottom:14px">'+(tyr===1?'1年':'2・3年')+' の合計点による判定基準（各グレードの「これ以上」の点数）</p>'
+        +'<div style="display:flex;flex-direction:column;gap:10px">'
+        +tbase.map(function(pair,i){
+          var label=pair[0];
+          var curVal=tth[i][1];
+          return '<div><label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">'+label+'評価　以上の点数</label>'
+            +'<input type="number" id="et_'+label+'" value="'+curVal+'" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:14px">'
+            +'</div>';
+        }).join('')
+        +'<p style="font-size:11px;color:#aaa">'+tbottom+'評価はそれ未満の点数に自動的に設定されます。上のグレードほど大きい値を入力してください。</p>'
+        +'</div>'
+        +'<div style="display:flex;gap:8px;margin-top:14px">'
+        +'<button class="btn-primary" onclick="saveEditThreshold('+tyr+')" style="flex:1">保存する</button>'
+        +'<button onclick="closeEditThreshold()" style="flex:1">キャンセル</button>'
+        +'</div>'
+        +'<button onclick="resetEditThreshold('+tyr+')" style="font-size:11px;color:#888;border-color:#ddd;background:#f5f5f5;padding:6px 10px;margin-top:10px;width:100%">↺ 初期の基準点に戻す</button>'
+        +'</div></div>';
     }
     // 一括追加
     if(S.bulkOpen){
@@ -874,7 +952,7 @@ function initApp(){
   // Firebase監視
   db.ref('mat1').on('value',function(snap){
     var val=snap.val()||{};
-    DB.classes=val.classes||[];DB.students=val.students||{};DB.scores=val.scores||{};DB.criteria=val.criteria||{};
+    DB.classes=val.classes||[];DB.students=val.students||{};DB.scores=val.scores||{};DB.criteria=val.criteria||{};DB.thresholds=val.thresholds||{};
     if(S.selId&&DB.scores[S.selId])S.tScores=DB.scores[S.selId];
     syncBar('ok','✅ リアルタイム同期中');
     if(S.page==='teacher'||S.page==='stuview')render({keepScroll:true});
