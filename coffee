@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>珈琲通信 コーヒー豆注文フォーム</title>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<style>
+ :root {
+ /* コーヒーをイメージしたカラーパレットに変更 */
+ --dough: #F5EFEB;
+ --dough-dark: #E0D4C8;
+ --soy: #3E2723;
+ --soy-light: #5D4037;
+ --chive: #795548;
+ --chive-dark: #4E342E;
+ --paper: #FFFDFB;
+ --accent: #D84315;
+ --shadow: rgba(62, 39, 35, 0.15);
+ }
+ * { box-sizing: border-box; }
+ body {
+ margin: 0;
+ font-family: "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif;
+ background: var(--dough);
+ background-image:
+ radial-gradient(circle at 20% 10%, rgba(255,255,255,0.5) 0%, transparent 40%),
+ radial-gradient(circle at 90% 80%, rgba(216, 67, 21, 0.04) 0%, transparent 45%);
+ color: var(--soy);
+ min-height: 100vh;
+ padding-bottom: 60px;
+ }
+ header {
+ background: var(--soy);
+ color: var(--dough);
+ padding: 22px 20px 20px;
+ position: relative;
+ overflow: hidden;
+ }
+ header h1 {
+ margin: 0;
+ font-size: 1.5rem;
+ letter-spacing: 0.02em;
+ display: flex;
+ align-items: center;
+ gap: 10px;
+ }
+ header .icon {
+ font-size: 1.5rem;
+ }
+ header p {
+ margin: 6px 0 0;
+ font-size: 0.85rem;
+ opacity: 0.75;
+ }
+
+ .status-banner {
+ text-align: center;
+ padding: 10px 16px;
+ font-weight: 800;
+ font-size: 0.95rem;
+ letter-spacing: 0.02em;
+ }
+ .status-banner.open {
+ background: #E4EEDD;
+ color: var(--chive-dark);
+ }
+ .status-banner.closed {
+ background: #F3DCD5;
+ color: var(--accent);
+ }
+ .status-banner.unset {
+ background: var(--dough-dark);
+ color: var(--soy-light);
+ font-weight: 600;
+ font-size: 0.85rem;
+ }
+
+ .deadline-toggle {
+ display: block;
+ width: 100%;
+ text-align: left;
+ background: none;
+ border: none;
+ color: var(--soy-light);
+ font-size: 0.78rem;
+ padding: 0 0 12px;
+ cursor: pointer;
+ text-decoration: underline;
+ }
+ .deadline-toggle:hover { color: var(--accent); }
+ .deadline-setting {
+ display: none;
+ background: var(--dough);
+ border-radius: 10px;
+ padding: 12px;
+ margin-bottom: 16px;
+ }
+ .deadline-setting.show { display: block; }
+ .deadline-setting input[type=date],
+ .deadline-setting select {
+ width: 100%;
+ padding: 9px 10px;
+ border-radius: 10px;
+ border: 1.5px solid var(--dough-dark);
+ font-size: 0.95rem;
+ background: #fff;
+ color: var(--soy);
+ margin-bottom: 12px;
+ }
+ .deadline-setting .setting-field { margin-bottom: 4px; }
+ .deadline-setting button.btn-small { width: 100%; }
+
+ .tabs {
+ display: flex;
+ max-width: 640px;
+ margin: 18px auto 0;
+ padding: 0 16px;
+ gap: 8px;
+ }
+ .tab-btn {
+ flex: 1;
+ padding: 12px 8px;
+ border: none;
+ background: var(--paper);
+ color: var(--soy-light);
+ font-size: 0.92rem;
+ font-weight: 600;
+ border-radius: 12px 12px 0 0;
+ cursor: pointer;
+ opacity: 0.6;
+ transition: opacity 0.15s ease, transform 0.15s ease;
+ }
+ .tab-btn.active {
+ opacity: 1;
+ color: var(--soy);
+ box-shadow: 0 -2px 8px var(--shadow);
+ }
+ .tab-btn:not(.active):hover { opacity: 0.85; }
+
+ main {
+ max-width: 640px;
+ margin: 0 auto;
+ padding: 0 16px;
+ }
+ .panel {
+ background: var(--paper);
+ border-radius: 0 0 16px 16px;
+ padding: 20px 18px 26px;
+ box-shadow: 0 4px 20px var(--shadow);
+ }
+ .panel.top-round { border-radius: 16px; margin-top: 18px; }
+
+ .field-label {
+ font-size: 0.82rem;
+ font-weight: 700;
+ color: var(--soy-light);
+ margin-bottom: 6px;
+ display: block;
+ letter-spacing: 0.03em;
+ }
+
+ select, input[type=text] {
+ width: 100%;
+ padding: 11px 12px;
+ border-radius: 10px;
+ border: 1.5px solid var(--dough-dark);
+ background: #fff;
+ font-size: 1rem;
+ color: var(--soy);
+ }
+ select:focus, input[type=text]:focus, input[type=number]:focus {
+ outline: 2px solid var(--chive);
+ outline-offset: 1px;
+ }
+
+ .teacher-row { display: flex; gap: 8px; margin-bottom: 18px; }
+ .teacher-row select { flex: 1; }
+ .add-teacher-inline {
+ display: none;
+ gap: 8px;
+ margin-top: 8px;
+ }
+ .add-teacher-inline.show { display: flex; }
+ .btn-small {
+ padding: 10px 14px;
+ border-radius: 10px;
+ border: none;
+ background: var(--chive);
+ color: #fff;
+ font-weight: 700;
+ font-size: 0.9rem;
+ cursor: pointer;
+ white-space: nowrap;
+ }
+ .btn-small:hover { background: var(--chive-dark); }
+
+ .category {
+ margin-bottom: 20px;
+ }
+ .category-title {
+ font-size: 0.95rem;
+ font-weight: 800;
+ color: var(--accent);
+ border-bottom: 2px dashed var(--dough-dark);
+ padding-bottom: 6px;
+ margin-bottom: 10px;
+ }
+ .item-row {
+ display: flex;
+ align-items: center;
+ justify-content: space-between;
+ padding: 12px 0;
+ border-bottom: 1px solid #F0E2CC;
+ gap: 10px;
+ }
+ .item-row:last-child { border-bottom: none; }
+ .item-info { flex: 1; min-width: 0; }
+ .item-name { font-size: 0.93rem; font-weight: 600; }
+ .item-desc { font-size: 0.72rem; color: var(--soy-light); margin-top: 3px; line-height: 1.3; }
+ .item-price { font-size: 0.85rem; font-weight: bold; color: var(--accent); margin-top: 3px; }
+ .qty-control {
+ display: flex;
+ align-items: center;
+ gap: 6px;
+ flex-shrink: 0;
+ }
+ .qty-btn {
+ width: 30px; height: 30px;
+ border-radius: 50%;
+ border: 1.5px solid var(--chive);
+ background: #fff;
+ color: var(--chive-dark);
+ font-size: 1.1rem;
+ font-weight: 700;
+ line-height: 1;
+ cursor: pointer;
+ display: flex; align-items: center; justify-content: center;
+ }
+ .qty-btn:hover { background: var(--chive); color: #fff; }
+ .qty-input {
+ width: 44px;
+ text-align: center;
+ padding: 6px 2px;
+ border-radius: 8px;
+ border: 1.5px solid var(--dough-dark);
+ font-size: 0.95rem;
+ }
+
+ .total-bar {
+ position: sticky;
+ bottom: 0;
+ background: var(--paper);
+ border-top: 2px solid var(--dough-dark);
+ padding: 14px 18px;
+ display: flex;
+ align-items: center;
+ justify-content: space-between;
+ border-radius: 0 0 16px 16px;
+ margin-top: 4px;
+ }
+ .total-label { font-size: 0.85rem; color: var(--soy-light); }
+ .total-amount { font-size: 1.4rem; font-weight: 800; color: var(--accent); }
+ .submit-btn {
+ width: 100%;
+ margin-top: 14px;
+ padding: 14px;
+ border: none;
+ border-radius: 12px;
+ background: var(--accent);
+ color: #fff;
+ font-size: 1.05rem;
+ font-weight: 800;
+ cursor: pointer;
+ letter-spacing: 0.03em;
+ box-shadow: 0 3px 10px rgba(216, 67, 21, 0.35);
+ }
+ .submit-btn:hover { background: #BF360C; }
+ .submit-btn:disabled { background: #D7CCC8; cursor: not-allowed; box-shadow: none; }
+
+ .toast {
+ position: fixed;
+ top: 16px; left: 50%;
+ transform: translateX(-50%) translateY(-20px);
+ background: var(--chive-dark);
+ color: #fff;
+ padding: 12px 22px;
+ border-radius: 30px;
+ font-weight: 700;
+ font-size: 0.9rem;
+ opacity: 0;
+ transition: all 0.25s ease;
+ z-index: 100;
+ box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+ }
+ .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+ /* History panel */
+ .summary-box {
+ background: var(--dough);
+ border-radius: 12px;
+ padding: 14px;
+ margin-bottom: 18px;
+ }
+ .summary-box h3 {
+ margin: 0 0 10px;
+ font-size: 0.95rem;
+ color: var(--soy);
+ }
+ table.summary-table {
+ width: 100%;
+ border-collapse: collapse;
+ font-size: 0.85rem;
+ }
+ table.summary-table th, table.summary-table td {
+ text-align: left;
+ padding: 6px 4px;
+ border-bottom: 1px solid var(--dough-dark);
+ }
+ table.summary-table th { color: var(--soy-light); font-weight: 700; }
+ table.summary-table td.num, table.summary-table th.num { text-align: right; }
+
+ .order-card {
+ background: #fff;
+ border: 1.5px solid var(--dough-dark);
+ border-radius: 12px;
+ padding: 14px 16px;
+ margin-bottom: 12px;
+ position: relative;
+ }
+ .order-card .order-head {
+ display: flex;
+ justify-content: space-between;
+ align-items: baseline;
+ margin-bottom: 8px;
+ }
+ .order-card .teacher-name {
+ font-weight: 800;
+ font-size: 1rem;
+ color: var(--soy);
+ }
+ .order-card .order-time {
+ font-size: 0.72rem;
+ color: var(--soy-light);
+ }
+ .order-card ul {
+ margin: 0 0 8px;
+ padding-left: 18px;
+ font-size: 0.87rem;
+ }
+ .order-card .order-total {
+ text-align: right;
+ font-weight: 800;
+ color: var(--accent);
+ font-size: 1rem;
+ }
+ .order-card.is-paid {
+ background: #F3FAEF;
+ border-color: #B9DDA6;
+ }
+ .order-foot {
+ display: flex;
+ align-items: center;
+ justify-content: space-between;
+ gap: 10px;
+ }
+ .paid-toggle-btn {
+ border-radius: 20px;
+ padding: 7px 14px;
+ font-size: 0.8rem;
+ font-weight: 700;
+ cursor: pointer;
+ border: 1.5px solid var(--dough-dark);
+ background: #fff;
+ color: var(--soy-light);
+ }
+ .paid-toggle-btn.unpaid {
+ border-color: var(--accent);
+ color: var(--accent);
+ }
+ .paid-toggle-btn.paid {
+ border-color: #6FA65A;
+ background: #E4F2DC;
+ color: #3F6B2E;
+ }
+ .delete-btn {
+ position: absolute;
+ top: 10px; right: 10px;
+ background: none;
+ border: none;
+ color: var(--soy-light);
+ font-size: 0.75rem;
+ cursor: pointer;
+ text-decoration: underline;
+ }
+ .delete-btn:hover { color: var(--accent); }
+
+ .empty-state {
+ text-align: center;
+ padding: 40px 20px;
+ color: var(--soy-light);
+ font-size: 0.9rem;
+ }
+ .empty-state .icon-big { font-size: 2.5rem; display: block; margin-bottom: 10px; }
+
+ .reset-all {
+ display: block;
+ margin: 20px auto 0;
+ background: none;
+ border: 1px solid var(--soy-light);
+ color: var(--soy-light);
+ padding: 8px 16px;
+ border-radius: 20px;
+ font-size: 0.78rem;
+ cursor: pointer;
+ }
+ .reset-all:hover { border-color: var(--accent); color: var(--accent); }
+
+ .notice {
+ font-size: 0.72rem;
+ color: var(--soy-light);
+ text-align: center;
+ margin-top: 14px;
+ line-height: 1.5;
+ }
+ 
+ .shop-info {
+ background: var(--dough);
+ border-radius: 12px;
+ padding: 16px;
+ margin-top: 24px;
+ text-align: center;
+ font-size: 0.8rem;
+ color: var(--soy-light);
+ line-height: 1.6;
+ }
+ .shop-info h4 {
+ margin: 0 0 8px;
+ color: var(--soy);
+ font-size: 1rem;
+ }
+</style>
+</head>
+<body>
+
+<header>
+ <h1><span class="icon">☕</span>珈琲通信 注文フォーム</h1>
+ <p>PRICE LISTのコーヒー豆を注文・集計します</p>
+</header>
+
+<div class="status-banner" id="status-banner"></div>
+
+<div class="tabs">
+ <button class="tab-btn active" data-tab="order">注文する</button>
+ <button class="tab-btn" data-tab="history">注文一覧・集計</button>
+</div>
+
+<main>
+ <!-- ORDER PANEL -->
+ <section class="panel" id="panel-order">
+ <button class="deadline-toggle" id="deadline-toggle">⚙ 受付状況・日程を設定する（管理用）</button>
+ <div class="deadline-setting" id="deadline-setting">
+ <div class="setting-field">
+ <label class="field-label">受付状況</label>
+ <select id="accepting-select">
+ <option value="open">🟢 現在受付中</option>
+ <option value="closed">🔴 現在は受け付けていません</option>
+ </select>
+ </div>
+ <div class="setting-field">
+ <label class="field-label">締切日（表示用）</label>
+ <input type="date" id="deadline-input">
+ </div>
+ <div class="setting-field">
+ <label class="field-label">配送日・お届け予定日</label>
+ <input type="date" id="delivery-input">
+ </div>
+ <button class="btn-small" id="btn-save-settings">この内容で設定を保存する</button>
+ </div>
+
+ <label class="field-label">お名前（購入者）を選択</label>
+ <div class="teacher-row">
+ <select id="teacher-select"></select>
+ <button class="btn-small" id="btn-new-teacher">＋登録</button>
+ </div>
+ <div class="add-teacher-inline" id="new-teacher-row">
+ <input type="text" id="new-teacher-input" placeholder="お名前を入力（例：山田）">
+ <button class="btn-small" id="btn-add-teacher">追加</button>
+ </div>
+
+ <div id="items-container"></div>
+ 
+ <div class="shop-info">
+ <h4>RICH JAMAICA コーヒー豆・器具専門店 珈琲通信</h4>
+ 〒577-0801 東大阪市小阪 3-1-13<br>
+ TEL/FAX 06-6781-0901<br>
+ 〒590-0115 堺市南区茶山台1-2-3<br>
+ TEL/FAX 072-293-1048<br>
+ ギフト事業部 泉南郡熊取町野田<br>
+ MAIL: coffee.tsushin@gmail.com<br>
+ WEB: https://coffeetsushin.com<br>
+ ※その他カフェインレス珈琲、限定珈琲もございます
+ </div>
+ </section>
+
+ <div class="panel total-bar" id="total-bar-panel">
+ <div>
+ <div class="total-label">合計金額</div>
+ <div class="total-amount" id="total-amount">¥0</div>
+ </div>
+ </div>
+ <button class="submit-btn" id="submit-btn">この内容で注文を送信する</button>
+ <p class="notice">送信内容は「注文一覧・集計」タブで全員が確認できます。</p>
+
+ <!-- HISTORY PANEL -->
+ <section class="panel top-round" id="panel-history" style="display:none;">
+ <div id="history-content"></div>
+ <button class="reset-all" id="csv-download-btn" style="border-color: var(--chive); color: var(--chive-dark); margin-bottom: 10px;">📄 CSVでダウンロード（注文明細・購入者別）</button>
+ <button class="reset-all" id="csv-paper-download-btn" style="border-color: var(--accent); color: var(--accent); margin-bottom: 10px;">🧾 注文書と同じ並びでCSVダウンロード</button>
+ <button class="reset-all" id="reset-all-btn">すべての注文をリセットする（管理者用）</button>
+ </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// メニュー内容は提供いただいた画像（PLICE LIST）に準拠しています
+const MENU = [
+ { category: "ブレンドコーヒー (100g)", items: [
+ { id: "jamaica", name: "ジャマイカリッチブレンド", desc: "クリスタルマウンテン、ドミニカAA等カリブ海海域の高品質な豆を使用したまろやかで香り高いブレンド", unit: "100g", price: 650 },
+ { id: "peru_blend", name: "ペルーブレンド", desc: "ペルーを66%使用した、コクのあるブレンド イチオシのコーヒーです", unit: "100g", price: 670 },
+ { id: "mild", name: "マイルドブレンド", desc: "酸味、苦味などのバランスが良くまろやかでクセのない好まれやすいブレンド", unit: "100g", price: 600 },
+ { id: "original", name: "オリジナルブレンド", desc: "酸味が少なく、苦すぎないのでまろやかで飲みやすい お求めやすいブレンド", unit: "100g", price: 580 },
+ { id: "strong", name: "ストロングブレンド", desc: "苦味がしっかりきいた味 カフェオレ、エスプレッソを飲まれる方にもおすすめ", unit: "100g", price: 680 },
+ { id: "european", name: "ヨーロピアンブレンド", desc: "コク、苦味、香りがあり喫茶店などでブレンドとして使用される珈琲", unit: "100g", price: 600 },
+ ]},
+ { category: "ストレート・その他 (100g)", items: [
+ { id: "sumatra", name: "スマトラマンデリン", desc: "インドネシア産 深いコクとほろ苦さのバランスが良く独特の香ばしさがある", unit: "100g", price: 750 },
+ { id: "haiti", name: "ハイチフレンチブルー", desc: "苗がジャマイカから来ている事もあり、ジャマイカ産コーヒーに近いテイスト スペシャリティコーヒー", unit: "100g", price: 800 },
+ { id: "peru", name: "ペルー (有機栽培珈琲豆)", desc: "苦味、コクのバランスがとれ、酸味が強くない 後味さっぱりのコーヒー", unit: "100g", price: 680 },
+ { id: "tanzania", name: "タンザニア (キリマンジャロ)", desc: "タンザニア産 酸味、甘味、苦味のバランスが良くすっきりとした後味", unit: "100g", price: 720 },
+ { id: "guatemala", name: "グァテマラカフェピューマ", desc: "独特の香りを持ち、ほのかな酸味、苦味が特徴 とても濃厚な味", unit: "100g", price: 750 },
+ { id: "brazil", name: "ブラジルサントス", desc: "適度な苦味とコク さわやかな酸味があり、とてもバランスが良い味", unit: "100g", price: 650 },
+ { id: "mocha", name: "モカ", desc: "エチオピア産 柔らかな酸味、芳醇で甘くフルーティーな香りが特徴", unit: "100g", price: 650 },
+ ]}
+];
+
+// CSV用の並び順
+const PAPER_ORDER = ["jamaica","sumatra","haiti","peru","peru_blend","mild","original","tanzania","guatemala","brazil","mocha","strong","european"];
+
+let teachers = [];
+let orders = [];
+let deadline = null;
+let deliveryDate = null;
+let accepting = 'open';
+let currentQty = {};
+let storageWorks = true;
+
+// ===================== ここにFirebaseの設定を貼り付けてください =====================
+const firebaseConfig = {
+ apiKey: "YOUR_API_KEY", // 実際のAPIキーに置き換えてください
+ authDomain: "your-project.firebaseapp.com",
+ projectId: "your-project",
+ storageBucket: "your-project.firebasestorage.app",
+ messagingSenderId: "123456789",
+ appId: "1:123456789:web:abcdefg"
+};
+// ================================================================================
+
+let db = null;
+let docRef = null;
+let firebaseReady = false;
+
+function initFirebase() {
+ if (firebaseConfig.apiKey === "YOUR_API_KEY") {
+ console.warn('firebaseConfigが未設定です。上部の firebaseConfig に実際の値を貼り付けてください。');
+ return;
+ }
+ try {
+ firebase.initializeApp(firebaseConfig);
+ db = firebase.firestore();
+ docRef = db.collection('coffee_orders').doc('shared'); // コレクション名を変更しています
+ firebaseReady = true;
+ } catch (e) {
+ console.error('Firebase初期化エラー:', e);
+ firebaseReady = false;
+ }
+}
+
+async function saveData(fields) {
+ if (!firebaseReady) { storageWorks = false; return false; }
+ let lastErr = null;
+ for (let attempt = 0; attempt < 3; attempt++) {
+ try {
+ await docRef.set(fields, { merge: true });
+ storageWorks = true;
+ return true;
+ } catch (e) {
+ lastErr = e;
+ }
+ await new Promise(r => setTimeout(r, 300 * (attempt + 1)));
+ }
+ console.error('saveData failed after retries:', lastErr);
+ storageWorks = false;
+ return false;
+}
+
+async function loadData() {
+ if (!firebaseReady) { teachers = []; orders = []; deadline = null; deliveryDate = null; accepting = 'open'; return; }
+ try {
+ const snap = await docRef.get();
+ if (snap.exists) {
+ const data = snap.data();
+ teachers = Array.isArray(data.teachers) ? data.teachers : [];
+ orders = Array.isArray(data.orders) ? data.orders : [];
+ deadline = typeof data.deadline === 'string' ? data.deadline : null;
+ deliveryDate = typeof data.deliveryDate === 'string' ? data.deliveryDate : null;
+ accepting = data.accepting === 'closed' ? 'closed' : 'open';
+ } else {
+ teachers = []; orders = []; deadline = null; deliveryDate = null; accepting = 'open';
+ }
+ } catch (e) {
+ console.error('loadData failed:', e);
+ teachers = []; orders = []; deadline = null; deliveryDate = null; accepting = 'open';
+ }
+}
+
+function subscribeRealtime() {
+ if (!firebaseReady) return;
+ docRef.onSnapshot(snap => {
+ if (!snap.exists) return;
+ const data = snap.data();
+ teachers = Array.isArray(data.teachers) ? data.teachers : [];
+ orders = Array.isArray(data.orders) ? data.orders : [];
+ deadline = typeof data.deadline === 'string' ? data.deadline : null;
+ deliveryDate = typeof data.deliveryDate === 'string' ? data.deliveryDate : null;
+ accepting = data.accepting === 'closed' ? 'closed' : 'open';
+ renderTeacherSelect();
+ renderStatusBanner();
+ const historyPanel = document.getElementById('panel-history');
+ if (historyPanel && historyPanel.style.display !== 'none') renderHistory();
+ }, err => console.error('realtime sync error:', err));
+}
+
+const teacherSelect = document.getElementById('teacher-select');
+const itemsContainer = document.getElementById('items-container');
+const totalAmountEl = document.getElementById('total-amount');
+const toastEl = document.getElementById('toast');
+const submitBtn = document.getElementById('submit-btn');
+
+function showToast(msg) {
+ toastEl.textContent = msg;
+ toastEl.classList.add('show');
+ setTimeout(() => toastEl.classList.remove('show'), 2200);
+}
+
+function yen(n) { return '¥' + n.toLocaleString('ja-JP'); }
+
+function renderItems() {
+ itemsContainer.innerHTML = '';
+ MENU.forEach(cat => {
+ const catDiv = document.createElement('div');
+ catDiv.className = 'category';
+ const title = document.createElement('div');
+ title.className = 'category-title';
+ title.textContent = cat.category;
+ catDiv.appendChild(title);
+
+ cat.items.forEach(item => {
+ const row = document.createElement('div');
+ row.className = 'item-row';
+ row.innerHTML = `
+ <div class="item-info">
+ <div class="item-name">${item.name}</div>
+ <div class="item-desc">${item.desc}</div>
+ <div class="item-price">${yen(item.price)} / ${item.unit}</div>
+ </div>
+ <div class="qty-control">
+ <button class="qty-btn" data-action="dec" data-id="${item.id}">−</button>
+ <input class="qty-input" type="number" min="0" value="${currentQty[item.id]||0}" data-id="${item.id}">
+ <button class="qty-btn" data-action="inc" data-id="${item.id}">＋</button>
+ </div>
+ `;
+ catDiv.appendChild(row);
+ });
+ itemsContainer.appendChild(catDiv);
+ });
+
+ itemsContainer.querySelectorAll('.qty-btn').forEach(btn => {
+ btn.addEventListener('click', () => {
+ const id = btn.dataset.id;
+ const cur = currentQty[id] || 0;
+ if (btn.dataset.action === 'inc') currentQty[id] = cur + 1;
+ else currentQty[id] = Math.max(0, cur - 1);
+ renderItems();
+ updateTotal();
+ });
+ });
+ itemsContainer.querySelectorAll('.qty-input').forEach(inp => {
+ inp.addEventListener('change', () => {
+ const id = inp.dataset.id;
+ let v = parseInt(inp.value, 10);
+ if (isNaN(v) || v < 0) v = 0;
+ currentQty[id] = v;
+ renderItems();
+ updateTotal();
+ });
+ });
+}
+
+function findItem(id) {
+ for (const cat of MENU) {
+ const found = cat.items.find(i => i.id === id);
+ if (found) return found;
+ }
+ return null;
+}
+
+function updateTotal() {
+ let total = 0;
+ Object.keys(currentQty).forEach(id => {
+ const qty = currentQty[id] || 0;
+ if (qty > 0) {
+ const item = findItem(id);
+ if (item) total += item.price * qty;
+ }
+ });
+ totalAmountEl.textContent = yen(total);
+ return total;
+}
+
+function renderTeacherSelect() {
+ const prevValue = teacherSelect.value;
+ teacherSelect.innerHTML = '<option value="">選択してください</option>' +
+ teachers.map(t => `<option value="${t}">${t}</option>`).join('');
+ if (teachers.includes(prevValue)) teacherSelect.value = prevValue;
+}
+
+function formatDateJP(dateStr) {
+ const d = new Date(dateStr + 'T00:00:00');
+ return `${d.getMonth() + 1}月${d.getDate()}日`;
+}
+
+function isAcceptingOrders() {
+ return accepting !== 'closed';
+}
+
+function renderStatusBanner() {
+ const banner = document.getElementById('status-banner');
+ const infoParts = [];
+ if (deadline) infoParts.push(`締切:${formatDateJP(deadline)}`);
+ if (deliveryDate) infoParts.push(`お届け予定:${formatDateJP(deliveryDate)}`);
+ const infoText = infoParts.length ? `（${infoParts.join(' / ')}）` : '';
+
+ if (isAcceptingOrders()) {
+ banner.className = 'status-banner open';
+ banner.textContent = `🟢 現在受付中${infoText}`;
+ submitBtn.disabled = false;
+ } else {
+ banner.className = 'status-banner closed';
+ banner.textContent = `🔴 現在は受け付けていません${infoText}`;
+ submitBtn.disabled = true;
+ }
+}
+
+document.getElementById('deadline-toggle').addEventListener('click', () => {
+ const row = document.getElementById('deadline-setting');
+ row.classList.toggle('show');
+ if (row.classList.contains('show')) {
+ document.getElementById('accepting-select').value = accepting;
+ if (deadline) document.getElementById('deadline-input').value = deadline;
+ if (deliveryDate) document.getElementById('delivery-input').value = deliveryDate;
+ }
+});
+
+document.getElementById('btn-save-settings').addEventListener('click', async () => {
+ accepting = document.getElementById('accepting-select').value === 'closed' ? 'closed' : 'open';
+ const deadlineVal = document.getElementById('deadline-input').value;
+ const deliveryVal = document.getElementById('delivery-input').value;
+ deadline = deadlineVal || null;
+ deliveryDate = deliveryVal || null;
+ renderStatusBanner();
+ const ok = await saveData({ accepting, deadline, deliveryDate });
+ showToast(ok ? '設定を保存しました' : '設定の保存に失敗しました');
+});
+
+document.getElementById('btn-new-teacher').addEventListener('click', () => {
+ const row = document.getElementById('new-teacher-row');
+ row.classList.toggle('show');
+ if (row.classList.contains('show')) document.getElementById('new-teacher-input').focus();
+});
+
+document.getElementById('btn-add-teacher').addEventListener('click', async () => {
+ const input = document.getElementById('new-teacher-input');
+ const name = input.value.trim();
+ if (!name) return;
+ if (teachers.includes(name)) {
+ showToast('その名前はすでに登録されています');
+ return;
+ }
+ teachers.push(name);
+ renderTeacherSelect();
+ teacherSelect.value = name;
+ input.value = '';
+ document.getElementById('new-teacher-row').classList.remove('show');
+ const ok = await saveData({ teachers });
+ showToast(ok ? `「${name}」様を登録しました` : `「${name}」様を登録しました（この端末のみ・保存に失敗）`);
+});
+
+submitBtn.addEventListener('click', async () => {
+ if (!isAcceptingOrders()) { showToast('締切を過ぎているため注文できません'); return; }
+ const teacher = teacherSelect.value;
+ if (!teacher) { showToast('お名前を選択してください'); return; }
+
+ const orderedItems = [];
+ Object.keys(currentQty).forEach(id => {
+ const qty = currentQty[id] || 0;
+ if (qty > 0) {
+ const item = findItem(id);
+ orderedItems.push({ id, name: item.name, price: item.price, qty, subtotal: item.price * qty });
+ }
+ });
+ if (orderedItems.length === 0) { showToast('1つ以上の商品を選択してください'); return; }
+
+ const total = orderedItems.reduce((s, i) => s + i.subtotal, 0);
+ const order = {
+ id: 'o_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+ teacher,
+ items: orderedItems,
+ total,
+ timestamp: new Date().toISOString(),
+ paid: false,
+ };
+
+ submitBtn.disabled = true;
+ orders.push(order);
+ const ok = await saveData({ orders });
+ if (ok) {
+ showToast(`${teacher}様の注文を送信しました（${yen(total)}）`);
+ currentQty = {};
+ renderItems();
+ updateTotal();
+ } else {
+ orders.pop();
+ showToast('保存に失敗しました。電波状況を確認し、もう一度送信してください');
+ }
+ submitBtn.disabled = false;
+});
+
+// ----- Tabs -----
+document.querySelectorAll('.tab-btn').forEach(btn => {
+ btn.addEventListener('click', () => {
+ document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+ btn.classList.add('active');
+ const tab = btn.dataset.tab;
+ document.getElementById('panel-order').style.display = tab === 'order' ? 'block' : 'none';
+ document.getElementById('total-bar-panel').style.display = tab === 'order' ? 'flex' : 'none';
+ submitBtn.style.display = tab === 'order' ? 'block' : 'none';
+ document.querySelector('.notice').style.display = tab === 'order' ? 'block' : 'none';
+ document.getElementById('panel-history').style.display = tab === 'history' ? 'block' : 'none';
+ if (tab === 'history') renderHistory();
+ });
+});
+
+// ----- History -----
+function renderHistory() {
+ const container = document.getElementById('history-content');
+ if (orders.length === 0) {
+ container.innerHTML = `<div class="empty-state"><span class="icon-big">☕</span>まだ注文がありません</div>`;
+ return;
+ }
+
+ const byTeacher = {};
+ orders.forEach(o => {
+ if (!byTeacher[o.teacher]) byTeacher[o.teacher] = { count: 0, total: 0 };
+ const qtySum = o.items.reduce((s, i) => s + i.qty, 0);
+ byTeacher[o.teacher].count += qtySum;
+ byTeacher[o.teacher].total += o.total;
+ });
+ const grandTotal = orders.reduce((s, o) => s + o.total, 0);
+
+ const unpaidOrders = orders.filter(o => !o.paid);
+ const unpaidTotal = unpaidOrders.reduce((s, o) => s + o.total, 0);
+ const paidTotal = grandTotal - unpaidTotal;
+
+ let html = `<div class="summary-box">
+ <h3>集金状況</h3>
+ <table class="summary-table">
+ <tbody>
+ <tr><td>集金済み</td><td class="num">${orders.length - unpaidOrders.length} 件</td><td class="num">${yen(paidTotal)}</td></tr>
+ <tr><td>未集金</td><td class="num">${unpaidOrders.length} 件</td><td class="num">${yen(unpaidTotal)}</td></tr>
+ </tbody>
+ </table>
+ </div>
+ <div class="summary-box">
+ <h3>購入者別 集計</h3>
+ <table class="summary-table">
+ <thead><tr><th>お名前</th><th class="num">個数合計</th><th class="num">金額合計</th></tr></thead>
+ <tbody>
+ ${Object.keys(byTeacher).map(name => `
+ <tr><td>${name}</td><td class="num">${byTeacher[name].count}</td><td class="num">${yen(byTeacher[name].total)}</td></tr>
+ `).join('')}
+ </tbody>
+ <tfoot><tr><td><strong>合計</strong></td><td></td><td class="num"><strong>${yen(grandTotal)}</strong></td></tr></tfoot>
+ </table>
+ </div>`;
+
+ const sorted = [...orders].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+ html += sorted.map(o => {
+ const date = new Date(o.timestamp);
+ const dateStr = `${date.getMonth()+1}/${date.getDate()} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
+ const paid = !!o.paid;
+ return `<div class="order-card ${paid ? 'is-paid' : ''}">
+ <button class="delete-btn" data-id="${o.id}">削除</button>
+ <div class="order-head">
+ <span class="teacher-name">${o.teacher} 様</span>
+ <span class="order-time">${dateStr}</span>
+ </div>
+ <ul>
+ ${o.items.map(i => `<li>${i.name} × ${i.qty} ${yen(i.subtotal)}</li>`).join('')}
+ </ul>
+ <div class="order-foot">
+ <button class="paid-toggle-btn ${paid ? 'paid' : 'unpaid'}" data-id="${o.id}" data-paid="${paid}">
+ ${paid ? '✅ 集金済み' : '未集金'}
+ </button>
+ <div class="order-total">${yen(o.total)}</div>
+ </div>
+ </div>`;
+ }).join('');
+
+ container.innerHTML = html;
+
+ container.querySelectorAll('.paid-toggle-btn').forEach(btn => {
+ btn.addEventListener('click', async () => {
+ const id = btn.dataset.id;
+ const currentlyPaid = btn.dataset.paid === 'true';
+ const order = orders.find(o => o.id === id);
+ if (!order) return;
+ const confirmMsg = currentlyPaid
+ ? `${order.teacher}様（${yen(order.total)}）を「未集金」に戻しますか？`
+ : `${order.teacher}様（${yen(order.total)}）を「集金済み」にしますか？`;
+ if (!confirm(confirmMsg)) return;
+ const prevPaid = order.paid;
+ order.paid = !currentlyPaid;
+ const ok = await saveData({ orders });
+ if (ok) {
+ renderHistory();
+ showToast(order.paid ? '集金済みにしました' : '未集金に戻しました');
+ } else {
+ order.paid = prevPaid;
+ showToast('更新に失敗しました。もう一度お試しください');
+ }
+ });
+ });
+
+ container.querySelectorAll('.delete-btn').forEach(btn => {
+ btn.addEventListener('click', async () => {
+ if (!confirm('この注文を削除しますか？')) return;
+ const id = btn.dataset.id;
+ const backup = orders;
+ orders = orders.filter(o => o.id !== id);
+ const ok = await saveData({ orders });
+ if (ok) {
+ renderHistory();
+ showToast('注文を削除しました');
+ } else {
+ orders = backup;
+ showToast('削除に失敗しました。もう一度お試しください');
+ }
+ });
+ });
+}
+
+function downloadCSV() {
+ if (orders.length === 0) {
+ showToast('注文データがありません');
+ return;
+ }
+
+ const rows = [];
+ rows.push(['日時', 'お名前', '品名', '単価', '個数', '小計']);
+ const sorted = [...orders].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+ sorted.forEach(o => {
+ const date = new Date(o.timestamp);
+ const dateStr = `${date.getFullYear()}/${date.getMonth()+1}/${date.getDate()} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
+ o.items.forEach(i => {
+ rows.push([dateStr, o.teacher, i.name, i.price, i.qty, i.subtotal]);
+ });
+ });
+
+ rows.push([]); 
+ rows.push(['お名前', '個数合計', '金額合計']);
+ const byTeacher = {};
+ orders.forEach(o => {
+ if (!byTeacher[o.teacher]) byTeacher[o.teacher] = { count: 0, total: 0 };
+ const qtySum = o.items.reduce((s, i) => s + i.qty, 0);
+ byTeacher[o.teacher].count += qtySum;
+ byTeacher[o.teacher].total += o.total;
+ });
+ Object.keys(byTeacher).forEach(name => {
+ rows.push([name, byTeacher[name].count, byTeacher[name].total]);
+ });
+
+ const grandTotal = orders.reduce((s, o) => s + o.total, 0);
+ rows.push([]);
+ rows.push(['総合計', '', grandTotal]);
+
+ const csvContent = rows.map(row =>
+ row.map(cell => {
+ const s = String(cell ?? '');
+ if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+ return '"' + s.replace(/"/g, '""') + '"';
+ }
+ return s;
+ }).join(',')
+ ).join('\r\n');
+
+ const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+ const url = URL.createObjectURL(blob);
+ const now = new Date();
+ const fname = `コーヒー注文明細_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}.csv`;
+ const a = document.createElement('a');
+ a.href = url;
+ a.download = fname;
+ document.body.appendChild(a);
+ a.click();
+ document.body.removeChild(a);
+ URL.revokeObjectURL(url);
+}
+
+function downloadPaperFormCSV() {
+ if (orders.length === 0) {
+ showToast('注文データがありません');
+ return;
+ }
+
+ const totals = {};
+ orders.forEach(o => {
+ o.items.forEach(i => {
+ if (!totals[i.id]) totals[i.id] = { qty: 0, amount: 0 };
+ totals[i.id].qty += i.qty;
+ totals[i.id].amount += i.subtotal;
+ });
+ });
+
+ const rows = [];
+ rows.push(['珈琲通信 コーヒー豆注文書']);
+ rows.push(['名前', '', '連絡先', '']);
+ rows.push([]);
+ rows.push(['品名', '単位', '単価', '数量', '金額']);
+
+ let grandQty = 0;
+ let grandTotal = 0;
+ PAPER_ORDER.forEach(id => {
+ const item = findItem(id);
+ if (!item) return;
+ const t = totals[id] || { qty: 0, amount: 0 };
+ grandQty += t.qty;
+ grandTotal += t.amount;
+ rows.push([item.name, item.unit || '', item.price, t.qty || '', t.amount || '']);
+ });
+
+ rows.push(['合計', '', '', grandQty, grandTotal]);
+
+ const csvContent = rows.map(row =>
+ row.map(cell => {
+ const s = String(cell ?? '');
+ if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+ return '"' + s.replace(/"/g, '""') + '"';
+ }
+ return s;
+ }).join(',')
+ ).join('\r\n');
+
+ const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+ const url = URL.createObjectURL(blob);
+ const now = new Date();
+ const fname = `コーヒー注文書_FAX用_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}.csv`;
+ const a = document.createElement('a');
+ a.href = url;
+ a.download = fname;
+ document.body.appendChild(a);
+ a.click();
+ document.body.removeChild(a);
+ URL.revokeObjectURL(url);
+}
+
+document.getElementById('csv-download-btn').addEventListener('click', downloadCSV);
+document.getElementById('csv-paper-download-btn').addEventListener('click', downloadPaperFormCSV);
+
+document.getElementById('reset-all-btn').addEventListener('click', async () => {
+ if (!confirm('全ての注文履歴を削除します。よろしいですか？（この操作は元に戻せません）')) return;
+ const backup = orders;
+ orders = [];
+ const ok = await saveData({ orders });
+ if (ok) {
+ renderHistory();
+ showToast('全ての注文をリセットしました');
+ } else {
+ orders = backup;
+ showToast('リセットに失敗しました。もう一度お試しください');
+ }
+});
+
+// ----- Init -----
+async function init() {
+ initFirebase();
+ if (!firebaseReady) {
+ showToast('⚠️ firebaseConfigが未設定のため、データは保存されません。');
+ } else {
+ subscribeRealtime();
+ }
+ await loadData();
+ renderTeacherSelect();
+ renderStatusBanner();
+ renderItems();
+ updateTotal();
+}
+init();
+</script>
+</body>
+</html>
