@@ -160,7 +160,7 @@ function initApp(){
   }
   var SKILLS={1:makeSkills(1),2:makeSkills(2),3:makeSkills(3)};
 
-  var DEFAULT_THRESH=[["A",71],["B",53],["C",35]];
+  var DEFAULT_THRESH=[["A",45],["B",34],["C",22]];
   var BOTTOM_GRADE="D";
   function getThresh(){
     var ov=DB.thresholds&&DB.thresholds.main;
@@ -179,6 +179,9 @@ function initApp(){
   function gradeOf(g){if(g==="A")return"a";if(g==="B")return"b";if(g==="C")return"c";return"d";}
   function skillTotal(sc,sk){var d=sc[sk.id+"_d"],k=sc[sk.id+"_k"];return(d?d.pts:0)+(k?k.pts:0);}
   function calcTotal(sc,skills){return skills.reduce(function(s,sk){return s+skillTotal(sc,sk);},0);}
+  // 加点技（cat==="加点技"）を除いた「基本技」のみの合計点。評価（グレード）判定に使用する。
+  function calcBaseTotal(sc,skills){return skills.filter(function(sk){return sk.cat!=="加点技";}).reduce(function(s,sk){return s+skillTotal(sc,sk);},0);}
+  function baseMaxOf(skills){return skills.filter(function(sk){return sk.cat!=="加点技";}).length*8;}
   function gradeFromCls(cls){if(cls.indexOf("1年")>=0)return 1;if(cls.indexOf("2年")>=0)return 2;return 3;}
   function danCls(g,p){return g==="女子"?"sb-f"+p:"sb-m"+p;}
   function danCS(g,p){
@@ -287,7 +290,7 @@ function initApp(){
     var editBtn=isTeacher?'<button onclick="openEditThreshold()" style="font-size:11px;color:#E67E22;border-color:#f6c89b;background:#FEF3E8;padding:4px 10px;margin-bottom:8px">✏️ 評価基準（点数）を編集</button>':'';
     return '<div style="background:#fff;border:1px solid #e8d0c0;border-radius:10px;padding:12px 14px;margin-top:8px">'
       +editBtn
-      +'<p style="font-size:12px;color:#888;margin-bottom:8px">評価基準（88点満点）</p>'
+      +'<p style="font-size:12px;color:#888;margin-bottom:8px">評価基準（基本技56点満点・加点技を除く）</p>'
       +'<div style="display:flex;flex-wrap:wrap;gap:6px">'
       +items.map(function(r){return'<span class="badge b'+gradeOf(r[0])+'"><b>'+r[0]+'</b> '+r[1]+'</span>';}).join('')
       +'</div></div>';
@@ -429,12 +432,14 @@ function initApp(){
       var skills=SKILLS[sel.grade];
       var sc=S.tScores;
       var total=calcTotal(sc,skills);
-      var grade=calcGrade(total);
+      var baseTotal=calcBaseTotal(sc,skills);
+      var grade=calcGrade(baseTotal);
       var done=skills.filter(function(sk){return sc[sk.id+"_d"]!==undefined||sc[sk.id+"_k"]!==undefined;}).length;
       var gTag='<span class="'+(sel.gender==="女子"?"tag-f":"tag-m")+'">'+sel.gender+'</span>';
       panel+='<div class="summary-box">'
         +'<div id="sum-grade" class="grade-circle" style="'+gcStyle(grade)+'">'+grade+'</div>'
-        +'<div style="flex:1"><div style="font-weight:700;font-size:16px;display:flex;align-items:center;gap:6px">'+sel.cls+' '+sel.number+'番 '+gTag+'</div></div>'
+        +'<div style="flex:1"><div style="font-weight:700;font-size:16px;display:flex;align-items:center;gap:6px">'+sel.cls+' '+sel.number+'番 '+gTag+'</div>'
+        +'<div id="sum-base" style="font-size:11px;color:#888;margin-top:2px">評価判定：基本技 '+baseTotal+'/'+baseMaxOf(skills)+'点（加点技を除く）</div></div>'
         +'<div style="text-align:right">'
         +'<div id="sum-pts" style="font-size:22px;font-weight:700">'+total+'<span style="font-size:12px;color:#888;font-weight:400">/88</span></div>'
         +'<div id="sum-count" style="font-size:11px;color:#888">'+done+'/11種目</div>'
@@ -554,7 +559,8 @@ function initApp(){
         var sc=DB.scores[s.id]||{};
         var skills=SKILLS[s.grade];
         var total=calcTotal(sc,skills);
-        var grade=calcGrade(total);
+        var baseTotal=calcBaseTotal(sc,skills);
+        var grade=calcGrade(baseTotal);
         var done=skills.filter(function(sk){return sc[sk.id+"_d"]!==undefined||sc[sk.id+"_k"]!==undefined;}).length;
         // 各種目の点数
         var skillCells="";
@@ -569,6 +575,7 @@ function initApp(){
           +'<td style="padding:5px 8px;font-size:13px;font-weight:600;white-space:nowrap;border-right:1px solid #f0ede6">'+s.number+'番</td>'
           +'<td style="padding:5px 8px;text-align:center;border-right:1px solid #f0ede6"><span class="'+(s.gender==="女子"?"tag-f":"tag-m")+'">'+s.gender+'</span></td>'
           +skillCells
+          +'<td style="text-align:center;padding:5px 8px;font-size:13px;font-weight:600;border-right:1px solid #f0ede6;color:#888">'+baseTotal+'</td>'
           +'<td style="text-align:center;padding:5px 8px;font-size:14px;font-weight:700;border-right:1px solid #f0ede6">'+total+'</td>'
           +'<td style="text-align:center;padding:5px 8px"><span style="'+gcS+';padding:2px 10px;border-radius:6px;font-weight:700;font-size:13px">'+grade+'</span></td>'
           +'</tr>';
@@ -589,7 +596,7 @@ function initApp(){
         +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">'
         +'<select onchange="setRankingFilter(this.value)" style="width:auto">'+rClsOpts+'</select>'
         +'<span style="font-size:12px;color:#888">'+rList.length+'人</span>'
-        +'<span style="font-size:11px;color:#aaa">　1〜7：基本技　8〜11：加点技</span>'
+        +'<span style="font-size:11px;color:#aaa">　1〜7：基本技　8〜11：加点技（評価判定は基本技のみで実施）</span>'
         +'</div>'
         +'<div style="overflow-x:auto">'
         +'<table style="border-collapse:collapse;width:100%;font-size:12px">'
@@ -598,15 +605,22 @@ function initApp(){
         +'<th style="padding:6px 8px;text-align:left;border-right:1px solid #e0dbd0">出席番号</th>'
         +'<th style="padding:6px 8px;border-right:1px solid #e0dbd0">性別</th>'
         +skillHeaders
+        +'<th style="padding:6px 8px;text-align:center;white-space:nowrap;border-right:1px solid #e0dbd0">基本技計<br><span style="font-weight:400;color:#888">(評価用)</span></th>'
         +'<th style="padding:6px 8px;text-align:center;white-space:nowrap;border-right:1px solid #e0dbd0">合計</th>'
         +'<th style="padding:6px 8px;text-align:center">評価</th>'
         +'</tr></thead>'
         +'<tbody>'+tableRows+'</tbody>'
         +'</table></div>'
         +'<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">'
-        +[["A","71点以上"],["B","53〜70点"],["C","35〜52点"],["D","34点以下"]].map(function(r){
-          return'<span class="badge b'+gradeOf(r[0])+'"><b>'+r[0]+'</b> '+r[1]+'</span>';
-        }).join('')
+        +(function(){
+          var th=getThresh(),items=th.map(function(pair,i){
+            var label=pair[0],min=pair[1];
+            var text=i===0?(min+"点以上"):(min+"〜"+(th[i-1][1]-1)+"点");
+            return[label,text];
+          });
+          items.push([BOTTOM_GRADE,(th[th.length-1][1]-1)+"点以下"]);
+          return items.map(function(r){return'<span class="badge b'+gradeOf(r[0])+'"><b>'+r[0]+'</b> '+r[1]+'</span>';}).join('');
+        })()
         +'</div></div></div>';
     }
     var confirmModalHtml="";
@@ -664,7 +678,7 @@ function initApp(){
         +'<div class="modal"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
         +'<h3 style="font-size:16px;font-weight:700">評価基準（点数）の編集</h3>'
         +'<button class="btn-icon" onclick="closeEditThreshold()">✕</button></div>'
-        +'<p style="font-size:13px;color:#888;margin-bottom:14px">合計点による判定基準（各グレードの「これ以上」の点数）</p>'
+        +'<p style="font-size:13px;color:#888;margin-bottom:14px">基本技（加点技を除く）の合計点による判定基準（各グレードの「これ以上」の点数）</p>'
         +'<div style="display:flex;flex-direction:column;gap:10px">'
         +thBase.map(function(pair,i){
           var label=pair[0],curVal=thCur[i][1];
@@ -714,7 +728,8 @@ function initApp(){
     var sc=S.stuScores;
     var skills=SKILLS[s.grade];
     var total=calcTotal(sc,skills);
-    var grade=calcGrade(total);
+    var baseTotal=calcBaseTotal(sc,skills);
+    var grade=calcGrade(baseTotal);
     var done=skills.filter(function(sk){return sc[sk.id+"_d"]!==undefined||sc[sk.id+"_k"]!==undefined;}).length;
     var html='<div style="max-width:680px;margin:0 auto;padding:1rem">'
       +'<div style="display:flex;align-items:center;gap:8px;border-bottom:1px solid #e8d0c0;padding-bottom:12px;margin-bottom:14px">'
@@ -729,6 +744,7 @@ function initApp(){
       +'<div class="grade-circle" style="'+gcStyle(grade)+'">'+grade+'</div>'
       +'<div style="flex:1"><div style="font-size:24px;font-weight:700">'+total+'<span style="font-size:14px;color:#888;font-weight:400"> / 88点</span></div>'
       +'<div style="font-size:12px;color:#888;margin-top:2px">'+done+'/11種目入力済み</div>'
+      +'<div style="font-size:11px;color:#888;margin-top:2px">評価判定：基本技 '+baseTotal+'/'+baseMaxOf(skills)+'点（加点技を除く）</div>'
       +'</div></div>';
     html+='<div style="background:#FEF3E8;border:1px solid #f6c89b;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:#b45309">'
       +'<span class="'+(s.gender==="女子"?"tag-f":"tag-m")+'" style="margin-right:6px">'+s.gender+'</span>'
@@ -830,7 +846,7 @@ function initApp(){
     // ヘッダー行
     var headers=["クラス","出席番号","性別"];
     sampleSkills.forEach(function(sk,i){headers.push((i+1)+"."+sk.name);});
-    headers.push("合計点","評価");
+    headers.push("基本技計(評価用)","合計点","評価");
     var rows=[headers];
     classesToExport.forEach(function(cls){
       // 出席番号順に並べ、欠席などで登録・記録が無い番号は空欄の行にして「飛び」を可視化する
@@ -848,18 +864,19 @@ function initApp(){
           var sc=DB.scores[s.id]||{};
           var skills=SKILLS[s.grade];
           var total=calcTotal(sc,skills);
-          var grade=calcGrade(total);
+          var baseTotal=calcBaseTotal(sc,skills);
+          var grade=calcGrade(baseTotal);
           var row=[s.cls,s.number,s.gender];
           skills.forEach(function(sk){
             var hasAny=(sc[sk.id+"_d"]!==undefined||sc[sk.id+"_k"]!==undefined);
             row.push(hasAny?skillTotal(sc,sk):"");
           });
-          row.push(total,grade);
+          row.push(baseTotal,total,grade);
           rows.push(row);
         }else{
           var blankRow=[cls,String(n),""];
           sampleSkills.forEach(function(){blankRow.push("");});
-          blankRow.push("","");
+          blankRow.push("","","");
           rows.push(blankRow);
         }
       }
@@ -988,12 +1005,13 @@ function initApp(){
   }
   function updateTSummary(){
     var sel=DB.students[S.selId];if(!sel)return;
-    var skills=SKILLS[sel.grade],total=calcTotal(S.tScores,skills),grade=calcGrade(total);
+    var skills=SKILLS[sel.grade],total=calcTotal(S.tScores,skills),baseTotal=calcBaseTotal(S.tScores,skills),grade=calcGrade(baseTotal);
     var done=skills.filter(function(sk){return S.tScores[sk.id+"_d"]!==undefined||S.tScores[sk.id+"_k"]!==undefined;}).length;
-    var gc=document.getElementById("sum-grade"),gp=document.getElementById("sum-pts"),gsc=document.getElementById("sum-count");
+    var gc=document.getElementById("sum-grade"),gp=document.getElementById("sum-pts"),gsc=document.getElementById("sum-count"),gb=document.getElementById("sum-base");
     if(gc){gc.textContent=grade;gc.style.cssText=gcStyle(grade)+";width:52px;height:52px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;flex-shrink:0";}
     if(gp)gp.innerHTML=total+'<span style="font-size:12px;color:#888;font-weight:400">/88</span>';
     if(gsc)gsc.textContent=done+"/11種目";
+    if(gb)gb.textContent="評価判定：基本技 "+baseTotal+"/"+baseMaxOf(skills)+"点（加点技を除く）";
   }
 
   // 生徒採点
