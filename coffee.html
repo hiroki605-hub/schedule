@@ -475,14 +475,13 @@ function renderItems() {
       row.className = 'item-row';
       const descHtml = item.desc ? `<div class="item-desc">${item.desc}</div>` : '';
       const unitHtml = item.unit ? ` / ${item.unit}` : '';
-      const isBean = item.unit === '100g'; // コーヒー豆本体（100g単位）のみ豆/粉を選べる
       const curGrind = currentGrind[item.id] || 'bean';
-      const grindHtml = isBean ? `
+      const grindHtml = `
         <div class="grind-toggle">
           <button type="button" class="grind-btn ${curGrind === 'bean' ? 'active' : ''}" data-action="grind" data-value="bean" data-id="${item.id}">豆のまま</button>
           <button type="button" class="grind-btn ${curGrind === 'ground' ? 'active' : ''}" data-action="grind" data-value="ground" data-id="${item.id}">挽く（粉）</button>
         </div>
-      ` : '';
+      `;
       
       row.innerHTML = `
         <div class="item-info">
@@ -595,9 +594,8 @@ document.getElementById('submit-btn').addEventListener('click', async () => {
     if (qty > 0) {
       const item = findItem(id);
       if (item) {
-        const isBean = item.unit === '100g';
-        const grind = isBean ? (currentGrind[id] || 'bean') : null;
-        const grindLabel = grind === 'ground' ? '（挽き・粉）' : (grind === 'bean' ? '（豆のまま）' : '');
+        const grind = currentGrind[id] || 'bean';
+        const grindLabel = grind === 'ground' ? '（挽き・粉）' : '（豆のまま）';
         items.push({ id, name: item.name + grindLabel, price: item.price, qty, subtotal: item.price * qty, grind });
       }
     }
