@@ -375,7 +375,7 @@ function initApp(){
       +'</div>';
     if(s.isDefault)html+='<div style="background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:10px 14px;font-size:13px;color:#7a5c00;margin-bottom:12px">⚠️ 初期パスワード（出席番号）のままです。「PW変更」から変更してください。</div>';
     html+=renderSummaryBox(s,total,grade,done,false);
-    html+=renderSkillList(skills,sc,s,'s');
+    html+=renderSkillList(skills,sc,s,'s',true);
     html+=renderGradeCriteria(gradeFromCls(s.cls));
     html+='</div>';
     if(S.pwModal){
@@ -416,7 +416,7 @@ function initApp(){
       +'</div></div>';
   }
 
-  function renderSkillList(skills,sc,stu,prefix){
+  function renderSkillList(skills,sc,stu,prefix,readOnly){
     var html="";
     uniq(skills.map(function(sk){return sk.cat;})).forEach(function(cat){
       var catSk=skills.filter(function(sk){return sk.cat===cat;});
@@ -436,39 +436,33 @@ function initApp(){
         } else html+='<span style="font-size:11px;color:#bbb">未入力</span>';
         html+='<span style="color:#bbb;margin-left:6px">'+(isExp?'▲':'▼')+'</span></div>';
         html+='<div id="'+prefix+'detail-'+sk.id+'" class="skill-detail" style="display:'+(isExp?'block':'none')+'">';
-        // A評価ボタン
-        html+='<button class="grade-btn grade-btn-a'+(cur&&(cur.grade==="A"||cur.grade==="A+")?' active':'')+'"'
-          +' onclick="doScore'+prefix.toUpperCase()+'(\''+sk.id+'\',\'A\','+sk.A+')">'
-          +'<div class="grade-icon gi-a">A</div>'
-          +'<div><div style="font-size:13px;font-weight:600">A評価 （'+sk.A+'点）</div>'
-          +'<div style="font-size:11px;color:#555;margin-top:2px">'+sk.cA+'</div></div>'
-          +(cur&&(cur.grade==="A"||cur.grade==="A+")?'<span style="color:#1e6b2e;margin-left:auto">✔</span>':'')
-          +'</button>';
-        // B評価ボタン
-        html+='<button class="grade-btn grade-btn-b'+(cur&&(cur.grade==="B"||cur.grade==="B+")?' active':'')+'"'
-          +' onclick="doScore'+prefix.toUpperCase()+'(\''+sk.id+'\',\'B\','+sk.B+')">'
-          +'<div class="grade-icon gi-b">B</div>'
-          +'<div><div style="font-size:13px;font-weight:600">B評価 （'+sk.B+'点）</div>'
-          +'<div style="font-size:11px;color:#555;margin-top:2px">'+sk.cB+'</div></div>'
-          +(cur&&(cur.grade==="B"||cur.grade==="B+")?'<span style="color:#1a56c4;margin-left:auto">✔</span>':'')
-          +'</button>';
-        // C評価ボタン
-        html+='<button class="grade-btn grade-btn-c'+(cur&&cur.grade==="C"?' active':'')+'"'
-          +' onclick="doScore'+prefix.toUpperCase()+'(\''+sk.id+'\',\'C\','+sk.C+')">'
-          +'<div class="grade-icon gi-c">C</div>'
-          +'<div><div style="font-size:13px;font-weight:600">C評価 （'+sk.C+'点）</div>'
-          +'<div style="font-size:11px;color:#555;margin-top:2px">'+sk.cC+'</div></div>'
-          +(cur&&cur.grade==="C"?'<span style="color:#8a6000;margin-left:auto">✔</span>':'')
-          +'</button>';
-        // 挑戦したがC基準にも届かなかった場合（0点。ただし「受けた」種目として加点対象にカウントされる）
-        html+='<button class="grade-btn grade-btn-e'+(cur&&cur.grade==="E"?' active':'')+'"'
-          +' onclick="doScore'+prefix.toUpperCase()+'(\''+sk.id+'\',\'E\',0)">'
-          +'<div class="grade-icon gi-e">△</div>'
-          +'<div><div style="font-size:13px;font-weight:600">挑戦した（基準未達・0点）</div>'
-          +'<div style="font-size:11px;color:#555;margin-top:2px">C評価にも届かなかったが、技には挑戦した場合はこちら。0点ですが「受けた」種目としてカウントされ、全種目完了ボーナスの対象になります。</div></div>'
-          +(cur&&cur.grade==="E"?'<span style="color:#666;margin-left:auto">✔</span>':'')
-          +'</button>';
-        if(cur){
+        if(readOnly){
+          html+='<p style="font-size:11px;color:#999;margin-bottom:8px">👀 評価は先生のみが入力・変更できます（閲覧のみ）</p>';
+        }
+        var rows=[
+          {cls:"a",icon:"A",label:"A評価 （"+sk.A+"点）",desc:sk.cA,active:cur&&(cur.grade==="A"||cur.grade==="A+"),grade:"A",pts:sk.A,checkColor:"#1e6b2e"},
+          {cls:"b",icon:"B",label:"B評価 （"+sk.B+"点）",desc:sk.cB,active:cur&&(cur.grade==="B"||cur.grade==="B+"),grade:"B",pts:sk.B,checkColor:"#1a56c4"},
+          {cls:"c",icon:"C",label:"C評価 （"+sk.C+"点）",desc:sk.cC,active:cur&&cur.grade==="C",grade:"C",pts:sk.C,checkColor:"#8a6000"},
+          {cls:"e",icon:"△",label:"挑戦した（基準未達・0点）",desc:"C評価にも届かなかったが、技には挑戦した場合はこちら。0点ですが「受けた」種目としてカウントされ、全種目完了ボーナスの対象になります。",active:cur&&cur.grade==="E",grade:"E",pts:0,checkColor:"#666"}
+        ];
+        rows.forEach(function(r){
+          var checkMark=r.active?'<span style="color:'+r.checkColor+';margin-left:auto">✔</span>':'';
+          if(readOnly){
+            html+='<div class="grade-btn grade-btn-'+r.cls+(r.active?' active':'')+'" style="opacity:'+(r.active?'1':'.55')+'">'
+              +'<div class="grade-icon gi-'+r.cls+'">'+r.icon+'</div>'
+              +'<div><div style="font-size:13px;font-weight:600">'+r.label+'</div>'
+              +'<div style="font-size:11px;color:#555;margin-top:2px">'+r.desc+'</div></div>'
+              +checkMark+'</div>';
+          } else {
+            html+='<button class="grade-btn grade-btn-'+r.cls+(r.active?' active':'')+'"'
+              +' onclick="doScore'+prefix.toUpperCase()+'(\''+sk.id+'\',\''+r.grade+'\','+r.pts+')">'
+              +'<div class="grade-icon gi-'+r.cls+'">'+r.icon+'</div>'
+              +'<div><div style="font-size:13px;font-weight:600">'+r.label+'</div>'
+              +'<div style="font-size:11px;color:#555;margin-top:2px">'+r.desc+'</div></div>'
+              +checkMark+'</button>';
+          }
+        });
+        if(cur&&!readOnly){
           html+='<button onclick="doResetScore'+prefix.toUpperCase()+'(\''+sk.id+'\')" style="font-size:11px;color:#888;border-color:#ddd;background:#f5f5f5;padding:4px 10px;margin-top:4px">↺ 未入力に戻す</button>';
         }
         html+='</div></div>';
@@ -689,21 +683,12 @@ function initApp(){
     dbRemove('scores/'+S.selId+'/'+skillId);
     render({keepScroll:true});
   };
-  window.doScoreS=function(skillId,grade,pts){
-    var prevTries=(S.stuScores[skillId]&&S.stuScores[skillId].tries)||0;
-    var entry={grade:grade,pts:pts,tries:prevTries+1};
-    S.stuScores[skillId]=entry;
-    if(!DB.scores[S.logStu.id])DB.scores[S.logStu.id]={};
-    DB.scores[S.logStu.id][skillId]=entry;
-    dbSet('scores/'+S.logStu.id+'/'+skillId,entry);
-    render({keepScroll:true});
+  // 生徒は評価を変更できない（閲覧のみ）。念のためここでもブロックしておく。
+  window.doScoreS=function(){
+    alert("評価は先生のみが入力できます。");
   };
-  window.doResetScoreS=function(skillId){
-    if(!confirm("未入力に戻しますか？（挑戦回数もリセットされます）"))return;
-    delete S.stuScores[skillId];
-    if(DB.scores[S.logStu.id])delete DB.scores[S.logStu.id][skillId];
-    dbRemove('scores/'+S.logStu.id+'/'+skillId);
-    render({keepScroll:true});
+  window.doResetScoreS=function(){
+    alert("評価は先生のみが変更できます。");
   };
 
   window.doAddStu=function(){
