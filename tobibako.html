@@ -351,7 +351,7 @@ function initApp(){
           if(hasAny) panel+='<span id="tbadge-'+sk.id+'" style="font-size:12px;font-weight:700;color:#E67E22;background:#FEF3E8;padding:2px 8px;border-radius:12px;border:1px solid #f6c89b">'+st+'/8点</span>';
           else panel+='<span id="tbadge-'+sk.id+'" style="font-size:11px;color:#bbb">未評価</span>';
           var attC=attemptCount(S.selId,sk.id);
-          if(attC>0) panel+='<span style="font-size:10px;color:#999;margin-left:6px;white-space:nowrap">挑戦'+attC+'回</span>';
+          panel+='<span style="font-size:11px;font-weight:700;color:#1a56c4;background:#e8f0fe;border:1px solid #c5d8fd;padding:2px 8px;border-radius:12px;margin-left:6px;white-space:nowrap">挑戦'+attC+'回</span>';
           panel+='<span style="color:#bbb;margin-left:6px">'+(isExp?'▲':'▼')+'</span></div>';
           panel+='<div id="tdetail-'+sk.id+'" class="skill-detail" style="display:'+(isExp?'block':'none')+'">';
           panel+='<div class="score-section"><span class="section-label sl-dan">'+sk.l1+'（最大5点）'
@@ -862,6 +862,7 @@ function initApp(){
     if(row){var sp=row.querySelectorAll(".skill-header span");var last=sp[sp.length-1];if(last)last.textContent=open?'▼':'▲';}
   };
   window.doStuScore=function(skillId,part,pts,label){
+    if(!confirm("【"+pts+"点】\n"+label+"\n\nこの内容で登録しますか？"))return;
     var key=skillId+"_"+part;
     var prevPts=S.stuScores[key]?S.stuScores[key].pts:0;
     S.stuScores[key]={pts:pts,label:label};
