@@ -109,6 +109,7 @@ function initApp(){
   function dbSet(path,val,cb){db.ref('tobibako2/'+path).set(val,cb||function(){});}
   function dbRemove(path){db.ref('tobibako2/'+path).remove();}
   function dbPush(path,val){db.ref('tobibako2/'+path).push(val);}
+  function dbMultiUpdate(updates,cb){db.ref('tobibako2').update(updates,cb||function(){});}
 
   // スキルデータ
   function makeSkills(gr){
@@ -171,17 +172,11 @@ function initApp(){
   function totalAttempts(studentId,skills){
     var n=0;skills.forEach(function(sk){n+=attemptCount(studentId,sk.id);});return n;
   }
-  function logAttempt(studentId,skillId,part,pts,label,by){
-    var sel=DB.students[studentId];if(!sel)return;
-    var sk=SKILLS[sel.grade].filter(function(s){return s.id===skillId;})[0];if(!sk)return;
-    var scObj=by==='teacher'?S.tScores:S.stuScores;
-    var total=skillTotal(scObj,sk);
-    var entry={ts:Date.now(),part:part,pts:pts,label:label,total:total,grade:skillGrade(total),by:by};
-    // 通信の往復を待たずに即座に画面へ反映（サーバー同期後は正式なデータに置き換わる）
-    if(!DB.history[studentId])DB.history[studentId]={};
-    if(!DB.history[studentId][skillId])DB.history[studentId][skillId]={};
-    DB.history[studentId][skillId]["_local"+Date.now()+Math.random().toString(36).slice(2,6)]=entry;
-    dbPush('history/'+studentId+'/'+skillId,entry);
+  function buildAttemptEntry(studentId,skillId,part,pts,label,by,scObjAfter){
+    var sel=DB.students[studentId];if(!sel)return null;
+    var sk=SKILLS[sel.grade].filter(function(s){return s.id===skillId;})[0];if(!sk)return null;
+    var total=skillTotal(scObjAfter,sk);
+    return {ts:Date.now(),part:part,pts:pts,label:label,total:total,grade:skillGrade(total),by:by};
   }
   function gcStyle(g){if(g==="A")return"background:#e6f4ea;color:#1e6b2e";if(g==="B")return"background:#e8f0fe;color:#1a56c4";if(g==="C")return"background:#fef7e0;color:#8a6000";return"background:#fce8e6;color:#a50e0e";}
   function gradeOf(g){if(g==="A")return"a";if(g==="B")return"b";if(g==="C")return"c";return"d";}
@@ -814,8 +809,19 @@ function initApp(){
     var key=skillId+"_"+part;
     var prevPts=S.tScores[key]?S.tScores[key].pts:0;
     S.tScores[key]={pts:pts,label:label};
-    dbSet('scores/'+S.selId+'/'+key,{pts:pts,label:label});
-    if(pts>prevPts) logAttempt(S.selId,skillId,part,pts,label,'teacher');
+    var updates={};
+    updates['scores/'+S.selId+'/'+key]={pts:pts,label:label};
+    if(pts>prevPts){
+      var entry=buildAttemptEntry(S.selId,skillId,part,pts,label,'teacher',S.tScores);
+      if(entry){
+        var histKey=db.ref().push().key;
+        updates['history/'+S.selId+'/'+skillId+'/'+histKey]=entry;
+        if(!DB.history[S.selId])DB.history[S.selId]={};
+        if(!DB.history[S.selId][skillId])DB.history[S.selId][skillId]={};
+        DB.history[S.selId][skillId][histKey]=entry;
+      }
+    }
+    dbMultiUpdate(updates);
     // DOM更新
     updateTBadge(skillId);updateTSummary();
     var prefix=part==="d"?"tdbtn-":"tkbtn-";
@@ -866,8 +872,19 @@ function initApp(){
     var key=skillId+"_"+part;
     var prevPts=S.stuScores[key]?S.stuScores[key].pts:0;
     S.stuScores[key]={pts:pts,label:label};
-    dbSet('scores/'+S.logStu.id+'/'+key,{pts:pts,label:label});
-    if(pts>prevPts) logAttempt(S.logStu.id,skillId,part,pts,label,'student');
+    var updates={};
+    updates['scores/'+S.logStu.id+'/'+key]={pts:pts,label:label};
+    if(pts>prevPts){
+      var entry=buildAttemptEntry(S.logStu.id,skillId,part,pts,label,'student',S.stuScores);
+      if(entry){
+        var histKey=db.ref().push().key;
+        updates['history/'+S.logStu.id+'/'+skillId+'/'+histKey]=entry;
+        if(!DB.history[S.logStu.id])DB.history[S.logStu.id]={};
+        if(!DB.history[S.logStu.id][skillId])DB.history[S.logStu.id][skillId]={};
+        DB.history[S.logStu.id][skillId][histKey]=entry;
+      }
+    }
+    dbMultiUpdate(updates);
     render({keepScroll:true});
   };
   window.doStuReset=function(skillId,part){
