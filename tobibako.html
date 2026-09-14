@@ -106,24 +106,10 @@ function initApp(){
   var DB={classes:[],students:{},scores:{},history:{}};
 
   function syncBar(type,msg){var b=document.getElementById('syncBar');b.textContent=msg;b.className=type;}
-  function dbSet(path,val,cb){db.ref('tobibako2/'+path).set(val,cb||function(){}).catch(function(err){alert("⚠️ 保存に失敗しました\nパス: "+path+"\nエラー: "+err.message);});}
+  function dbSet(path,val,cb){db.ref('tobibako2/'+path).set(val,cb||function(){}).catch(function(err){console.error('保存失敗:',path,err);});}
   function dbRemove(path){db.ref('tobibako2/'+path).remove();}
   function dbPush(path,val){
-    var newRef=db.ref('tobibako2/'+path).push();
-    newRef.set(val).then(function(){
-      // 実際にサーバーへ書き込めたか、その場で読み直して確認する
-      newRef.once('value').then(function(snap){
-        if(snap.exists()){
-          alert("✅DEBUG サーバーへの保存を確認できました\npath="+path+"/"+newRef.key+"\nサーバー上の内容="+JSON.stringify(snap.val()));
-        }else{
-          alert("⚠️DEBUG 書き込みは成功と表示されましたが、読み直すとデータが存在しません\npath="+path+"/"+newRef.key);
-        }
-      }).catch(function(err){
-        alert("⚠️DEBUG 書き込み後の読み直しでエラー\npath="+path+"\nエラー: "+(err.code||"")+" "+err.message);
-      });
-    }).catch(function(err){
-      alert("⚠️DEBUG 保存自体が失敗しました\nパス: "+path+"\nエラーコード: "+(err.code||"不明")+"\nエラー内容: "+err.message);
-    });
+    db.ref('tobibako2/'+path).push(val).catch(function(err){console.error('履歴保存失敗:',path,err);});
   }
   function dbMultiUpdate(updates,cb){db.ref('tobibako2').update(updates,cb||function(){});}
 
@@ -299,7 +285,6 @@ function initApp(){
         +'</div></div>';
     }
     sb+='<button onclick="openRankingModal()" style="background:#e8f0fe;border:1px solid #c5d8fd;color:#1a56c4;border-radius:8px;padding:7px;font-size:12px;font-weight:700;width:100%;cursor:pointer">📊 最終評価一覧</button>';
-    sb+='<button onclick="doDumpHistory()" style="background:#fff3e0;border:1px solid #ffcc80;color:#e65100;border-radius:8px;padding:7px;font-size:12px;font-weight:700;width:100%;cursor:pointer;margin-top:4px">🔍 挑戦履歴を全部見る(調査用)</button>';
     var fOpts='<option value="all">全クラス</option>'+DB.classes.map(function(c){return'<option value="'+c+'"'+(S.filterCls===c?' selected':'')+'>'+c+'</option>';}).join('');
     sb+='<select onchange="setFilter(this.value)">'+fOpts+'</select>';
     if(!list.length) sb+='<p style="color:#aaa;font-size:12px">生徒を追加してください</p>';
@@ -822,21 +807,6 @@ function initApp(){
     if(row){var sp=row.querySelectorAll(".skill-header span");var last=sp[sp.length-1];if(last)last.textContent=open?'▼':'▲';}
   };
   window.toggleTHist=function(id){S.tHistExpanded=(S.tHistExpanded===id)?null:id;render({keepScroll:true});};
-  window.doDumpHistory=function(){
-    var lines=[];
-    var sids=Object.keys(DB.history||{});
-    if(!sids.length){alert("🔍 挑戦履歴は現在まだ0件です（DB.historyが空）");return;}
-    sids.forEach(function(sid){
-      var stu=DB.students[sid];
-      var who=stu?(stu.cls+" "+stu.number+"番("+stu.gender+")"):"（不明な生徒ID:"+sid+"）";
-      var skillIds=Object.keys(DB.history[sid]||{});
-      skillIds.forEach(function(skid){
-        var cnt=Object.keys(DB.history[sid][skid]||{}).length;
-        lines.push(who+" / 種目ID:"+skid+" / 挑戦"+cnt+"回");
-      });
-    });
-    alert("🔍 挑戦履歴 全件（"+lines.length+"種目分）\n\n"+lines.join("\n"));
-  };
   window.doTScore=function(skillId,part,pts,label){
     var key=skillId+"_"+part;
     var prevPts=S.tScores[key]?S.tScores[key].pts:0;
@@ -844,13 +814,7 @@ function initApp(){
     dbSet('scores/'+S.selId+'/'+key,{pts:pts,label:label});
     if(pts>prevPts){
       var entry=buildAttemptEntry(S.selId,skillId,part,pts,label,'teacher',S.tScores);
-      if(entry){
-        dbPush('history/'+S.selId+'/'+skillId,entry);
-      }else{
-        alert("🔍DEBUG entryがnullでした（履歴を保存できません）\nS.selId="+S.selId+"\nDB.students[S.selId]="+JSON.stringify(DB.students[S.selId]));
-      }
-    }else{
-      alert("🔍DEBUG 挑戦カウント対象外（同点 or 減点）\npts="+pts+" prevPts="+prevPts);
+      if(entry)dbPush('history/'+S.selId+'/'+skillId,entry);
     }
     // DOM更新
     updateTBadge(skillId);updateTSummary();
@@ -905,13 +869,7 @@ function initApp(){
     dbSet('scores/'+S.logStu.id+'/'+key,{pts:pts,label:label});
     if(pts>prevPts){
       var entry=buildAttemptEntry(S.logStu.id,skillId,part,pts,label,'student',S.stuScores);
-      if(entry){
-        dbPush('history/'+S.logStu.id+'/'+skillId,entry);
-      }else{
-        alert("🔍DEBUG entryがnullでした（履歴を保存できません）\nS.logStu.id="+S.logStu.id+"\nDB.students[id]="+JSON.stringify(DB.students[S.logStu.id]));
-      }
-    }else{
-      alert("🔍DEBUG 挑戦カウント対象外（同点 or 減点）\npts="+pts+" prevPts="+prevPts);
+      if(entry)dbPush('history/'+S.logStu.id+'/'+skillId,entry);
     }
     render({keepScroll:true});
   };
