@@ -108,7 +108,23 @@ function initApp(){
   function syncBar(type,msg){var b=document.getElementById('syncBar');b.textContent=msg;b.className=type;}
   function dbSet(path,val,cb){db.ref('tobibako2/'+path).set(val,cb||function(){}).catch(function(err){alert("⚠️ 保存に失敗しました\nパス: "+path+"\nエラー: "+err.message);});}
   function dbRemove(path){db.ref('tobibako2/'+path).remove();}
-  function dbPush(path,val){db.ref('tobibako2/'+path).push(val).catch(function(err){alert("⚠️ 挑戦履歴の保存に失敗しました\nパス: "+path+"\nエラー: "+err.message+"\n\n（Firebaseのセキュリティルールで「history」への書き込みが許可されていない可能性があります）");});}
+  function dbPush(path,val){
+    var newRef=db.ref('tobibako2/'+path).push();
+    newRef.set(val).then(function(){
+      // 実際にサーバーへ書き込めたか、その場で読み直して確認する
+      newRef.once('value').then(function(snap){
+        if(snap.exists()){
+          alert("✅DEBUG サーバーへの保存を確認できました\npath="+path+"/"+newRef.key+"\nサーバー上の内容="+JSON.stringify(snap.val()));
+        }else{
+          alert("⚠️DEBUG 書き込みは成功と表示されましたが、読み直すとデータが存在しません\npath="+path+"/"+newRef.key);
+        }
+      }).catch(function(err){
+        alert("⚠️DEBUG 書き込み後の読み直しでエラー\npath="+path+"\nエラー: "+(err.code||"")+" "+err.message);
+      });
+    }).catch(function(err){
+      alert("⚠️DEBUG 保存自体が失敗しました\nパス: "+path+"\nエラーコード: "+(err.code||"不明")+"\nエラー内容: "+err.message);
+    });
+  }
   function dbMultiUpdate(updates,cb){db.ref('tobibako2').update(updates,cb||function(){});}
 
   // スキルデータ
@@ -830,7 +846,6 @@ function initApp(){
       var entry=buildAttemptEntry(S.selId,skillId,part,pts,label,'teacher',S.tScores);
       if(entry){
         dbPush('history/'+S.selId+'/'+skillId,entry);
-        alert("🔍DEBUG 履歴を保存しました\npath=history/"+S.selId+"/"+skillId+"\nentry="+JSON.stringify(entry));
       }else{
         alert("🔍DEBUG entryがnullでした（履歴を保存できません）\nS.selId="+S.selId+"\nDB.students[S.selId]="+JSON.stringify(DB.students[S.selId]));
       }
@@ -892,7 +907,6 @@ function initApp(){
       var entry=buildAttemptEntry(S.logStu.id,skillId,part,pts,label,'student',S.stuScores);
       if(entry){
         dbPush('history/'+S.logStu.id+'/'+skillId,entry);
-        alert("🔍DEBUG 履歴を保存しました\npath=history/"+S.logStu.id+"/"+skillId+"\nentry="+JSON.stringify(entry));
       }else{
         alert("🔍DEBUG entryがnullでした（履歴を保存できません）\nS.logStu.id="+S.logStu.id+"\nDB.students[id]="+JSON.stringify(DB.students[S.logStu.id]));
       }
