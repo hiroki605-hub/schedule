@@ -283,6 +283,7 @@ function initApp(){
         +'</div></div>';
     }
     sb+='<button onclick="openRankingModal()" style="background:#e8f0fe;border:1px solid #c5d8fd;color:#1a56c4;border-radius:8px;padding:7px;font-size:12px;font-weight:700;width:100%;cursor:pointer">📊 最終評価一覧</button>';
+    sb+='<button onclick="doDumpHistory()" style="background:#fff3e0;border:1px solid #ffcc80;color:#e65100;border-radius:8px;padding:7px;font-size:12px;font-weight:700;width:100%;cursor:pointer;margin-top:4px">🔍 挑戦履歴を全部見る(調査用)</button>';
     var fOpts='<option value="all">全クラス</option>'+DB.classes.map(function(c){return'<option value="'+c+'"'+(S.filterCls===c?' selected':'')+'>'+c+'</option>';}).join('');
     sb+='<select onchange="setFilter(this.value)">'+fOpts+'</select>';
     if(!list.length) sb+='<p style="color:#aaa;font-size:12px">生徒を追加してください</p>';
@@ -805,6 +806,21 @@ function initApp(){
     if(row){var sp=row.querySelectorAll(".skill-header span");var last=sp[sp.length-1];if(last)last.textContent=open?'▼':'▲';}
   };
   window.toggleTHist=function(id){S.tHistExpanded=(S.tHistExpanded===id)?null:id;render({keepScroll:true});};
+  window.doDumpHistory=function(){
+    var lines=[];
+    var sids=Object.keys(DB.history||{});
+    if(!sids.length){alert("🔍 挑戦履歴は現在まだ0件です（DB.historyが空）");return;}
+    sids.forEach(function(sid){
+      var stu=DB.students[sid];
+      var who=stu?(stu.cls+" "+stu.number+"番("+stu.gender+")"):"（不明な生徒ID:"+sid+"）";
+      var skillIds=Object.keys(DB.history[sid]||{});
+      skillIds.forEach(function(skid){
+        var cnt=Object.keys(DB.history[sid][skid]||{}).length;
+        lines.push(who+" / 種目ID:"+skid+" / 挑戦"+cnt+"回");
+      });
+    });
+    alert("🔍 挑戦履歴 全件（"+lines.length+"種目分）\n\n"+lines.join("\n"));
+  };
   window.doTScore=function(skillId,part,pts,label){
     var key=skillId+"_"+part;
     var prevPts=S.tScores[key]?S.tScores[key].pts:0;
