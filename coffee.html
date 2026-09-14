@@ -9,7 +9,783 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 
+<style><!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>珈琲通信 コーヒー豆注文フォーム</title>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
 <style>
+  :root {
+    --dough: #F5EFEB;
+    --dough-dark: #E0D4C8;
+    --soy: #3E2723;
+    --soy-light: #5D4037;
+    --chive: #795548;
+    --chive-dark: #4E342E;
+    --paper: #FFFDFB;
+    --accent: #D84315;
+    --shadow: rgba(62, 39, 35, 0.15);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif;
+    background: var(--dough);
+    background-image:
+      radial-gradient(circle at 20% 10%, rgba(255,255,255,0.5) 0%, transparent 40%),
+      radial-gradient(circle at 90% 80%, rgba(216, 67, 21, 0.04) 0%, transparent 45%);
+    color: var(--soy);
+    min-height: 100vh;
+    padding-bottom: 60px;
+  }
+  header {
+    background: var(--soy);
+    color: var(--dough);
+    padding: 22px 20px 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  header h1 {
+    margin: 0;
+    font-size: 1.5rem;
+    letter-spacing: 0.02em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  header .icon { font-size: 1.5rem; }
+  header p { margin: 6px 0 0; font-size: 0.85rem; opacity: 0.75; }
+
+  .status-banner {
+    text-align: center;
+    padding: 10px 16px;
+    font-weight: 800;
+    font-size: 0.95rem;
+    letter-spacing: 0.02em;
+  }
+  .status-banner.open { background: #E4EEDD; color: var(--chive-dark); }
+  .status-banner.closed { background: #F3DCD5; color: var(--accent); }
+  
+  .tabs {
+    display: flex;
+    max-width: 640px;
+    margin: 18px auto 0;
+    padding: 0 16px;
+    gap: 4px; /* 少し隙間を詰める */
+  }
+  .tab-btn {
+    flex: 1;
+    padding: 12px 4px;
+    border: none;
+    background: var(--paper);
+    color: var(--soy-light);
+    font-size: 0.85rem; /* 3つ入るように少し小さく */
+    font-weight: 700;
+    border-radius: 12px 12px 0 0;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: all 0.15s ease;
+  }
+  .tab-btn.active {
+    opacity: 1;
+    color: var(--soy);
+    box-shadow: 0 -2px 8px var(--shadow);
+    font-size: 0.9rem;
+  }
+
+  main {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 0 16px;
+  }
+  .panel {
+    background: var(--paper);
+    border-radius: 0 0 16px 16px;
+    padding: 20px 18px 26px;
+    box-shadow: 0 4px 20px var(--shadow);
+  }
+  .panel.top-round { border-radius: 16px; margin-top: 18px; }
+
+  .field-label {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--soy-light);
+    margin-bottom: 6px;
+    display: block;
+  }
+
+  select, input[type=text], input[type=number], input[type=date] {
+    width: 100%;
+    padding: 11px 12px;
+    border-radius: 10px;
+    border: 1.5px solid var(--dough-dark);
+    background: #fff;
+    font-size: 1rem;
+    color: var(--soy);
+  }
+  select:focus, input:focus { outline: 2px solid var(--chive); outline-offset: 1px; }
+
+  .teacher-row { display: flex; gap: 8px; margin-bottom: 18px; }
+  .add-teacher-inline { display: none; gap: 8px; margin-top: 8px; }
+  .add-teacher-inline.show { display: flex; }
+  
+  .btn-small {
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: none;
+    background: var(--chive);
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .btn-small:hover { background: var(--chive-dark); }
+  .btn-delete { background: #e0e0e0; color: #555; }
+  .btn-delete:hover { background: #ccc; }
+
+  .category { margin-bottom: 20px; }
+  .category-title {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--accent);
+    border-bottom: 2px dashed var(--dough-dark);
+    padding-bottom: 6px;
+    margin-bottom: 10px;
+  }
+  .item-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid #F0E2CC;
+    gap: 10px;
+  }
+  .item-row:last-child { border-bottom: none; }
+  .item-info { flex: 1; min-width: 0; }
+  .item-name { font-size: 0.93rem; font-weight: 600; }
+  .item-desc { font-size: 0.72rem; color: var(--soy-light); margin-top: 3px; line-height: 1.3; }
+  .item-price { font-size: 0.85rem; font-weight: bold; color: var(--accent); margin-top: 3px; }
+  
+  .grind-toggle { display: flex; gap: 6px; margin-top: 8px; }
+  .grind-btn {
+    padding: 5px 10px;
+    border-radius: 20px;
+    border: 1.5px solid var(--dough-dark);
+    background: #fff;
+    color: var(--soy-light);
+    font-size: 0.72rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .grind-btn.active { background: var(--chive); border-color: var(--chive); color: #fff; }
+
+  .qty-control { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .qty-btn {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    border: 1.5px solid var(--chive);
+    background: #fff;
+    color: var(--chive-dark);
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .qty-input { width: 44px; text-align: center; padding: 6px 2px; }
+
+  .total-bar {
+    position: sticky;
+    bottom: 0;
+    background: var(--paper);
+    border-top: 2px solid var(--dough-dark);
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-radius: 0 0 16px 16px;
+    margin-top: 4px;
+    z-index: 10;
+  }
+  .total-label { font-size: 0.85rem; color: var(--soy-light); }
+  .total-amount { font-size: 1.4rem; font-weight: 800; color: var(--accent); }
+  .submit-btn {
+    width: 100%; margin-top: 14px; padding: 14px; border: none; border-radius: 12px;
+    background: var(--accent); color: #fff; font-size: 1.05rem; font-weight: 800;
+    cursor: pointer; box-shadow: 0 3px 10px rgba(216, 67, 21, 0.35);
+  }
+  .submit-btn:disabled { background: #D7CCC8; cursor: not-allowed; box-shadow: none; }
+
+  .toast {
+    position: fixed; top: 16px; left: 50%; transform: translateX(-50%) translateY(-20px);
+    background: var(--chive-dark); color: #fff; padding: 12px 22px; border-radius: 30px;
+    font-weight: 700; font-size: 0.9rem; opacity: 0; transition: all 0.25s ease; z-index: 100; pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* History & Admin Panel */
+  .summary-box { background: var(--dough); border-radius: 12px; padding: 14px; margin-bottom: 18px; }
+  .summary-box h3 { margin: 0 0 10px; font-size: 0.95rem; color: var(--soy); }
+  table.summary-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  table.summary-table th, table.summary-table td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--dough-dark); }
+  table.summary-table td.num, table.summary-table th.num { text-align: right; }
+
+  .order-card { background: #fff; border: 1.5px solid var(--dough-dark); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; position: relative; }
+  .order-card .order-head { display: flex; justify-content: space-between; margin-bottom: 8px; }
+  .order-card .teacher-name { font-weight: 800; font-size: 1rem; }
+  .order-card .order-time { font-size: 0.72rem; color: var(--soy-light); }
+  .order-card ul { margin: 0 0 8px; padding-left: 18px; font-size: 0.87rem; }
+  .order-card .order-total { text-align: right; font-weight: 800; color: var(--accent); }
+  .order-card.is-paid { background: #F3FAEF; border-color: #B9DDA6; }
+  .order-foot { display: flex; justify-content: space-between; align-items: center; }
+  
+  .paid-toggle-btn { border-radius: 20px; padding: 7px 14px; font-size: 0.8rem; font-weight: 700; border: 1.5px solid var(--dough-dark); background: #fff; cursor: pointer; }
+  .paid-toggle-btn.unpaid { border-color: var(--accent); color: var(--accent); }
+  .paid-toggle-btn.paid { border-color: #6FA65A; background: #E4F2DC; color: #3F6B2E; }
+  .delete-btn { position: absolute; top: 10px; right: 10px; background: none; border: none; color: var(--soy-light); font-size: 0.75rem; cursor: pointer; text-decoration: underline; }
+
+  .admin-section { margin-bottom: 24px; padding-bottom: 24px; border-bottom: 2px dashed var(--dough-dark); }
+  .admin-section:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+  .setting-field { margin-bottom: 12px; }
+  .custom-item-list { margin-top: 12px; }
+  .custom-item-row { display: flex; justify-content: space-between; align-items: center; padding: 8px; background: #fff; border: 1px solid var(--dough-dark); border-radius: 8px; margin-bottom: 6px; font-size: 0.9rem; }
+  
+  .reset-all { display: block; margin: 10px auto 0; background: none; border: 1px solid var(--soy-light); color: var(--soy-light); padding: 8px 16px; border-radius: 20px; font-size: 0.78rem; cursor: pointer; width: 100%; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span class="icon">☕</span>珈琲通信 注文フォーム</h1>
+  <p>PRICE LISTのコーヒー豆を注文・集計します</p>
+</header>
+
+<div class="status-banner" id="status-banner"></div>
+
+<div class="tabs">
+  <button class="tab-btn active" data-tab="order">注文する</button>
+  <button class="tab-btn" data-tab="history">注文一覧・集計</button>
+  <button class="tab-btn" data-tab="admin">⚙️管理・設定</button>
+</div>
+
+<main>
+  <!-- 1. 注文タブ -->
+  <section class="panel" id="panel-order">
+    <label class="field-label">お名前（購入者）を選択</label>
+    <div class="teacher-row">
+      <select id="teacher-select"></select>
+      <button class="btn-small" id="btn-new-teacher">＋登録</button>
+    </div>
+    <div class="add-teacher-inline" id="new-teacher-row">
+      <input type="text" id="new-teacher-input" placeholder="お名前を入力（例：山田）">
+      <button class="btn-small" id="btn-add-teacher">追加</button>
+    </div>
+
+    <div id="items-container"></div>
+  </section>
+
+  <div class="panel total-bar" id="total-bar-panel">
+    <div>
+      <div class="total-label">合計金額</div>
+      <div class="total-amount" id="total-amount">¥0</div>
+    </div>
+  </div>
+  <button class="submit-btn" id="submit-btn">この内容で注文を送信する</button>
+
+  <!-- 2. 履歴・集計タブ -->
+  <section class="panel top-round" id="panel-history" style="display:none;">
+    <div id="history-content"></div>
+    <button class="reset-all" id="csv-download-btn" style="border-color: var(--chive); color: var(--chive-dark);">📄 CSVでダウンロード（注文明細・購入者別）</button>
+    <button class="reset-all" id="csv-paper-download-btn" style="border-color: var(--accent); color: var(--accent);">🧾 注文書と同じ並びでCSVダウンロード</button>
+  </section>
+
+  <!-- 3. 管理・設定タブ -->
+  <section class="panel top-round" id="panel-admin" style="display:none;">
+    
+    <div class="admin-section">
+      <h3>⚙️ 注文受付・日程の設定</h3>
+      <div class="setting-field">
+        <label class="field-label">受付状況</label>
+        <select id="accepting-select">
+          <option value="open">🟢 現在受付中</option>
+          <option value="closed">🔴 現在は受け付けていません</option>
+        </select>
+      </div>
+      <div class="setting-field">
+        <label class="field-label">締切日（表示用・自動クローズ用）</label>
+        <input type="date" id="deadline-input">
+      </div>
+      <div class="setting-field">
+        <label class="field-label">配送日・お届け予定日</label>
+        <input type="date" id="delivery-input">
+      </div>
+      <button class="btn-small" id="btn-save-settings" style="width: 100%;">日程・受付状況を保存する</button>
+    </div>
+
+    <div class="admin-section">
+      <h3>✨ 期間限定メニューの追加</h3>
+      <p style="font-size: 0.8rem; color: var(--soy-light); margin-top: 0;">ここで追加した商品は、注文画面の一番下に表示されます。</p>
+      <div class="setting-field">
+        <input type="text" id="custom-name-input" placeholder="商品名（例：さくらブレンド）" style="margin-bottom: 8px;">
+        <input type="number" id="custom-price-input" placeholder="金額（半角数字）" style="margin-bottom: 8px;">
+        <button class="btn-small" id="btn-add-custom-item" style="width: 100%;">メニューを追加する</button>
+      </div>
+      
+      <div class="custom-item-list" id="custom-item-list">
+        <!-- 追加されたメニューがここに表示されます -->
+      </div>
+    </div>
+
+    <div class="admin-section">
+      <h3>⚠️ 危険な操作</h3>
+      <button class="reset-all" id="reset-all-btn" style="border-color: red; color: red;">全ての注文履歴をリセットする</button>
+    </div>
+
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ベースのメニュー（固定）
+const MENU = [
+  { category: "ブレンドコーヒー (100g)", items: [
+    { id: "jamaica", name: "ジャマイカリッチブレンド", desc: "高品質な豆を使用したまろやかで香り高いブレンド", unit: "100g", price: 650 },
+    { id: "peru_blend", name: "ペルーブレンド", desc: "コクのあるブレンド イチオシのコーヒーです", unit: "100g", price: 670 },
+    { id: "mild", name: "マイルドブレンド", desc: "バランスが良くまろやかでクセのないブレンド", unit: "100g", price: 600 },
+    { id: "original", name: "オリジナルブレンド", desc: "まろやかで飲みやすい お求めやすいブレンド", unit: "100g", price: 580 },
+    { id: "strong", name: "ストロングブレンド", desc: "苦味がしっかりきいた味 カフェオレ等にも", unit: "100g", price: 680 },
+    { id: "european", name: "ヨーロピアンブレンド", desc: "コク、苦味、香りがある喫茶店の味", unit: "100g", price: 600 },
+  ]},
+  { category: "ストレート・その他 (100g)", items: [
+    { id: "sumatra", name: "スマトラマンデリン", desc: "深いコクとほろ苦さのバランスが良い", unit: "100g", price: 750 },
+    { id: "haiti", name: "ハイチフレンチブルー", desc: "ジャマイカ産に近いテイスト スペシャリティ", unit: "100g", price: 800 },
+    { id: "peru", name: "ペルー (有機栽培珈琲豆)", desc: "後味さっぱりのコーヒー", unit: "100g", price: 680 },
+    { id: "tanzania", name: "タンザニア (キリマンジャロ)", desc: "バランスが良くすっきりとした後味", unit: "100g", price: 720 },
+    { id: "guatemala", name: "グァテマラカフェピューマ", desc: "独特の香りを持ち、とても濃厚な味", unit: "100g", price: 750 },
+    { id: "brazil", name: "ブラジルサントス", desc: "さわやかな酸味があり、とてもバランスが良い", unit: "100g", price: 650 },
+    { id: "mocha", name: "モカ", desc: "エチオピア産 芳醇で甘くフルーティーな香り", unit: "100g", price: 650 },
+  ]}
+];
+const PAPER_ORDER = ["jamaica","sumatra","haiti","peru","peru_blend","mild","original","tanzania","guatemala","brazil","mocha","strong","european"];
+
+// === Firebase 設定（キムチや餃子と同じもの） ===
+const firebaseConfig = {
+  apiKey: "AIzaSyCe1Tk1vfeaPp9AUtTJ29qibN94o9LBYtY",
+  authDomain: "gyoza-order-d3a16.firebaseapp.com",
+  projectId: "gyoza-order-d3a16",
+  storageBucket: "gyoza-order-d3a16.firebasestorage.app",
+  messagingSenderId: "589641862175",
+  appId: "1:589641862175:web:55f31ab32d68b74e91192a"
+};
+
+let db = null, docRef = null, firebaseReady = false;
+let teachers = [], orders = [], customItems = [];
+let deadline = null, deliveryDate = null, accepting = 'open';
+let currentQty = {};
+let currentGrind = {}; // id -> 'bean'（豆のまま） | 'ground'（挽く・粉）
+
+function initFirebase() {
+  try {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    docRef = db.collection('coffee_orders').doc('shared');
+    firebaseReady = true;
+  } catch (e) { console.error('Firebase Error:', e); }
+}
+
+async function saveData(fields) {
+  if (!firebaseReady) return false;
+  try {
+    await docRef.set(fields, { merge: true });
+    return true;
+  } catch (e) { return false; }
+}
+
+async function loadData() {
+  if (!firebaseReady) return;
+  const snap = await docRef.get();
+  if (snap.exists) {
+    const data = snap.data();
+    teachers = Array.isArray(data.teachers) ? data.teachers : [];
+    orders = Array.isArray(data.orders) ? data.orders : [];
+    customItems = Array.isArray(data.customItems) ? data.customItems : [];
+    deadline = data.deadline || null;
+    deliveryDate = data.deliveryDate || null;
+    accepting = data.accepting === 'closed' ? 'closed' : 'open';
+  }
+}
+
+function subscribeRealtime() {
+  if (!firebaseReady) return;
+  docRef.onSnapshot(snap => {
+    if (!snap.exists) return;
+    const data = snap.data();
+    teachers = Array.isArray(data.teachers) ? data.teachers : [];
+    orders = Array.isArray(data.orders) ? data.orders : [];
+    customItems = Array.isArray(data.customItems) ? data.customItems : [];
+    deadline = data.deadline || null;
+    deliveryDate = data.deliveryDate || null;
+    accepting = data.accepting === 'closed' ? 'closed' : 'open';
+    
+    renderTeacherSelect();
+    renderStatusBanner();
+    renderAdminPanel();
+    
+    // 現在のタブに応じて再描画
+    const activeTab = document.querySelector('.tab-btn.active').dataset.tab;
+    if (activeTab === 'order') { renderItems(); updateTotal(); }
+    else if (activeTab === 'history') { renderHistory(); }
+  });
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+function yen(n) { return '¥' + n.toLocaleString('ja-JP'); }
+
+// 全メニューを取得（基本メニュー ＋ カスタムメニュー）
+function getAllMenu() {
+  const fullMenu = JSON.parse(JSON.stringify(MENU)); // コピー
+  if (customItems.length > 0) {
+    fullMenu.push({
+      category: "期間限定・追加メニュー",
+      items: customItems
+    });
+  }
+  return fullMenu;
+}
+
+function findItem(id) {
+  for (const cat of getAllMenu()) {
+    const found = cat.items.find(i => i.id === id);
+    if (found) return found;
+  }
+  return null;
+}
+
+function renderItems() {
+  const container = document.getElementById('items-container');
+  container.innerHTML = '';
+  
+  getAllMenu().forEach(cat => {
+    const catDiv = document.createElement('div');
+    catDiv.className = 'category';
+    catDiv.innerHTML = `<div class="category-title">${cat.category}</div>`;
+    
+    cat.items.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'item-row';
+      const descHtml = item.desc ? `<div class="item-desc">${item.desc}</div>` : '';
+      const unitHtml = item.unit ? ` / ${item.unit}` : '';
+      const curGrind = currentGrind[item.id] || 'bean';
+      const grindHtml = `
+        <div class="grind-toggle">
+          <button type="button" class="grind-btn ${curGrind === 'bean' ? 'active' : ''}" data-action="grind" data-value="bean" data-id="${item.id}">豆のまま</button>
+          <button type="button" class="grind-btn ${curGrind === 'ground' ? 'active' : ''}" data-action="grind" data-value="ground" data-id="${item.id}">挽く（粉）</button>
+        </div>
+      `;
+      
+      row.innerHTML = `
+        <div class="item-info">
+          <div class="item-name">${item.name}</div>
+          ${descHtml}
+          <div class="item-price">${yen(item.price)}${unitHtml}</div>
+          ${grindHtml}
+        </div>
+        <div class="qty-control">
+          <button class="qty-btn" data-action="dec" data-id="${item.id}">−</button>
+          <input class="qty-input" type="number" min="0" value="${currentQty[item.id]||0}" data-id="${item.id}">
+          <button class="qty-btn" data-action="inc" data-id="${item.id}">＋</button>
+        </div>
+      `;
+      catDiv.appendChild(row);
+    });
+    container.appendChild(catDiv);
+  });
+
+  // 数量ボタンのイベント
+  container.querySelectorAll('.qty-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      const cur = currentQty[id] || 0;
+      currentQty[id] = btn.dataset.action === 'inc' ? cur + 1 : Math.max(0, cur - 1);
+      renderItems(); updateTotal();
+    });
+  });
+  container.querySelectorAll('.qty-input').forEach(inp => {
+    inp.addEventListener('change', () => {
+      let v = parseInt(inp.value, 10);
+      currentQty[inp.dataset.id] = (isNaN(v) || v < 0) ? 0 : v;
+      renderItems(); updateTotal();
+    });
+  });
+  container.querySelectorAll('.grind-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentGrind[btn.dataset.id] = btn.dataset.value;
+      renderItems(); updateTotal();
+    });
+  });
+}
+
+function updateTotal() {
+  let total = 0;
+  Object.keys(currentQty).forEach(id => {
+    const qty = currentQty[id] || 0;
+    if (qty > 0) {
+      const item = findItem(id);
+      if (item) total += item.price * qty;
+    }
+  });
+  document.getElementById('total-amount').textContent = yen(total);
+  return total;
+}
+
+function renderTeacherSelect() {
+  const sel = document.getElementById('teacher-select');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">選択してください</option>' + teachers.map(t => `<option value="${t}">${t}</option>`).join('');
+  if (teachers.includes(prev)) sel.value = prev;
+}
+
+function renderStatusBanner() {
+  const banner = document.getElementById('status-banner');
+  const btn = document.getElementById('submit-btn');
+  let info = [];
+  if (deadline) info.push(`締切:${new Date(deadline).getMonth()+1}/${new Date(deadline).getDate()}`);
+  if (deliveryDate) info.push(`お届け:${new Date(deliveryDate).getMonth()+1}/${new Date(deliveryDate).getDate()}`);
+  const txt = info.length ? `（${info.join(' / ')}）` : '';
+
+  if (accepting !== 'closed') {
+    banner.className = 'status-banner open';
+    banner.textContent = `🟢 現在受付中${txt}`;
+    btn.disabled = false;
+  } else {
+    banner.className = 'status-banner closed';
+    banner.textContent = `🔴 現在は受け付けていません${txt}`;
+    btn.disabled = true;
+  }
+}
+
+// ----- 先生追加 -----
+document.getElementById('btn-new-teacher').addEventListener('click', () => {
+  document.getElementById('new-teacher-row').classList.toggle('show');
+});
+document.getElementById('btn-add-teacher').addEventListener('click', async () => {
+  const name = document.getElementById('new-teacher-input').value.trim();
+  if (!name) return;
+  if (teachers.includes(name)) return showToast('既に登録されています');
+  
+  teachers.push(name);
+  renderTeacherSelect();
+  document.getElementById('teacher-select').value = name;
+  document.getElementById('new-teacher-input').value = '';
+  document.getElementById('new-teacher-row').classList.remove('show');
+  await saveData({ teachers });
+  showToast(`${name}様を登録しました`);
+});
+
+// ----- 注文送信 -----
+document.getElementById('submit-btn').addEventListener('click', async () => {
+  if (accepting === 'closed') return showToast('締切を過ぎています');
+  const teacher = document.getElementById('teacher-select').value;
+  if (!teacher) return showToast('お名前を選択してください');
+
+  const items = [];
+  Object.keys(currentQty).forEach(id => {
+    const qty = currentQty[id] || 0;
+    if (qty > 0) {
+      const item = findItem(id);
+      if (item) {
+        const grind = currentGrind[id] || 'bean';
+        const grindLabel = grind === 'ground' ? '（挽き・粉）' : '（豆のまま）';
+        items.push({ id, name: item.name + grindLabel, price: item.price, qty, subtotal: item.price * qty, grind });
+      }
+    }
+  });
+  if (items.length === 0) return showToast('商品を選択してください');
+
+  const total = items.reduce((s, i) => s + i.subtotal, 0);
+  orders.push({
+    id: 'o_' + Date.now(), teacher, items, total,
+    timestamp: new Date().toISOString(), paid: false
+  });
+
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+  if (await saveData({ orders })) {
+    showToast(`${teacher}様の注文を送信しました`);
+    currentQty = {}; currentGrind = {}; renderItems(); updateTotal();
+  } else {
+    orders.pop(); showToast('エラーが発生しました');
+  }
+  btn.disabled = false;
+});
+
+// ----- タブ切り替え -----
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const tab = btn.dataset.tab;
+    
+    document.getElementById('panel-order').style.display = (tab === 'order') ? 'block' : 'none';
+    document.getElementById('total-bar-panel').style.display = (tab === 'order') ? 'flex' : 'none';
+    document.getElementById('submit-btn').style.display = (tab === 'order') ? 'block' : 'none';
+    
+    document.getElementById('panel-history').style.display = (tab === 'history') ? 'block' : 'none';
+    if (tab === 'history') renderHistory();
+    
+    document.getElementById('panel-admin').style.display = (tab === 'admin') ? 'block' : 'none';
+    if (tab === 'admin') renderAdminPanel();
+  });
+});
+
+// ----- 管理パネル処理 -----
+function renderAdminPanel() {
+  document.getElementById('accepting-select').value = accepting;
+  document.getElementById('deadline-input').value = deadline || '';
+  document.getElementById('delivery-input').value = deliveryDate || '';
+  
+  const listEl = document.getElementById('custom-item-list');
+  if (customItems.length === 0) {
+    listEl.innerHTML = '<div style="font-size:0.85rem; color:#888;">追加されたメニューはありません</div>';
+  } else {
+    listEl.innerHTML = customItems.map(item => `
+      <div class="custom-item-row">
+        <div><strong>${item.name}</strong><br><span style="font-size:0.8rem; color:#666;">${yen(item.price)}</span></div>
+        <button class="btn-small btn-delete" onclick="deleteCustomItem('${item.id}')">削除</button>
+      </div>
+    `).join('');
+  }
+}
+
+document.getElementById('btn-save-settings').addEventListener('click', async () => {
+  accepting = document.getElementById('accepting-select').value;
+  deadline = document.getElementById('deadline-input').value || null;
+  deliveryDate = document.getElementById('delivery-input').value || null;
+  await saveData({ accepting, deadline, deliveryDate });
+  showToast('設定を保存しました');
+  renderStatusBanner();
+});
+
+document.getElementById('btn-add-custom-item').addEventListener('click', async () => {
+  const name = document.getElementById('custom-name-input').value.trim();
+  const price = parseInt(document.getElementById('custom-price-input').value, 10);
+  
+  if (!name || isNaN(price)) return showToast('商品名と正しい金額を入力してください');
+  
+  const newItem = {
+    id: 'custom_' + Date.now(),
+    name: name,
+    price: price,
+    unit: '個' // 豆とは限らないため汎用的な単位
+  };
+  
+  customItems.push(newItem);
+  if (await saveData({ customItems })) {
+    showToast(`${name} を追加しました`);
+    document.getElementById('custom-name-input').value = '';
+    document.getElementById('custom-price-input').value = '';
+    renderAdminPanel();
+  }
+});
+
+window.deleteCustomItem = async function(id) {
+  if (!confirm('このメニューを削除しますか？')) return;
+  customItems = customItems.filter(item => item.id !== id);
+  await saveData({ customItems });
+  showToast('メニューを削除しました');
+  renderAdminPanel();
+};
+
+document.getElementById('reset-all-btn').addEventListener('click', async () => {
+  if (!confirm('全ての注文履歴を削除します。本当によろしいですか？')) return;
+  orders = [];
+  if (await saveData({ orders })) {
+    showToast('全ての注文をリセットしました');
+  }
+});
+
+// ----- 履歴・集計（簡易版） -----
+function renderHistory() {
+  const container = document.getElementById('history-content');
+  if (orders.length === 0) {
+    container.innerHTML = '<div style="text-align:center; padding: 20px; color:#888;">まだ注文がありません</div>';
+    return;
+  }
+  
+  // 先生別集計
+  const byTeacher = {};
+  orders.forEach(o => {
+    if (!byTeacher[o.teacher]) byTeacher[o.teacher] = { total: 0 };
+    byTeacher[o.teacher].total += o.total;
+  });
+  
+  let html = `<div class="summary-box"><h3>購入者別 集計</h3><table class="summary-table">`;
+  Object.keys(byTeacher).forEach(t => {
+    html += `<tr><td>${t}</td><td class="num">${yen(byTeacher[t].total)}</td></tr>`;
+  });
+  html += `</table></div>`;
+  
+  // 個別注文リスト
+  const sorted = [...orders].sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+  html += sorted.map(o => `
+    <div class="order-card ${o.paid ? 'is-paid' : ''}">
+      <button class="delete-btn" onclick="deleteOrder('${o.id}')">削除</button>
+      <div class="order-head">
+        <span class="teacher-name">${o.teacher} 様</span>
+        <span class="order-time">${new Date(o.timestamp).toLocaleString()}</span>
+      </div>
+      <ul>${o.items.map(i => `<li>${i.name} × ${i.qty}</li>`).join('')}</ul>
+      <div class="order-foot">
+        <button class="paid-toggle-btn ${o.paid ? 'paid' : 'unpaid'}" onclick="togglePaid('${o.id}', ${o.paid})">
+          ${o.paid ? '✅ 集金済み' : '未集金'}
+        </button>
+        <div class="order-total">${yen(o.total)}</div>
+      </div>
+    </div>
+  `).join('');
+  container.innerHTML = html;
+}
+
+window.deleteOrder = async function(id) {
+  if(!confirm('この注文を削除しますか？')) return;
+  orders = orders.filter(o => o.id !== id);
+  await saveData({ orders });
+  renderHistory();
+};
+window.togglePaid = async function(id, isPaid) {
+  const order = orders.find(o => o.id === id);
+  if(order) {
+    order.paid = !isPaid;
+    await saveData({ orders });
+    renderHistory();
+  }
+};
+
+// ----- 初期化 -----
+async function init() {
+  initFirebase();
+  if (firebaseReady) subscribeRealtime();
+  await loadData();
+  renderTeacherSelect();
+  renderStatusBanner();
+  renderItems();
+  updateTotal();
+}
+init();
+</script>
+</body>
+</html>
   :root {
     --dough: #F5EFEB;
     --dough-dark: #E0D4C8;
