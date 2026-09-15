@@ -838,7 +838,7 @@ function initApp(){
     var classesToExport=S.rankingFilterCls==="all"?uniq(students.map(function(s){return s.cls;})):[S.rankingFilterCls];
     var sampleSkills=SKILLS[1];
     var headers=["クラス","出席番号"];
-    sampleSkills.forEach(function(sk,i){headers.push((i+1)+"."+sk.name);});
+    sampleSkills.forEach(function(sk,i){headers.push((i+1)+"."+sk.name);headers.push((i+1)+".挑戦回数");});
     headers.push("合計点","評価","総挑戦回数");
     var rows=[headers];
     classesToExport.forEach(function(cls){
@@ -862,12 +862,13 @@ function initApp(){
           skills.forEach(function(sk){
             var cur=sc[sk.id];
             var att=attemptCount(s.id,sk.id);
-            row.push(cur?gradeLabel(cur.grade)+(att?"("+att+"回)":""):"");
+            row.push(cur?gradeLabel(cur.grade):"");
+            row.push(att||"");
           });
           row.push(total,grade,totalAttempts(s.id,skills));rows.push(row);
         }else{
           var blankRow=[cls,String(n)];
-          sampleSkills.forEach(function(){blankRow.push("");});
+          sampleSkills.forEach(function(){blankRow.push("");blankRow.push("");});
           blankRow.push("","","");
           rows.push(blankRow);
         }
