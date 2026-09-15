@@ -95,11 +95,12 @@ function initApp(){
   var db=firebase.database(fbApp);
   var auth=firebase.auth(fbApp);
   var teacherUnlocked=false;
-  var DB={classes:[],students:{},scores:{}};
+  var DB={classes:[],students:{},scores:{},history:{}};
 
   function syncBar(type,msg){var b=document.getElementById('syncBar');b.textContent=msg;b.className=type;}
   function dbSet(path,val,cb){db.ref('mat1/'+path).set(val,cb||function(){});}
-  function dbRemove(path,cb){db.ref('mat1/'+path).remove(function(err){if(err){alert('⚠️ 削除に失敗しました（通信環境をご確認ください）：'+err.message);}if(cb)cb(err);});}
+  function dbRemove(path,cb){db.ref('mat1/'+path).remove(function(err){if(err){console.error('削除失敗:',path,err);}if(cb)cb(err);});}
+  function dbPush(path,val){db.ref('mat1/'+path).push(val).catch(function(err){console.error('履歴保存失敗:',path,err);});}
 
   // ─── 種目データ（Excelファイルに基づく正確なデータ）───
   // 1年：14種目 合計56点（Excelシート「１年」より）
@@ -194,6 +195,22 @@ function initApp(){
     if(t>=74)return"A+";if(t>=66)return"A";if(t>=55)return"B+";if(t>=44)return"B";return"C";
   }
   function uniq(arr){var s={},r=[];arr.forEach(function(v){if(!s[v]){s[v]=1;r.push(v);}});return r;}
+
+  // ─── 挑戦回数（履歴）関連 ───
+  // 評価の序列。前回より「上がった」ときだけ1回の挑戦としてカウントする
+  var GRADE_RANK={"E":1,"C":2,"B":3,"B+":4,"A":5,"A+":6};
+  function gradeRank(g){return GRADE_RANK[g]||0;}
+  function attemptHistArr(studentId,skillId){
+    var h=(DB.history[studentId]||{})[skillId]||{};
+    return Object.keys(h).map(function(k){return h[k];}).sort(function(a,b){return a.ts-b.ts;});
+  }
+  function attemptCount(studentId,skillId){return attemptHistArr(studentId,skillId).length;}
+  function totalAttempts(studentId,skills){
+    var n=0;skills.forEach(function(sk){n+=attemptCount(studentId,sk.id);});return n;
+  }
+  function buildAttemptEntry(grade,pts,by){
+    return {ts:Date.now(),grade:grade,pts:pts,by:by};
+  }
   function catKey(cat){if(cat.indexOf("接転")>=0)return"接転";if(cat.indexOf("ほん転")>=0)return"ほん転";return"平均";}
   function gradeFromCls(cls){
     // 「1年」「1-」「１年」「１-」いずれでも1年と判断
@@ -208,7 +225,7 @@ function initApp(){
   // 状態
   var S={
     page:"home",
-    tErr:false,selId:null,tScores:{},tExpanded:null,
+    tErr:false,selId:null,tScores:{},tExpanded:null,tHistExpanded:null,modal:null,
     filterCls:"all",addOpen:false,bulkOpen:false,
     delConf:null,classModal:false,resetModal:false,resetErr:"",
     rankingModal:false,rankingFilterCls:"all",
@@ -227,9 +244,27 @@ function initApp(){
     else if(S.page==="teacher")h=vTeacher();
     else if(S.page==="slogin")h=vSLogin();
     else if(S.page==="stuview")h=vStuView();
+    if(S.modal)h+=vModal();
     app.innerHTML=h;
     if(opts&&opts.keepScroll){var np=document.getElementById("scoring-panel");if(np)np.scrollTop=sy;}
   }
+
+  // ─── 独自モーダル（confirm/alertの代わり。Googleサイト等のiframe内でも確実に動く） ───
+  function vModal(){
+    var m=S.modal;
+    var msgHtml=(m.message||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/\n/g,"<br>");
+    return '<div style="position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px">'
+      +'<div style="background:#fff;border-radius:14px;padding:24px;max-width:360px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.2)">'
+      +'<div style="font-size:14px;line-height:1.6;color:#333;margin-bottom:20px">'+msgHtml+'</div>'
+      +'<div style="display:flex;gap:8px;justify-content:flex-end">'
+      +(m.type==='confirm'?'<button onclick="modalCancel()" style="padding:8px 16px;border-radius:8px;border:1px solid #ddd;background:#f5f5f5;color:#666;font-size:13px">キャンセル</button>':'')
+      +'<button onclick="modalOk()" class="btn-primary" style="padding:8px 20px;border-radius:8px;font-size:13px">OK</button>'
+      +'</div></div></div>';
+  }
+  window.uiConfirm=function(message,onOk){S.modal={type:'confirm',message:message,onOk:onOk};render();};
+  window.uiAlert=function(message,onOk){S.modal={type:'alert',message:message,onOk:onOk||null};render();};
+  window.modalOk=function(){var m=S.modal;S.modal=null;if(m&&m.onOk)m.onOk();render();};
+  window.modalCancel=function(){S.modal=null;render();};
 
   // ─── HOME ───
   function vHome(){
@@ -375,7 +410,7 @@ function initApp(){
       +'</div>';
     if(s.isDefault)html+='<div style="background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:10px 14px;font-size:13px;color:#7a5c00;margin-bottom:12px">⚠️ 初期パスワード（出席番号）のままです。「PW変更」から変更してください。</div>';
     html+=renderSummaryBox(s,total,grade,done,false);
-    html+=renderSkillList(skills,sc,s,'s',true);
+    html+=renderSkillList(skills,sc,s,'s');
     html+=renderGradeCriteria(gradeFromCls(s.cls));
     html+='</div>';
     if(S.pwModal){
@@ -416,7 +451,7 @@ function initApp(){
       +'</div></div>';
   }
 
-  function renderSkillList(skills,sc,stu,prefix,readOnly){
+  function renderSkillList(skills,sc,stu,prefix){
     var html="";
     uniq(skills.map(function(sk){return sk.cat;})).forEach(function(cat){
       var catSk=skills.filter(function(sk){return sk.cat===cat;});
@@ -432,38 +467,73 @@ function initApp(){
         if(cur){
           var gc=curGradeColors(cur.grade);
           html+='<span style="font-size:12px;font-weight:700;color:'+gc.fg+';background:'+gc.bg+';padding:2px 10px;border-radius:12px;border:1px solid '+gc.border+'">'+gradeLabel(cur.grade)+' ('+cur.pts+'点)</span>';
-          if(cur.tries)html+='<span class="tries-badge">挑戦'+cur.tries+'回目</span>';
         } else html+='<span style="font-size:11px;color:#bbb">未入力</span>';
+        if(prefix==='t'){
+          html+='<span style="font-size:11px;font-weight:700;color:#1a56c4;background:#e8f0fe;border:1px solid #c5d8fd;padding:2px 8px;border-radius:12px;margin-left:6px;white-space:nowrap">挑戦'+attemptCount(stu.id,sk.id)+'回</span>';
+        }
         html+='<span style="color:#bbb;margin-left:6px">'+(isExp?'▲':'▼')+'</span></div>';
         html+='<div id="'+prefix+'detail-'+sk.id+'" class="skill-detail" style="display:'+(isExp?'block':'none')+'">';
-        if(readOnly){
-          html+='<p style="font-size:11px;color:#999;margin-bottom:8px">👀 評価は先生のみが入力・変更できます（閲覧のみ）</p>';
-        }
-        var rows=[
-          {cls:"a",icon:"A",label:"A評価 （"+sk.A+"点）",desc:sk.cA,active:cur&&(cur.grade==="A"||cur.grade==="A+"),grade:"A",pts:sk.A,checkColor:"#1e6b2e"},
-          {cls:"b",icon:"B",label:"B評価 （"+sk.B+"点）",desc:sk.cB,active:cur&&(cur.grade==="B"||cur.grade==="B+"),grade:"B",pts:sk.B,checkColor:"#1a56c4"},
-          {cls:"c",icon:"C",label:"C評価 （"+sk.C+"点）",desc:sk.cC,active:cur&&cur.grade==="C",grade:"C",pts:sk.C,checkColor:"#8a6000"},
-          {cls:"e",icon:"△",label:"挑戦した（基準未達・0点）",desc:"C評価にも届かなかったが、技には挑戦した場合はこちら。0点ですが「受けた」種目としてカウントされ、全種目完了ボーナスの対象になります。",active:cur&&cur.grade==="E",grade:"E",pts:0,checkColor:"#666"}
-        ];
-        rows.forEach(function(r){
-          var checkMark=r.active?'<span style="color:'+r.checkColor+';margin-left:auto">✔</span>':'';
-          if(readOnly){
-            html+='<div class="grade-btn grade-btn-'+r.cls+(r.active?' active':'')+'" style="opacity:'+(r.active?'1':'.55')+'">'
-              +'<div class="grade-icon gi-'+r.cls+'">'+r.icon+'</div>'
-              +'<div><div style="font-size:13px;font-weight:600">'+r.label+'</div>'
-              +'<div style="font-size:11px;color:#555;margin-top:2px">'+r.desc+'</div></div>'
-              +checkMark+'</div>';
-          } else {
-            html+='<button class="grade-btn grade-btn-'+r.cls+(r.active?' active':'')+'"'
-              +' onclick="doScore'+prefix.toUpperCase()+'(\''+sk.id+'\',\''+r.grade+'\','+r.pts+')">'
-              +'<div class="grade-icon gi-'+r.cls+'">'+r.icon+'</div>'
-              +'<div><div style="font-size:13px;font-weight:600">'+r.label+'</div>'
-              +'<div style="font-size:11px;color:#555;margin-top:2px">'+r.desc+'</div></div>'
-              +checkMark+'</button>';
-          }
-        });
-        if(cur&&!readOnly){
+        // A評価ボタン
+        html+='<button class="grade-btn grade-btn-a'+(cur&&(cur.grade==="A"||cur.grade==="A+")?' active':'')+'"'
+          +' onclick="doScore'+prefix.toUpperCase()+'(\''+sk.id+'\',\'A\','+sk.A+')">'
+          +'<div class="grade-icon gi-a">A</div>'
+          +'<div><div style="font-size:13px;font-weight:600">A評価 （'+sk.A+'点）</div>'
+          +'<div style="font-size:11px;color:#555;margin-top:2px">'+sk.cA+'</div></div>'
+          +(cur&&(cur.grade==="A"||cur.grade==="A+")?'<span style="color:#1e6b2e;margin-left:auto">✔</span>':'')
+          +'</button>';
+        // B評価ボタン
+        html+='<button class="grade-btn grade-btn-b'+(cur&&(cur.grade==="B"||cur.grade==="B+")?' active':'')+'"'
+          +' onclick="doScore'+prefix.toUpperCase()+'(\''+sk.id+'\',\'B\','+sk.B+')">'
+          +'<div class="grade-icon gi-b">B</div>'
+          +'<div><div style="font-size:13px;font-weight:600">B評価 （'+sk.B+'点）</div>'
+          +'<div style="font-size:11px;color:#555;margin-top:2px">'+sk.cB+'</div></div>'
+          +(cur&&(cur.grade==="B"||cur.grade==="B+")?'<span style="color:#1a56c4;margin-left:auto">✔</span>':'')
+          +'</button>';
+        // C評価ボタン
+        html+='<button class="grade-btn grade-btn-c'+(cur&&cur.grade==="C"?' active':'')+'"'
+          +' onclick="doScore'+prefix.toUpperCase()+'(\''+sk.id+'\',\'C\','+sk.C+')">'
+          +'<div class="grade-icon gi-c">C</div>'
+          +'<div><div style="font-size:13px;font-weight:600">C評価 （'+sk.C+'点）</div>'
+          +'<div style="font-size:11px;color:#555;margin-top:2px">'+sk.cC+'</div></div>'
+          +(cur&&cur.grade==="C"?'<span style="color:#8a6000;margin-left:auto">✔</span>':'')
+          +'</button>';
+        // 挑戦したがC基準にも届かなかった場合（0点。ただし「受けた」種目として加点対象にカウントされる）
+        html+='<button class="grade-btn grade-btn-e'+(cur&&cur.grade==="E"?' active':'')+'"'
+          +' onclick="doScore'+prefix.toUpperCase()+'(\''+sk.id+'\',\'E\',0)">'
+          +'<div class="grade-icon gi-e">△</div>'
+          +'<div><div style="font-size:13px;font-weight:600">挑戦した（基準未達・0点）</div>'
+          +'<div style="font-size:11px;color:#555;margin-top:2px">C評価にも届かなかったが、技には挑戦した場合はこちら。0点ですが「受けた」種目としてカウントされ、全種目完了ボーナスの対象になります。</div></div>'
+          +(cur&&cur.grade==="E"?'<span style="color:#666;margin-left:auto">✔</span>':'')
+          +'</button>';
+        if(cur){
           html+='<button onclick="doResetScore'+prefix.toUpperCase()+'(\''+sk.id+'\')" style="font-size:11px;color:#888;border-color:#ddd;background:#f5f5f5;padding:4px 10px;margin-top:4px">↺ 未入力に戻す</button>';
+        }
+        // 変更履歴（教師のみ確認可・何時何分に誰が変更したか）
+        if(prefix==='t'){
+          var histArr=attemptHistArr(stu.id,sk.id);
+          if(histArr.length){
+            var histOpen=S.tHistExpanded===sk.id;
+            html+='<div style="margin-top:8px;border-top:1px dashed #dde4f8;padding-top:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">'
+              +'<button onclick="toggleTHist(\''+sk.id+'\')" style="font-size:11px;color:#1a56c4;background:#e8f0fe;border-color:#c5d8fd;padding:4px 10px">🕒 変更履歴（'+histArr.length+'回挑戦）'+(histOpen?' ▲':' ▼')+'</button>'
+              +'<button onclick="doResetHist(\''+sk.id+'\')" style="font-size:11px;color:#b71c1c;background:#fdecea;border-color:#f5c6c2;padding:4px 10px">↺ 挑戦回数だけリセット</button>';
+            if(histOpen){
+              html+='<div style="margin-top:6px;width:100%;display:flex;flex-direction:column;gap:4px;max-height:220px;overflow-y:auto">';
+              histArr.forEach(function(h,hi){
+                var dt=new Date(h.ts);
+                var hh=("0"+dt.getHours()).slice(-2),mi=("0"+dt.getMinutes()).slice(-2);
+                var mo=dt.getMonth()+1,da=dt.getDate();
+                var who=h.by==='teacher'?'教師が変更':'生徒が入力';
+                html+='<div style="font-size:11px;color:#666;background:#fafbff;border-radius:6px;padding:5px 9px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">'
+                  +'<span style="font-weight:700;color:#1a56c4">'+(hi+1)+'回目</span>'
+                  +'<span style="color:#999">'+mo+'/'+da+' '+hh+':'+mi+'</span>'
+                  +'<span style="font-weight:700">'+gradeLabel(h.grade)+'評価（'+h.pts+'点）</span>'
+                  +'<span style="color:#aaa;margin-left:auto">'+who+'</span>'
+                  +'</div>';
+              });
+              html+='</div>';
+            }
+            html+='</div>';
+          }
         }
         html+='</div></div>';
       });
@@ -554,7 +624,8 @@ function initApp(){
         skills.forEach(function(sk){
           var cur=sc[sk.id];
           var cellTxt=cur?gradeLabel(cur.grade):'―';
-          var triesTxt=(cur&&cur.tries)?'<div style="font-size:9px;color:#aaa;line-height:1.2">'+cur.tries+'回</div>':'';
+          var att=attemptCount(s.id,sk.id);
+          var triesTxt=att?'<div style="font-size:9px;color:#aaa;line-height:1.2">'+att+'回</div>':'';
           skillCells+='<td style="text-align:center;padding:4px 5px;font-size:11px;border-right:1px solid #f0ede6;'+(cur?'':'color:#ccc')+'">'+cellTxt+triesTxt+'</td>';
         });
         var gcS=gcStyle(grade);
@@ -563,7 +634,8 @@ function initApp(){
           +'<td style="padding:5px 8px;font-size:13px;font-weight:600;border-right:1px solid #f0ede6">'+s.number+'番</td>'
           +skillCells
           +'<td style="text-align:center;padding:5px 8px;font-size:14px;font-weight:700;border-right:1px solid #f0ede6">'+total+'</td>'
-          +'<td style="text-align:center;padding:5px 8px"><span style="'+gcS+';padding:2px 10px;border-radius:6px;font-weight:700;font-size:13px">'+grade+'</span></td>'
+          +'<td style="text-align:center;padding:5px 8px;border-right:1px solid #f0ede6"><span style="'+gcS+';padding:2px 10px;border-radius:6px;font-weight:700;font-size:13px">'+grade+'</span></td>'
+          +'<td style="text-align:center;padding:5px 8px;font-size:12px;color:#666">'+totalAttempts(s.id,skills)+'回</td>'
           +'</tr>';
       });
       var skillHeaders="";
@@ -589,7 +661,8 @@ function initApp(){
         +'<th style="padding:6px 8px;text-align:left;border-right:1px solid #dde4f8">出席番号</th>'
         +skillHeaders
         +'<th style="padding:6px 8px;text-align:center;border-right:1px solid #dde4f8">合計</th>'
-        +'<th style="padding:6px 8px;text-align:center">評価</th>'
+        +'<th style="padding:6px 8px;text-align:center;border-right:1px solid #dde4f8">評価</th>'
+        +'<th style="padding:6px 8px;text-align:center;white-space:nowrap">総挑戦回数</th>'
         +'</tr></thead>'
         +'<tbody>'+tableRows+'</tbody>'
         +'</table></div>'
@@ -668,39 +741,67 @@ function initApp(){
   };
 
   window.doScoreT=function(skillId,grade,pts){
-    var prevTries=(S.tScores[skillId]&&S.tScores[skillId].tries)||0;
-    var entry={grade:grade,pts:pts,tries:prevTries+1};
+    var prev=S.tScores[skillId];
+    var improved=gradeRank(grade)>gradeRank(prev&&prev.grade);
+    var entry={grade:grade,pts:pts};
     S.tScores[skillId]=entry;
     if(!DB.scores[S.selId])DB.scores[S.selId]={};
     DB.scores[S.selId][skillId]=entry; // 一覧・CSV等が参照する共有データも即座に更新
     dbSet('scores/'+S.selId+'/'+skillId,entry);
+    if(improved)dbPush('history/'+S.selId+'/'+skillId,buildAttemptEntry(grade,pts,'teacher'));
     render({keepScroll:true});
   };
   window.doResetScoreT=function(skillId){
-    if(!confirm("未評価に戻しますか？（挑戦回数もリセットされます）"))return;
-    delete S.tScores[skillId];
-    if(DB.scores[S.selId])delete DB.scores[S.selId][skillId]; // 一覧側のデータもここで確実に消す
-    dbRemove('scores/'+S.selId+'/'+skillId);
-    render({keepScroll:true});
+    uiConfirm("未評価に戻しますか？\n（挑戦回数もリセットされます）",function(){
+      delete S.tScores[skillId];
+      if(DB.scores[S.selId])delete DB.scores[S.selId][skillId]; // 一覧側のデータもここで確実に消す
+      if(DB.history[S.selId])delete DB.history[S.selId][skillId];
+      dbRemove('scores/'+S.selId+'/'+skillId);
+      dbRemove('history/'+S.selId+'/'+skillId);
+      render({keepScroll:true});
+    });
   };
-  // 生徒は評価を変更できない（閲覧のみ）。念のためここでもブロックしておく。
-  window.doScoreS=function(){
-    alert("評価は先生のみが入力できます。");
+  window.doScoreS=function(skillId,grade,pts){
+    uiConfirm("【"+gradeLabel(grade)+"評価（"+pts+"点）】\n\nこの内容で登録しますか？",function(){
+      var prev=S.stuScores[skillId];
+      var improved=gradeRank(grade)>gradeRank(prev&&prev.grade);
+      var entry={grade:grade,pts:pts};
+      S.stuScores[skillId]=entry;
+      if(!DB.scores[S.logStu.id])DB.scores[S.logStu.id]={};
+      DB.scores[S.logStu.id][skillId]=entry;
+      dbSet('scores/'+S.logStu.id+'/'+skillId,entry);
+      if(improved)dbPush('history/'+S.logStu.id+'/'+skillId,buildAttemptEntry(grade,pts,'student'));
+      render({keepScroll:true});
+    });
   };
-  window.doResetScoreS=function(){
-    alert("評価は先生のみが変更できます。");
+  window.doResetScoreS=function(skillId){
+    uiConfirm("未入力に戻しますか？",function(){
+      delete S.stuScores[skillId];
+      if(DB.scores[S.logStu.id])delete DB.scores[S.logStu.id][skillId];
+      dbRemove('scores/'+S.logStu.id+'/'+skillId);
+      render({keepScroll:true});
+    });
+  };
+  window.toggleTHist=function(id){S.tHistExpanded=(S.tHistExpanded===id)?null:id;render({keepScroll:true});};
+  window.doResetHist=function(skillId){
+    uiConfirm("この種目の「挑戦回数」を0回に戻します。\n（評価・点数は変わりません）\nよろしいですか？",function(){
+      dbRemove('history/'+S.selId+'/'+skillId);
+      if(DB.history[S.selId])delete DB.history[S.selId][skillId];
+      S.tHistExpanded=null;
+      render({keepScroll:true});
+    });
   };
 
   window.doAddStu=function(){
     var num=document.getElementById("nNum").value.trim();
     var cls=document.getElementById("nCls").value;
-    if(!num){alert("出席番号を入力してください");return;}
+    if(!num){uiAlert("出席番号を入力してください");return;}
     var id=genId();
     dbSet('students/'+id,{id:id,number:num,cls:cls,grade:gradeFromCls(cls),password:num,isDefault:true},function(){S.addOpen=false;render();});
   };
   window.genBulkSeq=function(){
     var n=parseInt(document.getElementById("bCount").value,10);
-    if(!n||n<1){alert("人数を入力してください");return;}
+    if(!n||n<1){uiAlert("人数を入力してください");return;}
     var start=parseInt(document.getElementById("bStart").value)||1;
     var seq=[];for(var i=0;i<n;i++)seq.push(String(start+i));
     document.getElementById("bNames").value=seq.join("\n");
@@ -708,19 +809,19 @@ function initApp(){
   window.doBulkAdd=function(){
     var cls=document.getElementById("bCls").value;
     var lines=document.getElementById("bNames").value.split("\n").map(function(n){return n.trim();}).filter(function(n){return n;});
-    if(!lines.length){alert("出席番号を入力してください");return;}
+    if(!lines.length){uiAlert("出席番号を入力してください");return;}
     var count=0,total=lines.length;
     lines.forEach(function(line){
       var m=line.match(/\d+/);
       var num=m?m[0]:line;var id=genId();
       dbSet('students/'+id,{id:id,number:num,cls:cls,grade:gradeFromCls(cls),password:num,isDefault:true},function(){
-        count++;if(count===total){S.bulkOpen=false;alert(count+"人を追加しました！");render();}
+        count++;if(count===total){S.bulkOpen=false;uiAlert(count+"人を追加しました！");}
       });
     });
   };
-  window.doDelStu=function(id){dbRemove('students/'+id);dbRemove('scores/'+id);if(S.selId===id){S.selId=null;S.tScores={};}S.delConf=null;render();};
-  window.addClassItem=function(){var v=document.getElementById("newCls").value.trim();if(!v)return;if(DB.classes.indexOf(v)>=0){alert("すでに存在するクラスです");return;}dbSet('classes',DB.classes.concat([v]));};
-  window.delClass=function(cls){if(!confirm("「"+cls+"」を削除しますか？"))return;dbSet('classes',DB.classes.filter(function(c){return c!==cls;}));};
+  window.doDelStu=function(id){dbRemove('students/'+id);dbRemove('scores/'+id);dbRemove('history/'+id);if(S.selId===id){S.selId=null;S.tScores={};}S.delConf=null;render();};
+  window.addClassItem=function(){var v=document.getElementById("newCls").value.trim();if(!v)return;if(DB.classes.indexOf(v)>=0){uiAlert("すでに存在するクラスです");return;}dbSet('classes',DB.classes.concat([v]));};
+  window.delClass=function(cls){uiConfirm("「"+cls+"」を削除しますか？",function(){dbSet('classes',DB.classes.filter(function(c){return c!==cls;}));});};
   window.doChangePw=function(){
     var o=document.getElementById("pwOld").value,n=document.getElementById("pwNew").value,n2=document.getElementById("pwNew2").value;
     if(n!==n2){S.pwErr="新しいパスワードが一致しません";render();return;}
@@ -730,7 +831,7 @@ function initApp(){
     dbSet('students/'+S.logStu.id+'/isDefault',false,function(){S.logStu=Object.assign({},S.logStu,{password:n,isDefault:false});S.pwOk=true;render();});
   };
   window.doResetAll=function(){
-    dbRemove('students');dbRemove('scores');S.selId=null;S.tScores={};S.resetModal=false;S.resetErr="";alert("✅ 全データを削除しました。");render();
+    dbRemove('students');dbRemove('scores');dbRemove('history');S.selId=null;S.tScores={};S.resetModal=false;S.resetErr="";uiAlert("✅ 全データを削除しました。");
   };
   window.downloadCSV=function(){
     var students=getStudents();
@@ -738,7 +839,7 @@ function initApp(){
     var sampleSkills=SKILLS[1];
     var headers=["クラス","出席番号"];
     sampleSkills.forEach(function(sk,i){headers.push((i+1)+"."+sk.name);});
-    headers.push("合計点","評価");
+    headers.push("合計点","評価","総挑戦回数");
     var rows=[headers];
     classesToExport.forEach(function(cls){
       // 出席番号順に並べ、欠席などで登録・記録が無い番号は空欄の行にして「飛び」を可視化する
@@ -758,12 +859,16 @@ function initApp(){
           var total=calcTotal(sc,skills);
           var grade=calcGrade(total,s.grade);
           var row=[s.cls,s.number];
-          skills.forEach(function(sk){var cur=sc[sk.id];row.push(cur?gradeLabel(cur.grade)+(cur.tries?"("+cur.tries+"回)":""):"");});
-          row.push(total,grade);rows.push(row);
+          skills.forEach(function(sk){
+            var cur=sc[sk.id];
+            var att=attemptCount(s.id,sk.id);
+            row.push(cur?gradeLabel(cur.grade)+(att?"("+att+"回)":""):"");
+          });
+          row.push(total,grade,totalAttempts(s.id,skills));rows.push(row);
         }else{
           var blankRow=[cls,String(n)];
           sampleSkills.forEach(function(){blankRow.push("");});
-          blankRow.push("","");
+          blankRow.push("","","");
           rows.push(blankRow);
         }
       }
@@ -780,7 +885,7 @@ function initApp(){
   // Firebase監視
   db.ref('mat1').on('value',function(snap){
     var val=snap.val()||{};
-    DB.classes=val.classes||[];DB.students=val.students||{};DB.scores=val.scores||{};
+    DB.classes=val.classes||[];DB.students=val.students||{};DB.scores=val.scores||{};DB.history=val.history||{};
     if(S.selId)S.tScores=DB.scores[S.selId]||{};
     syncBar('ok','✅ リアルタイム同期中');
     if(S.page==='teacher'||S.page==='stuview')render({keepScroll:true});
