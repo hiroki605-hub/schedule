@@ -290,7 +290,7 @@
   <!-- 2. 履歴・集計タブ -->
   <section class="panel top-round" id="panel-history" style="display:none;">
     <div id="history-content"></div>
-    <button class="reset-all" id="csv-download-btn" style="border-color: var(--chive); color: var(--chive-dark);">📄 CSVでダウンロード（注文明細・購入者別）</button>
+    <button class="reset-all" id="csv-download-btn" style="border-color: var(--chive); color: var(--chive-dark);">📄 CSVでダウンロード（商品別集計・購入者別）</button>
     <button class="reset-all" id="csv-paper-download-btn" style="border-color: var(--accent); color: var(--accent);">🧾 注文書と同じ並びでCSVダウンロード</button>
   </section>
 
@@ -782,27 +782,28 @@ window.togglePaid = async function(id, isPaid) {
   }
 };
 
-// ----- CSVダウンロード：注文明細・購入者別 -----
+// ----- CSVダウンロード：商品別集計（注文があった商品のみ） -----
 document.getElementById('csv-download-btn').addEventListener('click', () => {
   if (orders.length === 0) return showToast('注文データがありません');
 
-  const rows = [];
-  rows.push(['注文日時', '購入者', '商品名', '数量', '単価', '小計', '集金状況']);
-
-  const sorted = [...orders].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-  sorted.forEach(o => {
+  // 商品名（豆のまま／挽く（粉）の表記込み）ごとに数量・金額を合算
+  const byItem = {}; // name -> { qty, price, subtotal }
+  orders.forEach(o => {
     o.items.forEach(i => {
-      rows.push([
-        new Date(o.timestamp).toLocaleString('ja-JP'),
-        o.teacher,
-        i.name,
-        i.qty,
-        i.price,
-        i.subtotal,
-        o.paid ? '集金済み' : '未集金'
-      ]);
+      if (!byItem[i.name]) byItem[i.name] = { qty: 0, price: i.price, subtotal: 0 };
+      byItem[i.name].qty += i.qty;
+      byItem[i.name].subtotal += i.subtotal;
     });
   });
+
+  const rows = [];
+  rows.push(['商品名', '数量', '単価', '小計']);
+  Object.keys(byItem).forEach(name => {
+    const d = byItem[name];
+    rows.push([name, d.qty, d.price, d.subtotal]);
+  });
+  const grandTotal = Object.values(byItem).reduce((s, d) => s + d.subtotal, 0);
+  rows.push(['合計', '', '', grandTotal]);
 
   rows.push([]);
   rows.push(['購入者別 集計']);
@@ -811,7 +812,7 @@ document.getElementById('csv-download-btn').addEventListener('click', () => {
   orders.forEach(o => { byTeacher[o.teacher] = (byTeacher[o.teacher] || 0) + o.total; });
   Object.keys(byTeacher).forEach(t => rows.push([t, byTeacher[t]]));
 
-  downloadCsv(`コーヒー注文明細_${todayStr()}.csv`, rows);
+  downloadCsv(`コーヒー注文集計_${todayStr()}.csv`, rows);
 });
 
 // ----- CSVダウンロード：注文書と同じ並び（先生×商品のマトリクス） -----
