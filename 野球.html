@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>フライキャッチ＆バッティング 測定アプリ</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;background:#f0f4ff;color:#222;font-size:15px;min-height:100vh}
+button{font-family:inherit;cursor:pointer;border:1px solid #ccc;background:#fff;border-radius:8px;padding:8px 14px;font-size:14px;transition:all .15s}
+button:hover{background:#f0f0f0}
+button:active{transform:scale(.97)}
+input,select,textarea{font-family:inherit;font-size:14px;border:1px solid #ccc;border-radius:8px;padding:9px 12px;width:100%;outline:none;transition:border .15s}
+input:focus,select:focus,textarea:focus{border-color:#4A86E8}
+textarea{resize:vertical;line-height:1.6}
+.btn-primary{background:#4A86E8;color:#fff;border-color:#4A86E8;font-weight:500}
+.btn-primary:hover{background:#3a76d8}
+.btn-danger{color:#d93025;border-color:#d93025;background:#fff}
+.btn-sm{padding:5px 10px;font-size:12px}
+.btn-icon{border:none;background:none;padding:4px;font-size:18px;line-height:1;color:#999}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:100;padding:1rem}
+.modal{background:#fff;border-radius:16px;padding:20px;width:100%;max-width:480px;max-height:88vh;overflow-y:auto}
+.stu-card{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;cursor:pointer;border:1px solid transparent;transition:all .15s}
+.stu-card:hover{background:#f0f4ff;border-color:#c5d8fd}
+.stu-card.active{background:#e8f0fe;border-color:#4A86E8}
+.cls-tag{display:flex;align-items:center;gap:4px;padding:4px 10px;background:#e8f0fe;border:1px solid #c5d8fd;border-radius:20px;font-size:13px}
+.tag-list{display:flex;flex-wrap:wrap;gap:6px}
+#syncBar{background:#fff8e1;border-bottom:1px solid #ffe082;padding:6px 14px;font-size:12px;color:#8a6d00;text-align:center}
+#syncBar.ok{background:#e8f5e9;border-color:#a5d6a7;color:#2e7d32}
+#syncBar.err{background:#fce4ec;border-color:#f48fb1;color:#880e4f}
+.test-card{background:#fff;border:1px solid #dde4f8;border-radius:12px;padding:16px;margin-bottom:16px}
+.test-header{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.test-icon{width:42px;height:42px;border-radius:10px;background:#e8f0fe;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+.best-score{font-size:26px;font-weight:700;color:#1a56c4;line-height:1.1}
+.round-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;border:1px solid #eee;border-radius:8px;margin-bottom:6px;font-size:12px}
+.round-row.best{background:#fff8e1;border-color:#ffe082}
+.ball-chip{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:22px;padding:0 6px;border-radius:6px;font-size:11px;font-weight:700;white-space:nowrap}
+.opt-btn{padding:8px 10px;border-radius:8px;border:1px solid #ccc;background:#fff;font-size:12px}
+.opt-btn.active{outline:2.5px solid #4A86E8;outline-offset:1px;font-weight:700}
+.summary-box{background:#fff;border-radius:12px;padding:14px 16px;border:1px solid #dde4f8;display:flex;align-items:center;gap:14px;margin-bottom:14px}
+</style>
+</head>
+<body>
+<div id="syncBar">🔄 Firebase に接続中...</div>
+<div id="app"><div style="text-align:center;padding:3rem;color:#888">読み込み中...</div></div>
+<script>
+window.addEventListener('load',function(){
+  var s1=document.createElement('script');
+  s1.src='https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js';
+  s1.onload=function(){
+    var s2=document.createElement('script');
+    s2.src='https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js';
+    s2.onload=function(){
+      var s3=document.createElement('script');
+      s3.src='https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js';
+      s3.onload=function(){initApp();};
+      document.head.appendChild(s3);
+    };
+    document.head.appendChild(s2);
+  };
+  document.head.appendChild(s1);
+});
+
+function initApp(){
+  var fbApp=firebase.initializeApp({
+    apiKey:"AIzaSyB4EcKVsb7wuhjZrUeXEG8vi5c1_2yvGj0",
+    authDomain:"schedule-7db64.firebaseapp.com",
+    databaseURL:"https://schedule-7db64-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId:"schedule-7db64",
+    storageBucket:"schedule-7db64.firebasestorage.app",
+    messagingSenderId:"745424328407",
+    appId:"1:745424328407:web:4c8cb8ff701350381d8292"
+  },'baseball1');
+  var db=firebase.database(fbApp);
+  var auth=firebase.auth(fbApp);
+  var teacherUnlocked=false;
+  var DB={classes:[],students:{},rounds:{}};
+
+  function syncBar(type,msg){var b=document.getElementById('syncBar');b.textContent=msg;b.className=type;}
+  function dbSet(path,val,cb){db.ref('baseball1/'+path).set(val,cb||function(){});}
+  function dbRemove(path,cb){db.ref('baseball1/'+path).remove(function(err){if(err){console.error('削除失敗:',path,err);}if(cb)cb(err);});}
+  function dbPush(path,val){db.ref('baseball1/'+path).push(val).catch(function(err){console.error('記録保存失敗:',path,err);});}
+
+  // ─── テスト定義 ───
+  var CATCH_TYPES=[
+    {id:'bare',short:'素手キャッチ',label:'素手・両手キャッチ',pts:0.5,bg:'#e8f0fe',fg:'#1a56c4',border:'#c5d8fd'},
+    {id:'onehand',short:'片手キャッチ',label:'非利き手・片手キャッチ',pts:1,bg:'#e6f4ea',fg:'#1e6b2e',border:'#b8e0c2'},
+    {id:'glove',short:'グローブ',label:'グローブでキャッチ',pts:1.5,bg:'#fef7e0',fg:'#8a6000',border:'#f9e0a0'},
+    {id:'zero',short:'0点',label:'キャッチできず',pts:0,bg:'#f0f0f0',fg:'#666',border:'#ddd'}
+  ];
+  var CATCH_BALLS=5,BAT_BALLS=3,BAT_MAX=8;
+  var CATCH_MAX=CATCH_BALLS*1.5,BAT_MAX_TOTAL=BAT_BALLS*BAT_MAX;
+
+  function catchTypeById(id){for(var i=0;i<CATCH_TYPES.length;i++){if(CATCH_TYPES[i].id===id)return CATCH_TYPES[i];}return CATCH_TYPES[3];}
+  function calcCatchTotal(balls){return balls.reduce(function(s,id){return s+catchTypeById(id).pts;},0);}
+  function calcBatTotal(balls){return balls.reduce(function(s,n){return s+(n||0);},0);}
+  function formatPts(n){if(n===null||n===undefined)return'';return (Math.round(n*10)/10).toString();}
+  function fmtDt(ts){var d=new Date(ts);return (d.getMonth()+1)+'/'+d.getDate()+' '+("0"+d.getHours()).slice(-2)+':'+("0"+d.getMinutes()).slice(-2);}
+  function uniq(arr){var s={},r=[];arr.forEach(function(v){if(!s[v]){s[v]=1;r.push(v);}});return r;}
+  function genId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
+  function getStudents(){return Object.keys(DB.students).map(function(k){return DB.students[k];}).sort(function(a,b){return a.cls.localeCompare(b.cls)||Number(a.number)-Number(b.number);});}
+
+  function getRoundsArr(studentId,type){
+    var obj=((DB.rounds[studentId]||{})[type])||{};
+    return Object.keys(obj).map(function(k){var r=Object.assign({},obj[k]);r._key=k;return r;}).sort(function(a,b){return a.ts-b.ts;});
+  }
+  function getBest(studentId,type){
+    var arr=getRoundsArr(studentId,type);
+    if(!arr.length)return null;
+    var m=arr[0].total;
+    arr.forEach(function(r){if(r.total>m)m=r.total;});
+    return m;
+  }
+
+  // 状態
+  var S={
+    page:"home",
+    tErr:false,selId:null,filterCls:"all",addOpen:false,bulkOpen:false,
+    delConf:null,classModal:false,resetModal:false,resetErr:"",
+    rankingModal:false,rankingFilterCls:"all",
+    logStu:null,sFilterCls:"",sErr:"",
+    pwModal:false,pwOk:false,pwErr:"",
+    histOpen:{t:{catch:false,bat:false},s:{catch:false,bat:false}},
+    roundModalOpen:false,roundType:null,roundInput:[]
+  };
+
+  function render(opts){
+    var app=document.getElementById("app");
+    var panel=document.getElementById("scoring-panel");
+    var sy=panel?panel.scrollTop:0;
+    var h="";
+    if(S.page==="home")h=vHome();
+    else if(S.page==="tlogin")h=vTLogin();
+    else if(S.page==="teacher")h=vTeacher();
+    else if(S.page==="slogin")h=vSLogin();
+    else if(S.page==="stuview")h=vStuView();
+    if(S.roundModalOpen)h+=vRoundModal();
+    if(S.modal)h+=vModal();
+    app.innerHTML=h;
+    if(opts&&opts.keepScroll){var np=document.getElementById("scoring-panel");if(np)np.scrollTop=sy;}
+  }
+
+  // ─── 独自モーダル（confirm/alert） ───
+  function vModal(){
+    var m=S.modal;
+    var msgHtml=(m.message||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/\n/g,"<br>");
+    return '<div style="position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px">'
+      +'<div style="background:#fff;border-radius:14px;padding:24px;max-width:360px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.2)">'
+      +'<div style="font-size:14px;line-height:1.6;color:#333;margin-bottom:20px">'+msgHtml+'</div>'
+      +'<div style="display:flex;gap:8px;justify-content:flex-end">'
+      +(m.type==='confirm'?'<button onclick="modalCancel()" style="padding:8px 16px;border-radius:8px;border:1px solid #ddd;background:#f5f5f5;color:#666;font-size:13px">キャンセル</button>':'')
+      +'<button onclick="modalOk()" class="btn-primary" style="padding:8px 20px;border-radius:8px;font-size:13px">OK</button>'
+      +'</div></div></div>';
+  }
+  window.uiConfirm=function(message,onOk){S.modal={type:'confirm',message:message,onOk:onOk};render();};
+  window.uiAlert=function(message,onOk){S.modal={type:'alert',message:message,onOk:onOk||null};render();};
+  window.modalOk=function(){var m=S.modal;S.modal=null;if(m&&m.onOk)m.onOk();render();};
+  window.modalCancel=function(){S.modal=null;render();};
+
+  // ─── HOME ───
+  function vHome(){
+    return '<div style="max-width:440px;margin:0 auto;padding:2rem 1.5rem">'
+      +'<h1 style="font-size:20px;font-weight:700;margin-bottom:4px">⚾ フライキャッチ＆バッティング 測定アプリ</h1>'
+      +'<p style="color:#999;font-size:13px;margin-bottom:8px">室内野球　捕球テスト・打撃テスト</p>'
+      +'<div style="background:#e8f0fe;border:1px solid #c5d8fd;border-radius:8px;padding:8px 12px;margin-bottom:1.5rem;font-size:12px;color:#1a56c4;line-height:1.6">'
+      +'🥎 フライキャッチ：5球中、素手キャッチ0.5点／非利き手片手1点／グローブ1.5点<br>'
+      +'⚾ バッティング：3球、飛距離に応じて1球ごとに1〜8点<br>'
+      +'何回でも挑戦でき、それぞれ最も高かった回の点数を記録します</div>'
+      +'<div style="display:flex;flex-direction:column;gap:10px">'
+      +mBtn("👤","生徒モード","自分の記録を自分で入力する（生徒パスワード）","goSLogin()")
+      +mBtn("📋","教師モード","全生徒の記録を確認・入力する（先生ログイン）","goTLoginOrTeacher()")
+      +'</div></div>';
+  }
+  function mBtn(ico,title,sub,fn){
+    return '<button onclick="'+fn+'" style="padding:1rem 1.25rem;display:flex;align-items:center;gap:14px;border-radius:12px;text-align:left;border:1px solid #c5d8fd;width:100%;background:#fff">'
+      +'<div style="width:44px;height:44px;border-radius:8px;background:#e8f0fe;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">'+ico+'</div>'
+      +'<div style="flex:1"><div style="font-weight:700;font-size:15px">'+title+'</div><div style="font-size:11px;color:#aaa;margin-top:3px">'+sub+'</div></div>'
+      +'<span style="color:#ccc;font-size:20px">›</span></button>';
+  }
+
+  // ─── 教師ログイン ───
+  function vTLogin(){
+    return '<div style="max-width:360px;margin:0 auto;padding:2rem 1.5rem">'
+      +'<button onclick="goPage(\'home\')" style="border:none;background:none;color:#888;padding:0 0 1.5rem;font-size:13px">← ホームに戻る</button>'
+      +'<h2 style="font-size:18px;font-weight:700;margin-bottom:4px">教師ログイン</h2>'
+      +'<p style="font-size:12px;color:#aaa;margin-bottom:1.5rem">全生徒の記録確認・入力ができます</p>'
+      +'<div style="display:flex;flex-direction:column;gap:10px">'
+      +'<input type="email" id="tEmail" placeholder="メールアドレス">'
+      +'<input type="password" id="tpw" placeholder="パスワード"'+(S.tErr?' style="border-color:#d93025"':'')+' onkeydown="if(event.key===\'Enter\')doTLogin()">'
+      +(S.tErr?'<p style="color:#d93025;font-size:13px">'+S.tErr+'</p>':"")
+      +'<button class="btn-primary" onclick="doTLogin()">ログイン</button>'
+      +'</div></div>';
+  }
+
+  // ─── 教師メイン ───
+  function vTeacher(){
+    var students=getStudents();
+    var sel=DB.students[S.selId];
+    var list=S.filterCls==="all"?students:students.filter(function(s){return s.cls===S.filterCls;});
+    var sb='<div style="width:220px;border-right:1px solid #dde4f8;padding:12px 10px;overflow-y:auto;flex-shrink:0;display:flex;flex-direction:column;gap:6px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center">'
+      +'<button onclick="goPage(\'home\')" style="border:none;background:none;color:#888;font-size:12px;padding:0">← 戻る</button>'
+      +'<button onclick="doTLogout()" style="border:none;background:none;color:#d93025;font-size:12px;padding:0">🚪 ログアウト</button>'
+      +'<div style="display:flex;gap:2px">'
+      +'<button class="btn-icon" onclick="openResetModal()" style="color:#d93025">🗑</button>'
+      +'<button class="btn-icon" onclick="openClassModal()">⚙</button>'
+      +'<button class="btn-icon" onclick="toggleBulk()">📋</button>'
+      +'<button class="btn-icon" onclick="toggleAdd()">＋</button>'
+      +'</div></div>'
+      +'<button onclick="openRankingModal()" style="background:#e8f0fe;border:1px solid #c5d8fd;color:#1a56c4;border-radius:8px;padding:7px;font-size:12px;font-weight:700;width:100%;cursor:pointer">📊 最高得点一覧</button>';
+    if(S.addOpen){
+      sb+='<div style="background:#f5f8ff;border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:6px">'
+        +'<input id="nNum" placeholder="出席番号">'
+        +'<select id="nCls">'+DB.classes.map(function(c){return'<option>'+c+'</option>';}).join('')+'</select>'
+        +'<div style="display:flex;gap:4px">'
+        +'<button class="btn-primary btn-sm" onclick="doAddStu()" style="flex:1">追加</button>'
+        +'<button class="btn-sm" onclick="toggleAdd()" style="flex:1">×</button>'
+        +'</div></div>';
+    }
+    var fOpts='<option value="all">全クラス</option>'+DB.classes.map(function(c){return'<option value="'+c+'"'+(S.filterCls===c?' selected':'')+'>'+c+'</option>';}).join('');
+    sb+='<select onchange="setFilter(this.value)">'+fOpts+'</select>';
+    if(!list.length)sb+='<p style="color:#aaa;font-size:12px">生徒を追加してください</p>';
+    list.forEach(function(s){
+      if(S.delConf===s.id){
+        sb+='<div style="background:#fce8e6;border-radius:8px;padding:8px;font-size:12px">'
+          +'<p style="margin-bottom:6px">「'+s.cls+' '+s.number+'番」を削除しますか？</p>'
+          +'<div style="display:flex;gap:4px">'
+          +'<button class="btn-danger btn-sm" onclick="doDelStu(\''+s.id+'\')" style="flex:1">削除</button>'
+          +'<button class="btn-sm" onclick="cancelDel()" style="flex:1">戻る</button>'
+          +'</div></div>';
+      } else {
+        sb+='<div class="stu-card'+(S.selId===s.id?' active':'')+'" onclick="pickStu(\''+s.id+'\')">'
+          +'<div style="flex:1;min-width:0">'
+          +'<div style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+s.number+'番</div>'
+          +'<div style="font-size:11px;color:#888;display:flex;align-items:center;gap:4px;margin-top:2px"><span>'+s.cls+'</span></div>'
+          +'</div>'
+          +'<button class="btn-icon" style="font-size:14px" onclick="event.stopPropagation();confirmDel(\''+s.id+'\')">🗑</button></div>';
+      }
+    });
+    sb+='</div>';
+
+    var panel='<div id="scoring-panel" style="flex:1;padding:14px;overflow-y:auto">';
+    if(!sel){
+      panel+='<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:300px;color:#aaa;gap:10px">'
+        +'<div style="font-size:40px">⚾</div><p>左のリストから生徒を選んでください</p></div>';
+    } else {
+      panel+=renderStuHeader(sel);
+      panel+='<div style="background:#e8f0fe;border:1px solid #c5d8fd;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:#1a56c4">✏️ 教師モード：記録の入力・修正ができます</div>';
+      panel+=renderTestCard('catch',sel.id,'t');
+      panel+=renderTestCard('bat',sel.id,'t');
+    }
+    panel+='</div>';
+
+    var mods=renderModals('t');
+    return '<div style="display:flex;height:calc(100vh - 33px)">'+sb+panel+'</div>'+mods;
+  }
+
+  function renderStuHeader(s){
+    var cb=getBest(s.id,'catch'),bb=getBest(s.id,'bat');
+    var total=(cb||0)+(bb||0);
+    return '<div class="summary-box">'
+      +'<div style="flex:1"><div style="font-weight:700;font-size:16px">'+s.cls+' '+s.number+'番</div></div>'
+      +'<div style="text-align:right"><div style="font-size:22px;font-weight:700">'+formatPts(total)+'<span style="font-size:12px;color:#888;font-weight:400">点（合計）</span></div>'
+      +'<div style="font-size:11px;color:#888">フライ '+(cb===null?'―':formatPts(cb))+'点　＋　バッティング '+(bb===null?'―':formatPts(bb))+'点</div></div></div>';
+  }
+
+  // ─── 生徒ログイン ───
+  function vSLogin(){
+    var students=getStudents();
+    var allCls=uniq(students.map(function(s){return s.cls;})).sort();
+    var filtered=S.sFilterCls?students.filter(function(s){return s.cls===S.sFilterCls;}):[];
+    var clsOpts='<option value="">クラスを選んでください</option>'+allCls.map(function(c){return'<option value="'+c+'"'+(S.sFilterCls===c?' selected':'')+'>'+c+'</option>';}).join('');
+    var nameOpts='<option value="">出席番号を選んでください</option>'+filtered.map(function(s){return'<option value="'+s.id+'">'+s.number+'番</option>';}).join('');
+    return '<div style="max-width:380px;margin:0 auto;padding:2rem 1.5rem">'
+      +'<button onclick="goPage(\'home\')" style="border:none;background:none;color:#888;padding:0 0 1.5rem;font-size:13px">← ホームに戻る</button>'
+      +'<h2 style="font-size:18px;font-weight:700;margin-bottom:4px">生徒ログイン</h2>'
+      +'<p style="font-size:12px;color:#aaa;margin-bottom:1.5rem">自分の記録を入力できます。初期パスワードは出席番号です。</p>'
+      +'<div style="display:flex;flex-direction:column;gap:12px">'
+      +'<div><label style="font-size:12px;color:#888;display:block;margin-bottom:4px">① クラス</label>'
+      +'<select onchange="setSFilterCls(this.value)">'+clsOpts+'</select></div>'
+      +'<div><label style="font-size:12px;color:#888;display:block;margin-bottom:4px">② 出席番号</label>'
+      +'<select id="sName"'+(!S.sFilterCls?' disabled':'')+'>'+nameOpts+'</select>'
+      +(!S.sFilterCls?'<p style="font-size:11px;color:#aaa;margin-top:3px">クラスを選ぶと出席番号が表示されます</p>':'')+'</div>'
+      +'<div><label style="font-size:12px;color:#888;display:block;margin-bottom:4px">③ パスワード <span style="color:#aaa">（初期：出席番号）</span></label>'
+      +'<input type="password" id="sPw" placeholder="パスワードを入力" onkeydown="if(event.key===\'Enter\')doSLogin()"></div>'
+      +(S.sErr?'<p style="color:#d93025;font-size:13px">'+S.sErr+'</p>':"")
+      +'<button class="btn-primary" onclick="doSLogin()">ログイン</button>'
+      +'</div></div>';
+  }
+
+  // ─── 生徒画面 ───
+  function vStuView(){
+    var s=S.logStu;
+    var html='<div style="max-width:680px;margin:0 auto;padding:1rem">'
+      +'<div style="display:flex;align-items:center;gap:8px;border-bottom:1px solid #dde4f8;padding-bottom:12px;margin-bottom:14px">'
+      +'<button onclick="goSLogin()" style="border:none;background:none;color:#888;font-size:20px;padding:4px">←</button>'
+      +'<h2 style="font-size:16px;font-weight:700;margin:0;flex:1">'+s.cls+' '+s.number+'番</h2>'
+      +'<button onclick="openPwModal()" style="font-size:12px;padding:6px 12px">🔑 PW変更</button>'
+      +'</div>';
+    if(s.isDefault)html+='<div style="background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:10px 14px;font-size:13px;color:#7a5c00;margin-bottom:12px">⚠️ 初期パスワード（出席番号）のままです。「PW変更」から変更してください。</div>';
+    html+=renderStuHeader(s);
+    html+=renderTestCard('catch',s.id,'s');
+    html+=renderTestCard('bat',s.id,'s');
+    html+='</div>';
+    if(S.pwModal){
+      html+='<div class="modal-overlay" onclick="if(event.target===this)closePwModal()">'
+        +'<div class="modal"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
+        +'<h3 style="font-size:16px;font-weight:700">パスワード変更</h3>'
+        +'<button class="btn-icon" onclick="closePwModal()">✕</button></div>';
+      if(S.pwOk){
+        html+='<p style="color:#1e6b2e;font-size:14px;text-align:center;padding:1rem">✅ 変更しました！</p>'
+          +'<button class="btn-primary" onclick="closePwModal()" style="width:100%">閉じる</button>';
+      } else {
+        html+='<div style="display:flex;flex-direction:column;gap:10px">'
+          +'<div><label style="font-size:12px;color:#888;display:block;margin-bottom:4px">現在のパスワード</label><input type="password" id="pwOld"></div>'
+          +'<div><label style="font-size:12px;color:#888;display:block;margin-bottom:4px">新しいパスワード（4文字以上）</label><input type="password" id="pwNew"></div>'
+          +'<div><label style="font-size:12px;color:#888;display:block;margin-bottom:4px">確認</label><input type="password" id="pwNew2"></div>'
+          +(S.pwErr?'<p style="color:#d93025;font-size:13px">'+S.pwErr+'</p>':"")
+          +'<div style="display:flex;gap:8px">'
+          +'<button class="btn-primary" onclick="doChangePw()" style="flex:1">変更する</button>'
+          +'<button onclick="closePwModal()" style="flex:1">キャンセル</button>'
+          +'</div></div>';
+      }
+      html+='</div></div>';
+    }
+    return html;
+  }
+
+  // ─── テストカード（フライキャッチ／バッティング共通） ───
+  function renderTestCard(type,studentId,prefix){
+    var icon=type==='catch'?'🥎':'⚾';
+    var title=type==='catch'?'フライキャッチ（5球）':'バッティング（3球）';
+    var maxTotal=type==='catch'?CATCH_MAX:BAT_MAX_TOTAL;
+    var chronological=getRoundsArr(studentId,type);
+    var withNum=chronological.map(function(r,i){r.num=i+1;return r;});
+    var best=getBest(studentId,type);
+    var open=S.histOpen[prefix][type];
+    var html='<div class="test-card">'
+      +'<div class="test-header"><div class="test-icon">'+icon+'</div>'
+      +'<div style="flex:1"><div style="font-weight:700;font-size:15px">'+title+'</div>'
+      +'<div style="font-size:11px;color:#999">挑戦'+withNum.length+'回</div></div>'
+      +'<div style="text-align:right"><div class="best-score">'+(best===null?'―':formatPts(best))+'</div>'
+      +'<div style="font-size:10px;color:#aaa">最高点 / '+formatPts(maxTotal)+'点満点</div></div></div>'
+      +'<button class="btn-primary" style="width:100%;margin-bottom:8px" onclick="openRoundModal(\''+type+'\')">＋ 新しい回を記録</button>';
+    if(withNum.length){
+      html+='<button class="btn-sm" style="width:100%;margin-bottom:6px" onclick="toggleHist(\''+prefix+'\',\''+type+'\')">'+(open?'▲ 記録を隠す':'▼ 過去の記録を見る（'+withNum.length+'回）')+'</button>';
+      if(open){
+        var display=withNum.slice().reverse();
+        display.forEach(function(r){
+          var isBest=r.total===best;
+          var chips=type==='catch'
+            ?r.balls.map(function(id){var ct=catchTypeById(id);return '<span class="ball-chip" style="background:'+ct.bg+';color:'+ct.fg+'">'+ct.short+'</span>';}).join('')
+            :r.balls.map(function(n){return '<span class="ball-chip" style="background:#e8f0fe;color:#1a56c4">'+n+'点</span>';}).join('');
+          html+='<div class="round-row'+(isBest?' best':'')+'">'
+            +'<span style="min-width:36px;color:#aaa">'+r.num+'回目</span>'
+            +'<span style="color:#aaa;min-width:70px">'+fmtDt(r.ts)+'</span>'
+            +chips
+            +'<span style="font-weight:700;margin-left:auto">'+formatPts(r.total)+'点</span>'
+            +(isBest?'<span style="color:#c9971a">🏆</span>':'')
+            +'<button class="btn-icon" style="font-size:13px" onclick="deleteRound(\''+studentId+'\',\''+type+'\',\''+r._key+'\')">🗑</button>'
+            +'</div>';
+        });
+      }
+    }
+    html+='</div>';
+    return html;
+  }
+
+  // ─── 記録入力モーダル ───
+  function currentTargetStudent(){
+    if(S.page==='teacher')return DB.students[S.selId]||null;
+    if(S.page==='stuview')return S.logStu;
+    return null;
+  }
+  function currentBy(){return S.page==='teacher'?'teacher':'student';}
+
+  function vRoundModal(){
+    var type=S.roundType;
+    var ballCount=type==='catch'?CATCH_BALLS:BAT_BALLS;
+    var total=type==='catch'?calcCatchTotal(S.roundInput):calcBatTotal(S.roundInput);
+    var title=type==='catch'?'🥎 フライキャッチ　新しい回を記録':'⚾ バッティング　新しい回を記録';
+    var html='<div class="modal-overlay" onclick="if(event.target===this)closeRoundModal()">'
+      +'<div class="modal"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
+      +'<h3 style="font-size:15px;font-weight:700">'+title+'</h3><button class="btn-icon" onclick="closeRoundModal()">✕</button></div>';
+    for(var i=0;i<ballCount;i++){
+      html+='<div style="margin-bottom:12px"><div style="font-size:12px;color:#888;margin-bottom:5px">'+(i+1)+'球目</div><div style="display:flex;flex-wrap:wrap;gap:6px">';
+      if(type==='catch'){
+        CATCH_TYPES.forEach(function(ct){
+          var active=S.roundInput[i]===ct.id;
+          html+='<button class="opt-btn'+(active?' active':'')+'" style="background:'+ct.bg+';color:'+ct.fg+';border-color:'+ct.border+'" onclick="setRoundBall('+i+',\''+ct.id+'\')">'+ct.short+'（'+formatPts(ct.pts)+'点）</button>';
+        });
+      } else {
+        for(var n=1;n<=BAT_MAX;n++){
+          var active2=S.roundInput[i]===n;
+          html+='<button class="opt-btn'+(active2?' active':'')+'" style="min-width:38px" onclick="setRoundBall('+i+','+n+')">'+n+'</button>';
+        }
+      }
+      html+='</div></div>';
+    }
+    html+='<div style="background:#f0f4ff;border-radius:8px;padding:10px 14px;margin-bottom:14px;text-align:center;font-weight:700;font-size:16px;color:#1a56c4">合計　'+formatPts(total)+'点</div>'
+      +'<div style="display:flex;gap:8px"><button class="btn-primary" style="flex:1" onclick="saveRound()">保存する</button><button style="flex:1" onclick="closeRoundModal()">キャンセル</button></div>'
+      +'</div></div>';
+    return html;
+  }
+
+  window.openRoundModal=function(type){
+    var stu=currentTargetStudent();
+    if(!stu)return;
+    S.roundType=type;
+    S.roundInput=type==='catch'?['zero','zero','zero','zero','zero']:[0,0,0];
+    S.roundModalOpen=true;
+    render();
+  };
+  window.setRoundBall=function(idx,val){S.roundInput[idx]=val;render();};
+  window.closeRoundModal=function(){S.roundModalOpen=false;render();};
+  window.saveRound=function(){
+    var stu=currentTargetStudent();
+    if(!stu){S.roundModalOpen=false;render();return;}
+    var total=S.roundType==='catch'?calcCatchTotal(S.roundInput):calcBatTotal(S.roundInput);
+    var entry={ts:Date.now(),balls:S.roundInput.slice(),total:total,by:currentBy()};
+    dbPush('rounds/'+stu.id+'/'+S.roundType,entry);
+    S.roundModalOpen=false;
+    render();
+  };
+  window.deleteRound=function(studentId,type,key){
+    uiConfirm("この回の記録を削除しますか？",function(){
+      dbRemove('rounds/'+studentId+'/'+type+'/'+key);
+    });
+  };
+  window.toggleHist=function(prefix,type){S.histOpen[prefix][type]=!S.histOpen[prefix][type];render({keepScroll:true});};
+
+  // ─── モーダル群（一括追加／クラス管理／リセット／一覧） ───
+  function renderModals(mode){
+    var html="";
+    if(S.bulkOpen){
+      html+='<div class="modal-overlay" onclick="if(event.target===this)toggleBulk()">'
+        +'<div class="modal"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
+        +'<h3 style="font-size:16px;font-weight:700">生徒を一括追加</h3>'
+        +'<button class="btn-icon" onclick="toggleBulk()">✕</button></div>'
+        +'<div style="display:flex;flex-direction:column;gap:10px">'
+        +'<div><label style="font-size:12px;color:#888;display:block;margin-bottom:4px">クラス</label>'
+        +'<select id="bCls">'+DB.classes.map(function(c){return'<option>'+c+'</option>';}).join('')+'</select></div>'
+        +'<div><label style="font-size:12px;color:#888;display:block;margin-bottom:4px">開始番号</label>'
+        +'<input type="number" id="bStart" value="1" min="1" style="max-width:120px"></div>'
+        +'<div><label style="font-size:12px;color:#888;display:block;margin-bottom:6px">出席番号（1行1人・開始番号から自動採番も可能）</label>'
+        +'<div style="background:#f0f4ff;border:1px solid #c5d8fd;border-radius:8px;padding:8px 12px;font-size:12px;color:#1a3a6a;margin-bottom:8px">'
+        +'個人が特定されないよう、名前は使わず出席番号だけで管理します。<br>下の「人数」を入力して連番作成を押すか、出席番号を1行に1つずつ直接入力してください。</div>'
+        +'<div style="display:flex;gap:8px;margin-bottom:8px">'
+        +'<input type="number" id="bCount" min="1" max="99" placeholder="人数（例：10）" style="flex:1">'
+        +'<button class="btn-sm" onclick="genBulkSeq()" style="white-space:nowrap">連番で作成</button>'
+        +'</div>'
+        +'<textarea id="bNames" rows="10" placeholder="1&#10;2&#10;3" style="font-family:monospace;font-size:13px"></textarea></div>'
+        +'<p style="font-size:12px;color:#888">※ 初期パスワードは出席番号</p>'
+        +'<div style="display:flex;gap:8px">'
+        +'<button class="btn-primary" onclick="doBulkAdd()" style="flex:1">追加する</button>'
+        +'<button onclick="toggleBulk()" style="flex:1">キャンセル</button>'
+        +'</div></div></div></div>';
+    }
+    if(S.classModal){
+      html+='<div class="modal-overlay" onclick="if(event.target===this)closeClassModal()">'
+        +'<div class="modal"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
+        +'<h3 style="font-size:16px;font-weight:700">クラス管理</h3>'
+        +'<button class="btn-icon" onclick="closeClassModal()">✕</button></div>'
+        +'<div class="tag-list" style="margin-bottom:14px">';
+      DB.classes.forEach(function(c){
+        html+='<div class="cls-tag"><span>'+c+'</span>'
+          +'<button style="border:none;background:none;cursor:pointer;color:#d93025;font-size:14px;padding:0 2px" onclick="delClass(\''+c+'\')">✕</button></div>';
+      });
+      html+='</div><div style="display:flex;gap:8px">'
+        +'<input id="newCls" placeholder="例: 2年3組"><button class="btn-primary" onclick="addClassItem()" style="white-space:nowrap">追加</button>'
+        +'</div></div></div>';
+    }
+    if(S.resetModal){
+      html+='<div class="modal-overlay"><div class="modal" style="max-width:380px">'
+        +'<div style="text-align:center;margin-bottom:16px"><div style="font-size:40px">⚠️</div>'
+        +'<h3 style="font-size:17px;font-weight:700;color:#d93025;margin-bottom:8px">全データを削除しますか？</h3></div>'
+        +'<div style="display:flex;flex-direction:column;gap:8px">'
+        +(S.resetErr?'<p style="color:#d93025;font-size:13px">'+S.resetErr+'</p>':"")
+        +'<button onclick="doResetAll()" style="background:#d93025;color:#fff;border-color:#d93025;font-weight:700;padding:10px">削除する</button>'
+        +'<button onclick="closeResetModal()">キャンセル</button>'
+        +'</div></div></div>';
+    }
+    if(S.rankingModal){
+      var rStudents=getStudents();
+      var rClsOpts='<option value="all">全クラス</option>'+DB.classes.map(function(c){return'<option value="'+c+'"'+(S.rankingFilterCls===c?' selected':'')+'>'+c+'</option>';}).join('');
+      var rList=S.rankingFilterCls==="all"?rStudents:rStudents.filter(function(s){return s.cls===S.rankingFilterCls;});
+      var tableRows="";
+      var classesToShow=S.rankingFilterCls==="all"?uniq(rStudents.map(function(s){return s.cls;})):[S.rankingFilterCls];
+      classesToShow.forEach(function(cls){
+        var clsStudents=rList.filter(function(s){return s.cls===cls;});
+        var byNum={},maxNum=0;
+        clsStudents.forEach(function(s){var n=parseInt(s.number,10)||0;byNum[n]=s;if(n>maxNum)maxNum=n;});
+        for(var n=1;n<=maxNum;n++){
+          var s=byNum[n];
+          if(s){
+            var cb=getBest(s.id,'catch'),bb=getBest(s.id,'bat');
+            var ca=getRoundsArr(s.id,'catch').length,ba=getRoundsArr(s.id,'bat').length;
+            var total=(cb||0)+(bb||0);
+            tableRows+='<tr style="border-bottom:1px solid #f0ede6">'
+              +'<td style="padding:5px 8px;font-size:12px;white-space:nowrap;border-right:1px solid #f0ede6">'+s.cls+'</td>'
+              +'<td style="padding:5px 8px;font-size:13px;font-weight:600;border-right:1px solid #f0ede6">'+s.number+'番</td>'
+              +'<td style="text-align:center;padding:5px 8px;font-size:13px;border-right:1px solid #f0ede6">'+(cb===null?'―':formatPts(cb))+'<span style="color:#aaa;font-size:10px">（'+ca+'回）</span></td>'
+              +'<td style="text-align:center;padding:5px 8px;font-size:13px;border-right:1px solid #f0ede6">'+(bb===null?'―':formatPts(bb))+'<span style="color:#aaa;font-size:10px">（'+ba+'回）</span></td>'
+              +'<td style="text-align:center;padding:5px 8px;font-size:14px;font-weight:700">'+formatPts(total)+'</td>'
+              +'</tr>';
+          } else {
+            tableRows+='<tr style="border-bottom:1px solid #f0ede6;color:#ccc"><td style="padding:5px 8px;font-size:12px">'+cls+'</td><td style="padding:5px 8px;font-size:13px">'+n+'番</td><td colspan="3" style="text-align:center">―</td></tr>';
+          }
+        }
+      });
+      html+='<div class="modal-overlay" onclick="if(event.target===this)closeRankingModal()">'
+        +'<div style="background:#fff;border-radius:16px;padding:20px;width:95vw;max-width:900px;max-height:90vh;overflow-y:auto">'
+        +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
+        +'<h3 style="font-size:16px;font-weight:700">📊 最高得点一覧</h3>'
+        +'<div style="display:flex;gap:8px;align-items:center">'
+        +'<button onclick="downloadCSV()" style="background:#1e6b2e;color:#fff;border-color:#1e6b2e;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">⬇ CSVダウンロード</button>'
+        +'<button class="btn-icon" onclick="closeRankingModal()">✕</button>'
+        +'</div></div>'
+        +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">'
+        +'<select onchange="setRankingFilter(this.value)" style="width:auto">'+rClsOpts+'</select>'
+        +'<span style="font-size:12px;color:#888">'+rList.length+'人</span>'
+        +'</div>'
+        +'<div style="overflow-x:auto">'
+        +'<table style="border-collapse:collapse;width:100%;font-size:12px">'
+        +'<thead><tr style="background:#f0f4ff;border-bottom:2px solid #dde4f8">'
+        +'<th style="padding:6px 8px;text-align:left;border-right:1px solid #dde4f8">クラス</th>'
+        +'<th style="padding:6px 8px;text-align:left;border-right:1px solid #dde4f8">出席番号</th>'
+        +'<th style="padding:6px 8px;text-align:center;border-right:1px solid #dde4f8">フライ最高点</th>'
+        +'<th style="padding:6px 8px;text-align:center;border-right:1px solid #dde4f8">バッティング最高点</th>'
+        +'<th style="padding:6px 8px;text-align:center">合計</th>'
+        +'</tr></thead><tbody>'+tableRows+'</tbody></table></div>'
+        +'<p style="font-size:11px;color:#aaa;margin-top:8px">フライキャッチ：素手0.5点／片手1点／グローブ1.5点（5球中の最高回）　／　バッティング：1〜8点×3球（最高回）　／　（　）内は挑戦回数</p>'
+        +'</div></div>';
+    }
+    return html;
+  }
+
+  // ─── アクション ───
+  window.goPage=function(p){S.page=p;S.tErr=false;S.sErr="";render();};
+  window.goTLoginOrTeacher=function(){
+    if(teacherUnlocked){S.page="teacher";render();}
+    else{S.page="tlogin";render();}
+  };
+  window.goSLogin=function(){S.page="slogin";S.sErr="";render();};
+  window.doTLogin=function(){
+    var email=(document.getElementById("tEmail").value||"").trim();
+    var pw=document.getElementById("tpw").value;
+    if(!email||!pw){S.tErr="メールアドレスとパスワードを入力してください";render();return;}
+    auth.signInWithEmailAndPassword(email,pw).then(function(){
+      S.tErr=false;S.page="teacher";render();
+    }).catch(function(err){
+      var known=["auth/wrong-password","auth/user-not-found","auth/invalid-credential","auth/invalid-email"];
+      S.tErr=known.indexOf(err.code)>=0?"メールアドレスまたはパスワードが違います":("ログインに失敗しました："+err.message);
+      render();
+    });
+  };
+  window.doTLogout=function(){
+    auth.signOut().then(function(){teacherUnlocked=false;S.page="home";render();});
+  };
+  window.doSLogin=function(){
+    var selEl=document.getElementById("sName");
+    var id=selEl?selEl.value:"";
+    var pw=document.getElementById("sPw")?document.getElementById("sPw").value:"";
+    if(!id){S.sErr="出席番号を選んでください";render();return;}
+    var stu=DB.students[id];
+    if(!stu||stu.password!==pw){S.sErr="出席番号またはパスワードが違います";render();return;}
+    S.logStu=stu;S.page="stuview";render();
+  };
+  window.setSFilterCls=function(v){S.sFilterCls=v;S.sErr="";render();};
+  window.toggleAdd=function(){S.addOpen=!S.addOpen;S.bulkOpen=false;render();};
+  window.toggleBulk=function(){S.bulkOpen=!S.bulkOpen;S.addOpen=false;render();};
+  window.openClassModal=function(){S.classModal=true;render();};
+  window.closeClassModal=function(){S.classModal=false;render();};
+  window.setFilter=function(v){S.filterCls=v;render();};
+  window.confirmDel=function(id){S.delConf=id;render();};
+  window.cancelDel=function(){S.delConf=null;render();};
+  window.openResetModal=function(){S.resetModal=true;S.resetErr="";render();};
+  window.closeResetModal=function(){S.resetModal=false;render();};
+  window.openPwModal=function(){S.pwModal=true;S.pwOk=false;S.pwErr="";render();};
+  window.closePwModal=function(){S.pwModal=false;render();};
+  window.openRankingModal=function(){S.rankingModal=true;render();};
+  window.closeRankingModal=function(){S.rankingModal=false;render();};
+  window.setRankingFilter=function(v){S.rankingFilterCls=v;render();};
+  window.pickStu=function(id){S.selId=id;render();};
+
+  window.doAddStu=function(){
+    var num=document.getElementById("nNum").value.trim();
+    var cls=document.getElementById("nCls").value;
+    if(!num){uiAlert("出席番号を入力してください");return;}
+    var id=genId();
+    dbSet('students/'+id,{id:id,number:num,cls:cls,password:num,isDefault:true},function(){S.addOpen=false;render();});
+  };
+  window.genBulkSeq=function(){
+    var n=parseInt(document.getElementById("bCount").value,10);
+    if(!n||n<1){uiAlert("人数を入力してください");return;}
+    var start=parseInt(document.getElementById("bStart").value)||1;
+    var seq=[];for(var i=0;i<n;i++)seq.push(String(start+i));
+    document.getElementById("bNames").value=seq.join("\n");
+  };
+  window.doBulkAdd=function(){
+    var cls=document.getElementById("bCls").value;
+    var lines=document.getElementById("bNames").value.split("\n").map(function(n){return n.trim();}).filter(function(n){return n;});
+    if(!lines.length){uiAlert("出席番号を入力してください");return;}
+    var count=0,total=lines.length;
+    lines.forEach(function(line){
+      var m=line.match(/\d+/);
+      var num=m?m[0]:line;var id=genId();
+      dbSet('students/'+id,{id:id,number:num,cls:cls,password:num,isDefault:true},function(){
+        count++;if(count===total){S.bulkOpen=false;uiAlert(count+"人を追加しました！");}
+      });
+    });
+  };
+  window.doDelStu=function(id){dbRemove('students/'+id);dbRemove('rounds/'+id);if(S.selId===id){S.selId=null;}S.delConf=null;render();};
+  window.addClassItem=function(){var v=document.getElementById("newCls").value.trim();if(!v)return;if(DB.classes.indexOf(v)>=0){uiAlert("すでに存在するクラスです");return;}dbSet('classes',DB.classes.concat([v]));};
+  window.delClass=function(cls){uiConfirm("「"+cls+"」を削除しますか？",function(){dbSet('classes',DB.classes.filter(function(c){return c!==cls;}));});};
+  window.doChangePw=function(){
+    var o=document.getElementById("pwOld").value,n=document.getElementById("pwNew").value,n2=document.getElementById("pwNew2").value;
+    if(n!==n2){S.pwErr="新しいパスワードが一致しません";render();return;}
+    if(n.length<4){S.pwErr="4文字以上にしてください";render();return;}
+    if(S.logStu.password!==o){S.pwErr="現在のパスワードが違います";render();return;}
+    dbSet('students/'+S.logStu.id+'/password',n);
+    dbSet('students/'+S.logStu.id+'/isDefault',false,function(){S.logStu=Object.assign({},S.logStu,{password:n,isDefault:false});S.pwOk=true;render();});
+  };
+  window.doResetAll=function(){
+    dbRemove('students');dbRemove('rounds');S.selId=null;S.resetModal=false;S.resetErr="";uiAlert("✅ 全データを削除しました。");
+  };
+  window.downloadCSV=function(){
+    var students=getStudents();
+    var classesToExport=S.rankingFilterCls==="all"?uniq(students.map(function(s){return s.cls;})):[S.rankingFilterCls];
+    var headers=["クラス","出席番号","フライ最高点","フライ挑戦回数","バッティング最高点","バッティング挑戦回数","合計"];
+    var rows=[headers];
+    classesToExport.forEach(function(cls){
+      var clsStudents=students.filter(function(s){return s.cls===cls;});
+      var byNum={},maxNum=0;
+      clsStudents.forEach(function(s){var n=parseInt(s.number,10)||0;byNum[n]=s;if(n>maxNum)maxNum=n;});
+      for(var n=1;n<=maxNum;n++){
+        var s=byNum[n];
+        if(s){
+          var cb=getBest(s.id,'catch'),bb=getBest(s.id,'bat');
+          var ca=getRoundsArr(s.id,'catch').length,ba=getRoundsArr(s.id,'bat').length;
+          var total=(cb||0)+(bb||0);
+          rows.push([s.cls,s.number,cb===null?"":formatPts(cb),ca||"",bb===null?"":formatPts(bb),ba||"",formatPts(total)]);
+        } else {
+          rows.push([cls,String(n),"","","","",""]);
+        }
+      }
+    });
+    var csv="\uFEFF"+rows.map(function(row){
+      return row.map(function(cell){var s=String(cell==null?"":cell);if(s.indexOf(",")>=0||s.indexOf('"')>=0){s='"'+s.replace(/"/g,'""')+'"';}return s;}).join(",");
+    }).join("\n");
+    var blob=new Blob([csv],{type:"text/csv;charset=utf-8;"});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement("a");a.href=url;a.download="野球テスト最高点_"+(S.rankingFilterCls==="all"?"全クラス":S.rankingFilterCls)+".csv";
+    document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
+  };
+
+  // Firebase監視
+  db.ref('baseball1').on('value',function(snap){
+    var val=snap.val()||{};
+    DB.classes=val.classes||[];DB.students=val.students||{};DB.rounds=val.rounds||{};
+    if(S.logStu&&DB.students[S.logStu.id])S.logStu=DB.students[S.logStu.id];
+    syncBar('ok','✅ リアルタイム同期中');
+    if(S.page==='teacher'||S.page==='stuview')render({keepScroll:true});
+    else render();
+  },function(err){syncBar('err','❌ 接続エラー: '+err.message);render();});
+
+  auth.onAuthStateChanged(function(user){
+    teacherUnlocked=!!user;
+    if(!user && S.page==='teacher'){S.page='home';}
+    render();
+  });
+
+  render();
+}
+</script>
+</body>
+</html>
