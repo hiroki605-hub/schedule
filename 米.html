@@ -608,8 +608,8 @@ function setDeliverMode(mode){
   document.getElementById("modeDeliverBtn").classList.toggle("active", mode==="delivery");
   document.getElementById("modeCancelBtn").classList.toggle("active", mode==="cancel");
   document.getElementById("deliverDesc").textContent = mode==="cancel"
-    ? "キャンセルされた日付と本数を入力してください（注文が減り、在庫が増えます）"
-    : "渡した日付と本数を入力してください";
+    ? "キャンセルされた日付と本数を入力してください（注文数だけ減ります）"
+    : "渡した日付と本数を入力してください（在庫が減ります）";
 }
 function openDeliverModal(id){
   const c = data.customers.find(x=>x.id===id);
@@ -642,9 +642,9 @@ function confirmDeliver(){
   c.remaining -= qty;
   if(deliverMode==="cancel"){
     c.total -= qty;
-    data.stock = (Number(data.stock)||0) + qty;
     c.history.push({ date: date, qty: qty, type:"cancel" });
   } else {
+    data.stock = (Number(data.stock)||0) - qty;
     c.history.push({ date: date, qty: qty, type:"delivery" });
   }
   save(); renderCustomers();
@@ -686,14 +686,15 @@ function delHistoryEntry(custId, idx){
   if(!entry) return;
   const isCancel = entry.type==="cancel";
   const msg = isCancel
-    ? fmtDateJp(entry.date)+"の"+entry.qty+data.unit+"のキャンセル記録を取り消しますか？（注文数が元に戻り、在庫はその分減ります）"
-    : fmtDateJp(entry.date)+"の"+entry.qty+data.unit+"の記録を取り消しますか？（残り本数に戻ります）";
+    ? fmtDateJp(entry.date)+"の"+entry.qty+data.unit+"のキャンセル記録を取り消しますか？（注文数が元に戻ります）"
+    : fmtDateJp(entry.date)+"の"+entry.qty+data.unit+"の記録を取り消しますか？（残り本数に戻り、在庫も増えます）";
   showConfirm(msg, ()=>{
     snapshotForUndo();
     c.remaining += entry.qty;
     if(isCancel){
       c.total += entry.qty;
-      data.stock = (Number(data.stock)||0) - entry.qty;
+    } else {
+      data.stock = (Number(data.stock)||0) + entry.qty;
     }
     c.history.splice(idx,1);
     save(); renderCustomers();
@@ -739,7 +740,6 @@ function addCustomer(){
   const remaining = remainingRaw===""? total : Number(remainingRaw)||0;
   snapshotForUndo();
   data.customers.push({ id: "c"+Date.now()+Math.random().toString(36).slice(2,6), name, total, remaining, history: [] });
-  data.stock = (Number(data.stock)||0) - total;
   document.getElementById("newCustName").value="";
   document.getElementById("newCustTotal").value="";
   document.getElementById("newCustRemaining").value="";
@@ -749,9 +749,8 @@ function addCustomer(){
 function delCustomer(id){
   const c = data.customers.find(x=>x.id===id);
   if(!c) return;
-  showConfirm(c.name+" さんを削除しますか？（この人の分（頼まれた合計）は在庫に戻ります。削除しても「元に戻す」で復元できます）", ()=>{
+  showConfirm(c.name+" さんを削除しますか？（削除しても「元に戻す」で復元できます）", ()=>{
     snapshotForUndo();
-    data.stock = (Number(data.stock)||0) + (Number(c.total)||0);
     data.customers = data.customers.filter(x=>x.id!==id);
     save(); renderCustomers();
     showToast(c.name+"さんを削除しました");
