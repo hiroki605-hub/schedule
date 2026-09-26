@@ -27,7 +27,7 @@
   .wrap{max-width:640px;margin:0 auto;padding:0 14px 60px}
 
   .topbar{display:flex; justify-content:flex-end; gap:8px; margin-bottom:6px; flex-wrap:wrap}
-  .undo-btn, .list-btn{
+  .undo-btn, .list-btn, .sync-btn{
     display:flex; align-items:center; gap:6px; font-size:13px; font-weight:600;
     background:var(--paper); border:1px solid var(--line); border-radius:9px;
     padding:8px 12px; cursor:pointer; color:var(--ink);
@@ -59,9 +59,7 @@
   .price-banner .val{font-size:26px;font-weight:700}
   .price-banner .val small{font-size:13px;font-weight:400;opacity:.85}
 
-  .summary-banner{
-    display:flex; gap:10px; margin-bottom:16px;
-  }
+  .summary-banner{ display:flex; gap:10px; margin-bottom:16px; }
   .summary-banner .box{
     flex:1; background:var(--paper); border:1px solid var(--line); border-radius:12px;
     padding:10px 12px; text-align:center;
@@ -114,6 +112,7 @@
   .footer-actions{display:flex;gap:10px;margin-top:18px}
   .footer-actions .btn{flex:1}
   #fileInput{display:none}
+  .cloud-status{font-size:11px; color:var(--sub); text-align:center; margin-top:10px}
 
   /* モーダル */
   .overlay{
@@ -173,18 +172,18 @@
 
 <div class="toast" id="toast"></div>
 
-<!-- お客さん専用の読み取り専用ビュー -->
+<!-- お客さん専用の読み取り専用ビュー（クラウドからリアルタイムで取得） -->
 <div class="customer-view" id="customerView" style="display:none">
   <div class="big">
-    <div class="name" id="cvName"></div>
+    <div class="name" id="cvName">読み込み中…</div>
     <div class="qty"><span id="cvQty"></span> <span class="unit" id="cvUnit"></span> <span class="of-total" id="cvOfTotal"></span></div>
   </div>
   <div class="updated" id="cvUpdated"></div>
-  <div class="note">このリンクはお客さんご本人専用です。最新の状況は米屋さんからの共有リンクでご確認ください。</div>
+  <div class="note">このリンクはお客さんご本人専用です。数字は自動で最新の状態に更新されます。</div>
 </div>
 
 <!-- 管理画面（米屋さん用） -->
-<div id="ownerView">
+<div id="ownerView" style="display:none">
 <header>
   <h1>🌾 お米<span>在庫帳</span></h1>
   <p>お客さんごとの残数と、年ごとの値段を管理</p>
@@ -192,6 +191,7 @@
 
 <div class="wrap">
   <div class="topbar">
+    <button class="sync-btn" onclick="manualSync()">🔄 同期</button>
     <button class="list-btn" onclick="openListModal()">📋 残数一覧を見る</button>
     <button class="undo-btn" id="undoBtn" onclick="undo()" disabled>↩ 元に戻す</button>
   </div>
@@ -269,6 +269,7 @@
     <button class="btn secondary" onclick="document.getElementById('fileInput').click()">読み込み</button>
     <input type="file" id="fileInput" accept="application/json" onchange="importData(event)">
   </div>
+  <div class="cloud-status" id="cloudStatus">クラウドに接続中…</div>
 </div>
 </div>
 
@@ -339,6 +340,7 @@
     <h3>共有リンクを作成しました</h3>
     <p id="shareCustName" style="font-weight:600;color:var(--ink)"></p>
     <input type="text" id="shareLinkText" readonly style="font-size:12px">
+    <p style="margin-top:10px">このリンクはずっと有効で、開くたびに最新の残数が表示されます。</p>
     <div class="btnrow">
       <button class="btn cancel" onclick="closeShareModal()">閉じる</button>
       <button class="btn" onclick="copyShareLink()">リンクをコピー</button>
@@ -372,9 +374,13 @@
 </div>
 
 <script>
-const STORE_KEY = "kome_kanri_data_v2";
-const OLD_STORE_KEY = "kome_kanri_data_v1";
-let data = load();
+/* ===== クラウド接続設定（Firebase Realtime Database） ===== */
+const FIREBASE_BASE = "https://schedule-7db64-default-rtdb.asia-southeast1.firebasedatabase.app";
+const FIREBASE_PATH = "/kome_kanri.json";
+const FIREBASE_URL = FIREBASE_BASE + FIREBASE_PATH;
+const LOCAL_CACHE_KEY = "kome_kanri_cache_v3";
+
+let data = { unit:"本", customers:[], prices:{} };
 let undoStack = [];
 let editingId = null;
 let deliveringId = null;
@@ -382,16 +388,22 @@ let historyViewId = null;
 let confirmCallback = null;
 let toastTimer = null;
 
-function load(){
-  try{
-    const raw = localStorage.getItem(STORE_KEY);
-    if(raw) return migrate(JSON.parse(raw));
-    const old = localStorage.getItem(OLD_STORE_KEY);
-    if(old) return migrate(JSON.parse(old));
-  }catch(e){}
-  return { unit:"本", customers:[], prices:{} };
+/* ===== クラウドの読み書き ===== */
+async function cloudGet(){
+  const res = await fetch(FIREBASE_URL, { cache:"no-store" });
+  if(!res.ok) throw new Error("http "+res.status);
+  return await res.json();
+}
+async function cloudSet(obj){
+  const res = await fetch(FIREBASE_URL, {
+    method:"PUT",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify(obj)
+  });
+  if(!res.ok) throw new Error("http "+res.status);
 }
 function migrate(d){
+  d = d || {};
   d.unit = d.unit || "本";
   d.prices = d.prices || {};
   d.customers = (d.customers||[]).map(c=>({
@@ -404,7 +416,15 @@ function migrate(d){
   return d;
 }
 function save(){
-  try{ localStorage.setItem(STORE_KEY, JSON.stringify(data)); }catch(e){ showToast("保存に失敗しました"); }
+  try{ localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(data)); }catch(e){}
+  const status = document.getElementById("cloudStatus");
+  if(status) status.textContent = "保存中…";
+  cloudSet(data).then(()=>{
+    if(status) status.textContent = "クラウドに保存済み（他の端末にも反映されます）";
+  }).catch(()=>{
+    if(status) status.textContent = "⚠️ クラウドへの保存に失敗しました。通信を確認してください。";
+    showToast("クラウドへの保存に失敗しました");
+  });
 }
 function snapshotForUndo(){
   undoStack.push(JSON.parse(JSON.stringify(data.customers)));
@@ -454,31 +474,6 @@ function runConfirm(){
   const cb = confirmCallback;
   closeConfirm();
   if(cb) cb();
-}
-
-/* ===== お客さん専用ビュー（?share=... の場合） ===== */
-function b64encodeUnicode(str){ return btoa(unescape(encodeURIComponent(str))); }
-function b64decodeUnicode(str){ return decodeURIComponent(escape(atob(str))); }
-
-function tryShowCustomerView(){
-  const params = new URLSearchParams(location.search);
-  const token = params.get("share");
-  if(!token) return false;
-  try{
-    const info = JSON.parse(b64decodeUnicode(decodeURIComponent(token)));
-    document.getElementById("ownerView").style.display = "none";
-    document.getElementById("customerView").style.display = "block";
-    document.getElementById("cvName").textContent = info.n + " 様";
-    document.getElementById("cvQty").textContent = info.q;
-    document.getElementById("cvUnit").textContent = info.u;
-    document.getElementById("cvOfTotal").textContent = "（頼まれた合計 " + info.t + info.u + " 中）";
-    document.getElementById("cvUpdated").textContent = "更新日時：" + info.d;
-    return true;
-  }catch(e){
-    document.getElementById("customerView").style.display = "block";
-    document.getElementById("customerView").querySelector(".big").innerHTML = "<p>リンクが正しくありません</p>";
-    return true;
-  }
 }
 
 /* ===== タブ切り替え ===== */
@@ -578,7 +573,7 @@ function openHistoryModal(id){
   if(!c.history.length){
     scroll.innerHTML = '<div class="empty">まだ納品の記録がありません</div>';
   } else {
-    c.history.slice().sort((a,b)=> (a.date<b.date?1:-1)).forEach((h,idx)=>{
+    c.history.slice().sort((a,b)=> (a.date<b.date?1:-1)).forEach((h)=>{
       const realIdx = c.history.indexOf(h);
       const row = document.createElement("div");
       row.className = "li-row";
@@ -666,16 +661,12 @@ function saveUnit(){
   showToast("単位を変更しました");
 }
 
-/* ===== 共有リンク ===== */
+/* ===== 共有リンク（クラウドから毎回最新を取得する方式） ===== */
 function openShareModal(id){
   const c = data.customers.find(x=>x.id===id);
   if(!c) return;
-  const now = new Date();
-  const dateStr = now.getFullYear()+"/"+String(now.getMonth()+1).padStart(2,"0")+"/"+String(now.getDate()).padStart(2,"0");
-  const payload = { n:c.name, q:c.remaining, t:c.total, u:data.unit, d:dateStr };
-  const token = encodeURIComponent(b64encodeUnicode(JSON.stringify(payload)));
-  const url = location.origin + location.pathname + "?share=" + token;
-  document.getElementById("shareCustName").textContent = c.name + " さん専用リンク（今の残数がそのまま入っています）";
+  const url = location.origin + location.pathname + "?cid=" + encodeURIComponent(c.id);
+  document.getElementById("shareCustName").textContent = c.name + " さん専用リンク";
   document.getElementById("shareLinkText").value = url;
   document.getElementById("shareOverlay").classList.add("show");
 }
@@ -696,7 +687,7 @@ function fallbackCopy(){
   catch(e){ showToast("コピーできませんでした。手動で選択してコピーしてください。"); }
 }
 
-/* ===== 残数一覧（お客さん全員をまとめて確認するボタン） ===== */
+/* ===== 残数一覧 ===== */
 function openListModal(){
   const scroll = document.getElementById("listScroll");
   scroll.innerHTML = "";
@@ -798,10 +789,80 @@ function importData(ev){
   ev.target.value = "";
 }
 
-if(!tryShowCustomerView()){
+/* ===== 同期（クラウド⇔画面） ===== */
+async function autoRefreshOwner(){
+  if(document.querySelector(".overlay.show")) return;
+  try{
+    const cloud = await cloudGet();
+    const m = migrate(cloud);
+    if(JSON.stringify(m) !== JSON.stringify(data)){
+      data = m;
+      renderCustomers(); renderPrices();
+    }
+    const status = document.getElementById("cloudStatus");
+    if(status) status.textContent = "クラウドに接続済み（自動で同期しています）";
+  }catch(e){
+    const status = document.getElementById("cloudStatus");
+    if(status) status.textContent = "⚠️ クラウドに接続できません。アドレスと通信を確認してください。";
+  }
+}
+function manualSync(){
+  autoRefreshOwner().then(()=>showToast("最新の状態に更新しました"));
+}
+
+/* ===== 起動処理 ===== */
+async function initOwnerView(){
+  document.getElementById("ownerView").style.display = "block";
+  try{
+    const cloud = await cloudGet();
+    data = migrate(cloud);
+    try{ localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(data)); }catch(e){}
+    document.getElementById("cloudStatus").textContent = "クラウドに接続済み（自動で同期しています）";
+  }catch(e){
+    try{
+      const raw = localStorage.getItem(LOCAL_CACHE_KEY);
+      data = raw ? migrate(JSON.parse(raw)) : { unit:"本", customers:[], prices:{} };
+    }catch(e2){ data = { unit:"本", customers:[], prices:{} }; }
+    document.getElementById("cloudStatus").textContent = "⚠️ クラウドに接続できません。前回保存したデータを表示しています。";
+  }
   renderCustomers();
   renderPrices();
+  setInterval(autoRefreshOwner, 8000);
 }
+
+async function initCustomerView(cid){
+  document.getElementById("customerView").style.display = "block";
+  async function refresh(){
+    try{
+      const cloud = await cloudGet();
+      const m = migrate(cloud);
+      const c = m.customers.find(x=>x.id===cid);
+      if(!c){
+        document.getElementById("cvName").textContent = "データが見つかりません";
+        document.getElementById("cvQty").textContent = "";
+        document.getElementById("cvOfTotal").textContent = "";
+        return;
+      }
+      document.getElementById("cvName").textContent = c.name + " 様";
+      document.getElementById("cvQty").textContent = c.remaining;
+      document.getElementById("cvUnit").textContent = m.unit;
+      document.getElementById("cvOfTotal").textContent = "（頼まれた合計 " + c.total + m.unit + " 中）";
+      const now = new Date();
+      document.getElementById("cvUpdated").textContent = "最終確認：" + now.getHours()+":"+String(now.getMinutes()).padStart(2,"0");
+    }catch(e){
+      document.getElementById("cvUpdated").textContent = "通信エラーです。電波を確認してください。";
+    }
+  }
+  await refresh();
+  setInterval(refresh, 8000);
+}
+
+(function(){
+  const params = new URLSearchParams(location.search);
+  const cid = params.get("cid");
+  if(cid){ initCustomerView(cid); }
+  else { initOwnerView(); }
+})();
 </script>
 </body>
 </html>
