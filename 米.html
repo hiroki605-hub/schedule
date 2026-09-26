@@ -59,6 +59,27 @@
   .price-banner .val{font-size:26px;font-weight:700}
   .price-banner .val small{font-size:13px;font-weight:400;opacity:.85}
 
+  /* 在庫バナー */
+  .stock-banner{
+    background:var(--paper); border:1px solid var(--line); border-radius:14px;
+    padding:14px 16px; margin-bottom:12px; box-shadow:var(--shadow);
+  }
+  .stock-top{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px}
+  .stock-lbl{font-size:13px;color:var(--sub);font-weight:600}
+  .stock-val{font-size:30px;font-weight:700;color:var(--accent-dark)}
+  .stock-val.low{color:var(--danger)}
+  .stock-unit{font-size:14px;color:var(--sub);margin-left:2px}
+  .stock-adjust{display:flex;gap:8px}
+  .stock-adjust input{flex:1}
+
+  /* 記録の種類（渡した／キャンセル）切り替え */
+  .mode-toggle{display:flex;gap:8px;margin-bottom:14px}
+  .mode-toggle button{
+    flex:1; padding:9px 0; border-radius:9px; border:1px solid var(--line);
+    background:#fff; font-size:13px; font-weight:600; color:var(--sub); cursor:pointer;
+  }
+  .mode-toggle button.active{background:var(--accent); color:#fff; border-color:var(--accent)}
+
   .summary-banner{ display:flex; gap:10px; margin-bottom:16px; }
   .summary-banner .box{
     flex:1; background:var(--paper); border:1px solid var(--line); border-radius:12px;
@@ -72,6 +93,8 @@
     border-bottom:1px solid var(--line); flex-wrap:wrap;
   }
   .cust-row:last-child{border-bottom:none}
+  .cust-row.done{opacity:.5}
+  .done-badge{display:inline-block; font-size:10.5px; background:var(--sub); color:#fff; border-radius:6px; padding:2px 6px; margin-left:6px; font-weight:600}
   .cust-name{flex:1 1 100%; font-weight:600; font-size:15px}
   .cust-remain{font-size:13px;color:var(--sub); flex:1 1 100%}
   .cust-remain b{color:var(--ink); font-size:16px}
@@ -203,6 +226,18 @@
 
   <!-- 顧客タブ -->
   <div class="panel active" id="panel-customers">
+
+    <div class="stock-banner">
+      <div class="stock-top">
+        <div class="stock-lbl">🌾 在庫（一目でわかる残り量）</div>
+        <div><span class="stock-val" id="stockVal">0</span><span class="stock-unit" id="stockUnitLbl">本</span></div>
+      </div>
+      <div class="stock-adjust">
+        <input type="number" id="stockDeltaInput" placeholder="仕入れ・調整する数（－で減らす）例: 50 / -10">
+        <button type="button" class="btn-sm primary" onclick="applyStockDelta()">反映</button>
+      </div>
+    </div>
+
     <div class="price-banner">
       <div class="yr" id="thisYearLabel">今年の値段</div>
       <div class="val" id="thisYearPrice">未設定 <small>／単位あたり</small></div>
@@ -273,18 +308,22 @@
 </div>
 </div>
 
-<!-- 納品を記録するモーダル -->
+<!-- 納品／キャンセルを記録するモーダル -->
 <div class="overlay" id="deliverOverlay">
   <div class="modal">
-    <h3 id="deliverTitle">納品を記録</h3>
-    <p>渡した日付と本数を入力してください</p>
+    <h3 id="deliverTitle">記録する</h3>
+    <p id="deliverDesc">渡した日付と本数を入力してください</p>
+    <div class="mode-toggle">
+      <button type="button" id="modeDeliverBtn" class="active" onclick="setDeliverMode('delivery')">渡した</button>
+      <button type="button" id="modeCancelBtn" onclick="setDeliverMode('cancel')">キャンセルされた</button>
+    </div>
     <div class="two-col">
       <div>
         <div class="field-lbl">日付</div>
         <input type="date" id="deliverDate">
       </div>
       <div>
-        <div class="field-lbl">渡した本数</div>
+        <div class="field-lbl">本数</div>
         <input type="number" id="deliverQty" style="text-align:center">
       </div>
     </div>
@@ -326,7 +365,7 @@
 <div class="overlay" id="historyOverlay">
   <div class="modal wide">
     <h3 id="historyTitle">納品履歴</h3>
-    <p>いつ何本渡したかの記録です</p>
+    <p>いつ何本渡した／キャンセルしたかの記録です</p>
     <div class="list-scroll" id="historyScroll"></div>
     <div class="btnrow">
       <button class="btn cancel" onclick="closeHistoryModal()">閉じる</button>
@@ -380,10 +419,11 @@ const FIREBASE_PATH = "/kome_kanri.json";
 const FIREBASE_URL = FIREBASE_BASE + FIREBASE_PATH;
 const LOCAL_CACHE_KEY = "kome_kanri_cache_v3";
 
-let data = { unit:"本", customers:[], prices:{} };
+let data = { unit:"本", customers:[], prices:{}, stock:0 };
 let undoStack = [];
 let editingId = null;
 let deliveringId = null;
+let deliverMode = "delivery";
 let historyViewId = null;
 let confirmCallback = null;
 let toastTimer = null;
@@ -406,6 +446,7 @@ function migrate(d){
   d = d || {};
   d.unit = d.unit || "本";
   d.prices = d.prices || {};
+  d.stock = (d.stock!==undefined && d.stock!==null) ? Number(d.stock) : 0;
   d.customers = (d.customers||[]).map(c=>({
     id: c.id,
     name: c.name,
@@ -427,13 +468,15 @@ function save(){
   });
 }
 function snapshotForUndo(){
-  undoStack.push(JSON.parse(JSON.stringify(data.customers)));
+  undoStack.push({ customers: JSON.parse(JSON.stringify(data.customers)), stock: data.stock });
   if(undoStack.length>20) undoStack.shift();
   document.getElementById("undoBtn").disabled = false;
 }
 function undo(){
   if(!undoStack.length) return;
-  data.customers = undoStack.pop();
+  const snap = undoStack.pop();
+  data.customers = snap.customers;
+  data.stock = snap.stock;
   save(); renderCustomers();
   document.getElementById("undoBtn").disabled = undoStack.length===0;
   showToast("元に戻しました");
@@ -486,6 +529,27 @@ document.querySelectorAll(".tab").forEach(t=>{
   });
 });
 
+/* ===== 在庫表示・調整 ===== */
+function renderStock(){
+  const el = document.getElementById("stockVal");
+  if(!el) return;
+  const s = Number(data.stock)||0;
+  el.textContent = s.toLocaleString();
+  el.classList.toggle("low", s<=0);
+  document.getElementById("stockUnitLbl").textContent = " " + (data.unit||"本");
+}
+function applyStockDelta(){
+  const raw = document.getElementById("stockDeltaInput").value.trim();
+  if(raw===""){ showToast("増減させる数を入力してください"); return; }
+  const delta = Number(raw);
+  if(isNaN(delta)){ showToast("正しい数字を入力してください"); return; }
+  snapshotForUndo();
+  data.stock = (Number(data.stock)||0) + delta;
+  document.getElementById("stockDeltaInput").value = "";
+  save(); renderCustomers();
+  showToast("在庫を更新しました（"+(delta>0?"+":"")+delta+(data.unit||"本")+"）");
+}
+
 function renderBanner(){
   const y = currentYear();
   document.getElementById("thisYearLabel").textContent = y + "年の値段";
@@ -499,6 +563,7 @@ function renderBanner(){
   document.getElementById("sumTotal").textContent = sumTotal + esc(data.unit);
   document.getElementById("sumRemaining").textContent = sumRemaining + esc(data.unit);
   document.getElementById("sumDelivered").textContent = (sumTotal-sumRemaining) + esc(data.unit);
+  renderStock();
 }
 
 function renderCustomers(){
@@ -508,14 +573,24 @@ function renderCustomers(){
   list.innerHTML = "";
   if(!data.customers.length){ empty.style.display="block"; renderBanner(); return; }
   empty.style.display="none";
-  data.customers.forEach(c=>{
+
+  // 残りがある人を上に、完売（残り0以下）の人を自動的に下へ
+  const sorted = data.customers.slice().sort((a,b)=>{
+    const az = (Number(a.remaining)||0) <= 0;
+    const bz = (Number(b.remaining)||0) <= 0;
+    if(az !== bz) return az ? 1 : -1;
+    return 0;
+  });
+
+  sorted.forEach(c=>{
+    const isDone = (Number(c.remaining)||0) <= 0;
     const row = document.createElement("div");
-    row.className = "cust-row";
+    row.className = "cust-row" + (isDone ? " done" : "");
     row.innerHTML = `
-      <div class="cust-name">${esc(c.name)}</div>
+      <div class="cust-name">${esc(c.name)}${isDone ? '<span class="done-badge">完売</span>' : ""}</div>
       <div class="cust-remain">${c.total}${esc(data.unit)}中 残り <b>${c.remaining}</b>${esc(data.unit)}（渡した ${c.total-c.remaining}${esc(data.unit)}）</div>
       <div class="row-actions">
-        <button type="button" class="btn-sm primary" onclick="openDeliverModal('${c.id}')">納品を記録</button>
+        <button type="button" class="btn-sm primary" onclick="openDeliverModal('${c.id}')">納品・キャンセルを記録</button>
         <button type="button" class="btn-sm" onclick="openHistoryModal('${c.id}')">履歴</button>
         <button type="button" class="btn-sm" onclick="openEditModal('${c.id}')">修正</button>
         <button type="button" class="btn-sm" onclick="openShareModal('${c.id}')">共有リンク</button>
@@ -527,12 +602,21 @@ function renderCustomers(){
   renderBanner();
 }
 
-/* ===== 納品を記録（履歴に残る）===== */
+/* ===== 納品／キャンセルを記録（履歴に残る）===== */
+function setDeliverMode(mode){
+  deliverMode = mode;
+  document.getElementById("modeDeliverBtn").classList.toggle("active", mode==="delivery");
+  document.getElementById("modeCancelBtn").classList.toggle("active", mode==="cancel");
+  document.getElementById("deliverDesc").textContent = mode==="cancel"
+    ? "キャンセルされた日付と本数を入力してください（注文が減り、在庫が増えます）"
+    : "渡した日付と本数を入力してください";
+}
 function openDeliverModal(id){
   const c = data.customers.find(x=>x.id===id);
   if(!c) return;
   deliveringId = id;
-  document.getElementById("deliverTitle").textContent = c.name + " さんへの納品を記録";
+  setDeliverMode("delivery");
+  document.getElementById("deliverTitle").textContent = c.name + " さんの記録";
   document.getElementById("deliverDate").value = todayStr();
   document.getElementById("deliverQty").value = 1;
   document.getElementById("deliverBefore").textContent = c.remaining;
@@ -556,10 +640,16 @@ function confirmDeliver(){
   if(qty > c.remaining){ showToast("残り本数より多いですが、記録します"); }
   snapshotForUndo();
   c.remaining -= qty;
-  c.history.push({ date: date, qty: qty });
+  if(deliverMode==="cancel"){
+    c.total -= qty;
+    data.stock = (Number(data.stock)||0) + qty;
+    c.history.push({ date: date, qty: qty, type:"cancel" });
+  } else {
+    c.history.push({ date: date, qty: qty, type:"delivery" });
+  }
   save(); renderCustomers();
   closeDeliverModal();
-  showToast(c.name+"さんに"+qty+data.unit+"渡した記録をしました");
+  showToast(c.name+"さんの記録をしました");
 }
 
 /* ===== 履歴を見る ===== */
@@ -567,17 +657,19 @@ function openHistoryModal(id){
   const c = data.customers.find(x=>x.id===id);
   if(!c) return;
   historyViewId = id;
-  document.getElementById("historyTitle").textContent = c.name + " さんの納品履歴";
+  document.getElementById("historyTitle").textContent = c.name + " さんの記録履歴";
   const scroll = document.getElementById("historyScroll");
   scroll.innerHTML = "";
   if(!c.history.length){
-    scroll.innerHTML = '<div class="empty">まだ納品の記録がありません</div>';
+    scroll.innerHTML = '<div class="empty">まだ記録がありません</div>';
   } else {
     c.history.slice().sort((a,b)=> (a.date<b.date?1:-1)).forEach((h)=>{
       const realIdx = c.history.indexOf(h);
+      const isCancel = h.type==="cancel";
+      const label = isCancel ? "キャンセル" : "渡した";
       const row = document.createElement("div");
       row.className = "li-row";
-      row.innerHTML = `<span>${fmtDateJp(h.date)}</span><span><b>${h.qty}</b>${esc(data.unit)} <button type="button" class="btn-sm danger" style="margin-left:8px" onclick="delHistoryEntry('${c.id}', ${realIdx})">取消</button></span>`;
+      row.innerHTML = `<span>${fmtDateJp(h.date)}<br><small style="color:${isCancel?'var(--danger)':'var(--sub)'}">${label}</small></span><span><b>${h.qty}</b>${esc(data.unit)} <button type="button" class="btn-sm danger" style="margin-left:8px" onclick="delHistoryEntry('${c.id}', ${realIdx})">取消</button></span>`;
       scroll.appendChild(row);
     });
   }
@@ -592,9 +684,17 @@ function delHistoryEntry(custId, idx){
   if(!c) return;
   const entry = c.history[idx];
   if(!entry) return;
-  showConfirm(fmtDateJp(entry.date)+"の"+entry.qty+data.unit+"の記録を取り消しますか？（残り本数に戻ります）", ()=>{
+  const isCancel = entry.type==="cancel";
+  const msg = isCancel
+    ? fmtDateJp(entry.date)+"の"+entry.qty+data.unit+"のキャンセル記録を取り消しますか？（注文数が元に戻り、在庫はその分減ります）"
+    : fmtDateJp(entry.date)+"の"+entry.qty+data.unit+"の記録を取り消しますか？（残り本数に戻ります）";
+  showConfirm(msg, ()=>{
     snapshotForUndo();
     c.remaining += entry.qty;
+    if(isCancel){
+      c.total += entry.qty;
+      data.stock = (Number(data.stock)||0) - entry.qty;
+    }
     c.history.splice(idx,1);
     save(); renderCustomers();
     openHistoryModal(custId);
@@ -639,6 +739,7 @@ function addCustomer(){
   const remaining = remainingRaw===""? total : Number(remainingRaw)||0;
   snapshotForUndo();
   data.customers.push({ id: "c"+Date.now()+Math.random().toString(36).slice(2,6), name, total, remaining, history: [] });
+  data.stock = (Number(data.stock)||0) - total;
   document.getElementById("newCustName").value="";
   document.getElementById("newCustTotal").value="";
   document.getElementById("newCustRemaining").value="";
@@ -648,8 +749,9 @@ function addCustomer(){
 function delCustomer(id){
   const c = data.customers.find(x=>x.id===id);
   if(!c) return;
-  showConfirm(c.name+" さんを削除しますか？（削除しても「元に戻す」で復元できます）", ()=>{
+  showConfirm(c.name+" さんを削除しますか？（未納品分は在庫に戻ります。削除しても「元に戻す」で復元できます）", ()=>{
     snapshotForUndo();
+    data.stock = (Number(data.stock)||0) + (Number(c.remaining)||0);
     data.customers = data.customers.filter(x=>x.id!==id);
     save(); renderCustomers();
     showToast(c.name+"さんを削除しました");
@@ -703,7 +805,7 @@ function openListModal(){
   }
   const now = new Date();
   document.getElementById("listUpdatedAt").textContent =
-    now.getFullYear()+"/"+String(now.getMonth()+1).padStart(2,"0")+"/"+String(now.getDate()).padStart(2,"0") + " 時点の一覧です";
+    now.getFullYear()+"/"+String(now.getMonth()+1).padStart(2,"0")+"/"+String(now.getDate()).padStart(2,"0") + " 時点の一覧です（在庫："+(Number(data.stock)||0)+(data.unit||"本")+"）";
   document.getElementById("listOverlay").classList.add("show");
 }
 function closeListModal(){
@@ -719,6 +821,7 @@ function copyListText(){
     sumTotal += Number(c.total)||0; sumRemaining += Number(c.remaining)||0;
   });
   text += "\n合計："+sumTotal+data.unit+"中 残り"+sumRemaining+data.unit;
+  text += "\n在庫："+(Number(data.stock)||0)+data.unit;
   if(navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(text).then(()=>showToast("一覧をコピーしました")).catch(()=>showToast("コピーできませんでした"));
   } else {
@@ -821,8 +924,8 @@ async function initOwnerView(){
   }catch(e){
     try{
       const raw = localStorage.getItem(LOCAL_CACHE_KEY);
-      data = raw ? migrate(JSON.parse(raw)) : { unit:"本", customers:[], prices:{} };
-    }catch(e2){ data = { unit:"本", customers:[], prices:{} }; }
+      data = raw ? migrate(JSON.parse(raw)) : { unit:"本", customers:[], prices:{}, stock:0 };
+    }catch(e2){ data = { unit:"本", customers:[], prices:{}, stock:0 }; }
     document.getElementById("cloudStatus").textContent = "⚠️ クラウドに接続できません。前回保存したデータを表示しています。";
   }
   renderCustomers();
