@@ -749,9 +749,9 @@ function addCustomer(){
 function delCustomer(id){
   const c = data.customers.find(x=>x.id===id);
   if(!c) return;
-  showConfirm(c.name+" さんを削除しますか？（未納品分は在庫に戻ります。削除しても「元に戻す」で復元できます）", ()=>{
+  showConfirm(c.name+" さんを削除しますか？（この人の分（頼まれた合計）は在庫に戻ります。削除しても「元に戻す」で復元できます）", ()=>{
     snapshotForUndo();
-    data.stock = (Number(data.stock)||0) + (Number(c.remaining)||0);
+    data.stock = (Number(data.stock)||0) + (Number(c.total)||0);
     data.customers = data.customers.filter(x=>x.id!==id);
     save(); renderCustomers();
     showToast(c.name+"さんを削除しました");
