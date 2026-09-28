@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>高校募集要項 比較表</title>
+<style>
+:root{--bg:#f2f4f7;--pn:#fff;--ink:#1b2430;--mu:#66707d;--ln:#d9dee5;--ac:#1d4e89;--acbg:#e8eff8;--ok:#17663f;--okbg:#e0f3e8;--no:#8a4b0a;--nobg:#fbeedd}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.65 "BIZ UDPGothic","Yu Gothic UI","Hiragino Sans",Meiryo,sans-serif}
+header{background:var(--pn);border-bottom:1px solid var(--ln);padding:12px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+h1{font-size:18px;margin:0 auto 0 0}
+button,select,input,textarea{font:inherit;color:inherit}
+button{border:1px solid var(--ln);background:var(--pn);border-radius:6px;padding:6px 12px;cursor:pointer}
+button:hover{background:var(--acbg)} button.p{background:var(--ac);border-color:var(--ac);color:#fff} button.p:hover{background:#163d6d}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid #f0a020;outline-offset:1px}
+button.d{color:#a12a1a}
+.bar{padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.tabs button{border-radius:6px 6px 0 0}.tabs button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+.sc{border-radius:999px;padding:3px 12px;font-size:13px;opacity:.45}.sc.on{opacity:1;border-width:2px}
+#st{padding:0 16px;color:var(--mu);min-height:24px}
+#st.err{color:#a12a1a}
+main{padding:0 16px 40px}
+.wrap{overflow:auto;background:var(--pn);border:1px solid var(--ln);border-radius:8px;max-height:calc(100vh - 190px)}
+table{border-collapse:separate;border-spacing:0;min-width:100%}
+th,td{padding:8px 12px;border-bottom:1px solid var(--ln);border-right:1px solid var(--ln);vertical-align:top;text-align:left;min-width:270px;max-width:340px}
+th.k,td.k{position:sticky;left:0;min-width:120px;max-width:120px;background:#f7f9fb;font-weight:700;z-index:1}
+thead th{position:sticky;top:0;background:var(--pn);z-index:2}thead th.k{z-index:3}
+tr.g td{background:var(--acbg);color:var(--ac);font-weight:700;position:sticky;left:0}
+.na{color:#b3bac3}
+.chip{display:inline-block;padding:1px 12px;border-radius:999px;font-weight:700;background:#eceff3}
+.chip.y{background:var(--okbg);color:var(--ok)}.chip.n{background:var(--nobg);color:var(--no)}
+.sn{font-size:17px;font-weight:700}.sm{color:var(--mu);font-size:13px}
+.tl{background:var(--pn);border:1px solid var(--ln);border-radius:8px;padding:8px 16px}
+.day{display:grid;grid-template-columns:120px 1fr;gap:12px;padding:8px 0;border-bottom:1px solid var(--ln)}
+.day:last-child{border:0}.day.past{opacity:.5}
+.ev{display:flex;gap:8px;align-items:baseline;padding:2px 0}
+.dot{width:10px;height:10px;border-radius:50%;flex:none}
+dialog{border:1px solid var(--ln);border-radius:10px;padding:0;width:min(760px,94vw);max-height:92vh}
+dialog::backdrop{background:#0006}
+.dh{padding:12px 16px;border-bottom:1px solid var(--ln);font-weight:700}
+.db{padding:12px 16px;overflow:auto;max-height:70vh}
+.df{padding:12px 16px;border-top:1px solid var(--ln);display:flex;gap:8px;justify-content:flex-end}
+label{display:block;font-size:13px;color:var(--mu);margin:10px 0 2px}
+input,textarea,select{width:100%;border:1px solid var(--ln);border-radius:6px;padding:6px 8px;background:#fff}
+textarea{min-height:64px;resize:vertical}
+.warn{background:var(--nobg);color:var(--no);padding:8px 12px;border-radius:6px;margin-bottom:8px}
+h3{margin:16px 0 0;color:var(--ac);font-size:14px}
+.empty{padding:40px;text-align:center;color:var(--mu)}
+@media print{header,.bar,#st,.df{display:none}.wrap{max-height:none;overflow:visible}body{background:#fff}}
+</style></head><body>
+<header>
+<h1>高校募集要項 比較表</h1>
+<button class="p" onclick="pick.click()">募集要項を読み取る</button>
+<input id="pick" type="file" accept="application/pdf,image/*" hidden>
+<button onclick="openEdit(null)">手入力で追加</button>
+<button onclick="exportJ()">書き出し</button>
+<button onclick="imp.click()">読み込み</button>
+<input id="imp" type="file" accept=".json" hidden>
+<button onclick="window.print()">印刷</button>
+<button onclick="setDlg.showModal()">設定</button>
+</header>
+<div class="bar tabs" id="tabs"></div>
+<div class="bar" id="chips"></div>
+<div id="st" role="status"></div>
+<main id="main"></main>
+
+<dialog id="setDlg"><div class="dh">設定（Gemini）</div><div class="db">
+<label>APIキー</label><input id="kIn" type="password" autocomplete="off">
+<label>モデル名</label><input id="mIn">
+<p class="sm">キーはこのブラウザの中にだけ保存されます。共有パソコンでは、使い終わったら空にしてください。</p></div>
+<div class="df"><button onclick="setDlg.close()">閉じる</button><button class="p" onclick="saveSet()">保存</button></div></dialog>
+
+<dialog id="edDlg"><div class="dh" id="edT"></div><div class="db" id="edB"></div>
+<div class="df"><button class="d" id="delB" onclick="delS()">この学校を削除</button><span style="flex:1"></span><button onclick="edDlg.close()">キャンセル</button><button class="p" onclick="saveS()">保存</button></div></dialog>
+
+<script>
+// [key, label, type(text|long|date|tri), group, AIへのヒント]
+const F=[
+['name','学校名','text','','学校名'],
+['year','年度','text','','例: 2027年度'],
+['preRegStart','事前登録 開始日','date','出願まで','WEB出願のユーザー登録など事前登録の開始日'],
+['preRegEnd','事前登録 締切日','date','出願まで','事前登録の締切日。なければ空'],
+['applyStart','出願受付 開始日','date','出願まで','出願受付(持参・WEB入力)の開始日'],
+['applyEnd','出願受付 締切日','date','出願まで','出願受付の締切日(郵送は消印有効日)'],
+['applyNote','出願方法・受付時間','long','出願まで','WEB/郵送/持参の別、受付時間、締切時刻、事前登録の補足'],
+['docs','出願書類','long','出願まで','必須・任意を分けて全て列挙'],
+['feeAmount','考査料','text','出願まで','金額と支払方法の要点。ない学校は空'],
+['feeStart','考査料納付 開始日','date','出願まで','納付期間がある場合のみ'],
+['feeEnd','考査料納付 締切日','date','出願まで','納付期間がある場合のみ。締切時刻は考査料欄に'],
+['examDate','試験日','date','試験',''],
+['meetTime','集合時間','text','試験',''],
+['examStart','試験開始時間','text','試験','最初の教科の開始時刻'],
+['subjects','試験教科・時程','long','試験','教科ごとの時間・配点、面接の有無'],
+['bento','弁当','tri','試験','昼食持参が必要なら あり、不要なら なし、記載なしは 不明'],
+['bonus','資格による加点','long','加点・回し合格','英検・漢検・数検などの加点の有無と、級ごとの点数・扱い。なければ「記載なし」'],
+['bonusDocs','加点に必要な書類・条件','long','加点・回し合格','証明書の種類、提出期限、取得期限'],
+['mawashi','回し合格','tri','加点・回し合格','回し合格(第1志望コースで不合格の場合に別コースで判定)があれば あり、なければ なし、不明は 不明'],
+['mawashiDetail','回し合格の仕組み','long','加点・回し合格','専願・併願ごとの回る順序を全て'],
+['resultDate','合格発表日','date','発表・手続',''],
+['resultTime','発表時刻・方法','text','発表・手続','時刻と方法(WEB/郵送/掲示)'],
+['enrollSengan','専願 入学手続 締切日','date','発表・手続','専願合格者の手続日・締切日'],
+['enrollHeigan','併願 入学手続 締切日','date','発表・手続','併願合格者の手続日・締切日'],
+['enrollNote','手続金・手続の補足','long','発表・手続','手続金の額、返金の可否など'],
+['infDocs','感染症で欠席する場合の必要書類','long','感染症で欠席したとき','必要な書類、提出先、提出期限'],
+['infMakeupDate','追試験日','date','感染症で欠席したとき',''],
+['infMakeupTime','追試験の時間','text','感染症で欠席したとき','集合時刻など'],
+['infNote','欠席連絡・追試の補足','long','感染症で欠席したとき','当日の連絡方法と期限、追試の考査料など'],
+['note','その他メモ','long','その他','特待生、募集人員など要点']
+];
+const LS='adm_db_v1',KS='adm_gemini_key',MS='adm_gemini_model';
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const uid=()=>'s'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+
+const SEED={id:'seed-uenomiya',name:'上宮高等学校',year:'2027年度',
+preRegStart:'2026-12-01',preRegEnd:'',applyStart:'2027-01-20',applyEnd:'2027-01-27',
+applyNote:'WEB出願（1/27 16時まで）。事前登録＝ユーザー情報登録（締切の記載なし）。\n書類は持参 1/20〜1/27 9:00〜16:00（日曜除く）／郵送 1/27 消印有効（簡易書留・レターパック等）。\n志願書と個人報告書が学校に届いた時点で出願完了。',
+docs:'【必須】入学志願書（中学校長印。顔写真をWEB登録しない場合は写真貼付。入学考査票は切り離して当日持参）\n【必須】個人報告書（中学校長が作成・厳封）\n【任意】英検合格証明書の写し（A4コピー）',
+feeAmount:'20,000円（WEB出願ページで支払い。1/27 16時まで）',feeStart:'2027-01-12',feeEnd:'2027-01-27',
+examDate:'2027-02-10',meetTime:'8:20（集合・点呼・諸注意）',examStart:'9:00（国語）',
+subjects:'国語 9:00〜9:50／数学 10:10〜11:00／英語（リスニング含）11:20〜12:10／昼食 12:10〜12:50／理科 12:50〜13:40／社会 14:00〜14:50\n各教科50分・100点満点（計500点）。面接・身体検査なし。',
+bento:'あり',
+bonus:'英検（読み替え制度）：準1級以上＝英語90点／2級＝英語80点に換算。当日の英語の得点と比較して高い方を採用。\n漢検などの加点は記載なし。',
+bonusDocs:'英検合格証明書の写し（A4）を出願書類の提出期限までに提出。WEB出願時に取得級を選択。2026年11月までに受験が終わり証明書が手元にあるものに限る。',
+mawashi:'あり',
+mawashiDetail:'・プレップ専願／併願：第1志望のみで判定（回しなし）\n・英数専願 → 不合格ならプレップ専願で判定\n・英数併願 → 不合格ならプレップ併願で判定\n・パワー専願 → 英数専願 → プレップ専願の順\n・パワー併願 → 英数併願 → プレップ併願の順\n※専願は専願同士、併願は併願同士で回る。志願書には第1志望コースのみ印刷。',
+resultDate:'2027-02-12',resultTime:'18:00（WEB発表のみ。郵送・電話問い合わせなし）',
+enrollSengan:'2027-02-20',enrollHeigan:'2027-03-20',
+enrollNote:'手続金299,000円（入学料220,000円＋学年諸経費79,000円）。入学者招集日は3/27(土)11:00。辞退時、入学料は返金なし。',
+infDocs:'学校長からの依頼書（様式自由）を在学中学校経由で本校事務局へ提出（郵送可）。2/16(火)16時まで。',
+infMakeupDate:'2027-02-17',infMakeupTime:'集合9:00',
+infNote:'受験を控える場合は2/10(水)8:20までに中学校の先生から本校事務局へ電話連絡。連絡なしの欠席は通常の欠席扱い。追試は考査料の徴収なし。',
+note:'募集：計480名（パワー40／英数120／プレップ320）。特待生：パワーコースの成績優秀者に奨学金（合否発表時に通知）。追加募集は未定。※サンプルデータ'};
+
+let db=JSON.parse(localStorage.getItem(LS)||'null')||[SEED];
+let view='table',on=new Set(db.map(s=>s.id)),cur=null,curIsNew=false;
+const save=()=>localStorage.setItem(LS,JSON.stringify(db));
+const status=(t,e)=>{$('st').textContent=t;$('st').className=e?'err':''};
+const color=i=>`hsl(${(i*67+210)%360} 55% 42%)`;
+
+function fmtD(s){const d=new Date(s+'T00:00:00');if(isNaN(d))return esc(s);return `<b>${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}</b>（${'日月火水木金土'[d.getDay()]}）`}
+function cell(f,v){
+ if(!v)return '<span class="na">—</span>';
+ if(f[2]==='date')return fmtD(v);
+ if(f[2]==='tri')return `<span class="chip ${v==='あり'?'y':v==='なし'?'n':''}">${esc(v)}</span>`;
+ return esc(v).replace(/\n/g,'<br>');
+}
+
+function render(){
+ $('tabs').innerHTML=[['table','項目別に比べる'],['time','日程順に見る']].map(([k,l])=>`<button class="${view===k?'on':''}" onclick="view='${k}';render()">${l}</button>`).join('');
+ $('chips').innerHTML=db.map((s,i)=>`<button class="sc ${on.has(s.id)?'on':''}" style="border-color:${color(i)};color:${color(i)}" onclick="tog('${s.id}')">${esc(s.name||'名称未設定')}</button>`).join('');
+ const shown=db.filter(s=>on.has(s.id));
+ if(!shown.length){$('main').innerHTML='<div class="empty">表示する学校がありません。上の学校名を押して選ぶか、「募集要項を読み取る」から追加してください。</div>';return}
+ $('main').innerHTML=view==='table'?table(shown):timeline(shown);
+}
+function tog(id){on.has(id)?on.delete(id):on.add(id);render()}
+
+function table(shown){
+ let h='<div class="wrap"><table><thead><tr><th class="k"></th>'+shown.map(s=>`<th><div class="sn">${esc(s.name)}</div><div class="sm">${esc(s.year)}</div><button onclick="openEdit('${s.id}')">確認・編集</button></th>`).join('')+'</tr></thead><tbody>';
+ let g=null;
+ F.filter(f=>f[3]).forEach(f=>{
+  if(f[3]!==g){g=f[3];h+=`<tr class="g"><td colspan="${shown.length+1}">${esc(g)}</td></tr>`}
+  h+=`<tr><td class="k">${esc(f[1])}</td>`+shown.map(s=>`<td>${cell(f,s[f[0]])}</td>`).join('')+'</tr>';
+ });
+ return h+'</tbody></table></div>';
+}
+
+function timeline(shown){
+ const ev=[];
+ shown.forEach(s=>F.filter(f=>f[2]==='date').forEach(f=>{if(s[f[0]])ev.push({d:s[f[0]],s,f,i:db.indexOf(s)})}));
+ ev.sort((a,b)=>a.d.localeCompare(b.d)||a.i-b.i);
+ const today=new Date().toISOString().slice(0,10);
+ const days={};ev.forEach(e=>(days[e.d]=days[e.d]||[]).push(e));
+ return '<div class="tl">'+Object.keys(days).map(d=>`<div class="day ${d<today?'past':''}"><div>${fmtD(d)}</div><div>`+days[d].map(e=>`<div class="ev"><span class="dot" style="background:${color(e.i)}"></span><b>${esc(e.s.name)}</b>${esc(e.f[1])}</div>`).join('')+'</div></div>').join('')+'</div>';
+}
+
+// ---- 編集ダイアログ ----
+function openEdit(id,ai){
+ curIsNew=!id;cur=id?{...db.find(s=>s.id===id)}:(ai||{id:uid()});
+ $('edT').textContent=curIsNew?'学校を追加':'確認・編集';
+ $('delB').style.display=db.some(s=>s.id===cur.id)?'':'none';
+ let h=ai?'<div class="warn">AIが読み取った結果です。保存する前に、必ず原本の募集要項と見比べて日付・点数を確認してください。</div>':'';
+ let g='';
+ F.forEach(f=>{
+  if(f[3]!==g){g=f[3];if(g)h+=`<h3>${esc(g)}</h3>`}
+  const v=esc(cur[f[0]]||''),k=`f_${f[0]}`;
+  h+=`<label for="${k}">${esc(f[1])}</label>`;
+  if(f[2]==='long')h+=`<textarea id="${k}">${v}</textarea>`;
+  else if(f[2]==='date')h+=`<input id="${k}" type="date" value="${v}">`;
+  else if(f[2]==='tri')h+=`<select id="${k}">${['','あり','なし','不明'].map(o=>`<option ${o===(cur[f[0]]||'')?'selected':''}>${o}</option>`).join('')}</select>`;
+  else h+=`<input id="${k}" value="${v}">`;
+ });
+ $('edB').innerHTML=h;$('edDlg').showModal();$('edB').scrollTop=0;
+}
+function saveS(){
+ F.forEach(f=>cur[f[0]]=$('f_'+f[0]).value.trim());
+ if(!cur.name){alert('学校名を入れてください');return}
+ const i=db.findIndex(s=>s.id===cur.id);
+ if(i>=0)db[i]=cur;else{db.push(cur)}
+ on.add(cur.id);save();$('edDlg').close();render();
+}
+function delS(){
+ if(!confirm(`「${cur.name||'この学校'}」を削除しますか？`))return;
+ db=db.filter(s=>s.id!==cur.id);on.delete(cur.id);save();$('edDlg').close();render();
+}
+
+// ---- 設定 ----
+$('kIn').value=localStorage.getItem(KS)||'';
+$('mIn').value=localStorage.getItem(MS)||'gemini-2.5-flash';
+function saveSet(){localStorage.setItem(KS,$('kIn').value.trim());localStorage.setItem(MS,$('mIn').value.trim()||'gemini-2.5-flash');$('setDlg').close();status('設定を保存しました')}
+
+// ---- 募集要項の読み取り（Gemini） ----
+const b64=f=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=()=>rej(new Error('ファイルを読み込めませんでした'));r.readAsDataURL(f)});
+$('pick').onchange=async e=>{
+ const file=e.target.files[0];e.target.value='';if(!file)return;
+ const key=localStorage.getItem(KS);
+ if(!key){status('先に「設定」でGeminiのAPIキーを入れてください',true);setDlg.showModal();return}
+ const model=localStorage.getItem(MS)||'gemini-2.5-flash';
+ status(`「${file.name}」を読み取り中…（30秒ほどかかります）`);
+ try{
+  const keys=F.map(f=>`- ${f[0]}（${f[1]}／${f[2]}）：${f[4]}`).join('\n');
+  const prompt=`これは高校入学試験の募集要項です。内容を読み取り、次のキーだけを持つJSONオブジェクトを1つ返してください。\nルール:\n・date型は必ず YYYY-MM-DD。時刻は日付に入れず、該当するtext/long欄に書く。\n・原文に書かれていない項目は空文字""。推測や補完は絶対にしない。\n・tri型は "あり" "なし" "不明" のいずれか。\n・専願と併願で日付が違うものは別キーに入れる。\n・text/long型は原文の要点を簡潔に。改行は\\n。\nキー:\n${keys}`;
+  const body={contents:[{parts:[{inline_data:{mime_type:file.type||'application/pdf',data:await b64(file)}},{text:prompt}]}],generationConfig:{responseMimeType:'application/json',temperature:0}};
+  const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify(body)});
+  if(!r.ok)throw new Error(`Geminiがエラーを返しました（${r.status}）。キーとモデル名を確認してください`);
+  const j=await r.json();
+  const txt=(j.candidates?.[0]?.content?.parts||[]).map(p=>p.text||'').join('').replace(/```json|```/g,'').trim();
+  const o=JSON.parse(txt);o.id=uid();
+  status('読み取り完了。内容を確認して保存してください');
+  openEdit(null,o);
+ }catch(err){status('読み取りに失敗しました：'+err.message,true)}
+};
+
+// ---- 書き出し・読み込み ----
+function exportJ(){
+ const a=document.createElement('a');
+ a.href=URL.createObjectURL(new Blob([JSON.stringify(db,null,1)],{type:'application/json'}));
+ a.download='募集要項データ.json';a.click();
+}
+$('imp').onchange=async e=>{
+ const f=e.target.files[0];e.target.value='';if(!f)return;
+ try{
+  const a=JSON.parse(await f.text());if(!Array.isArray(a))throw 0;
+  a.forEach(s=>{s.id=s.id||uid();const i=db.findIndex(x=>x.id===s.id);i>=0?db[i]=s:db.push(s);on.add(s.id)});
+  save();render();status(`${a.length}校分を読み込みました`);
+ }catch{status('読み込めないファイルです',true)}
+};
+render();
+</script></body></html>
