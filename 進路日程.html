@@ -196,7 +196,7 @@
     .sheet.b4-preview{background:#fff !important;padding:0 !important;overflow:visible !important;}
     .sheet.b4-preview .print-page{width:auto !important;min-height:0 !important;padding:0 !important;margin:0 !important;box-shadow:none !important;}
     .print-page{margin-bottom:0 !important;}
-    .hscroll-top{display:none !important;}
+    .hscroll-top,#fbBadge{display:none !important;}
     .reset-override,.override-actions{display:none !important;}
     .rte-mini{border-color:transparent !important;background:transparent !important;}
   }
@@ -433,6 +433,50 @@ window.__INITIAL_SCHEDULE__ = {"12": [{"day": 1, "ev": "全校朝会\nいのち�
 </script>
 
 <script>
+/* ---------- Firebase 同期（Realtime Database / REST） ----------
+   FB_DB_URL に databaseURL を入れると、日程・募集要項などがクラウドに保存され、パソコンと携帯で共有されます。
+   空のままなら、これまで通りこの端末のブラウザ内だけに保存します。Geminiのキーは同期しません。 */
+const FB_DB_URL = '';   // ★ここに databaseURL を貼る 例: 'https://xxxx-default-rtdb.asia-southeast1.firebasedatabase.app'
+const FB_NODE = 'shinro';
+const FB_PREFIX = ['route-','interview-','boshu-'];
+const fbOn = () => !!FB_DB_URL;
+const fbKey = k => String(k).replace(/[.$#\[\]\/]/g,'_');
+const fbBase = () => FB_DB_URL.replace(/\/+$/,'') + '/' + FB_NODE;
+const fbTimers = {};
+function fbBadge(text, ok){
+  if(!fbOn()) return;
+  let b = document.getElementById('fbBadge');
+  if(!b){ b = document.createElement('div'); b.id = 'fbBadge';
+    b.style.cssText = 'position:fixed;right:10px;bottom:10px;z-index:9999;padding:4px 12px;border-radius:14px;font-size:12px;background:#fff;border:1px solid #c9c2b0;box-shadow:0 1px 4px rgba(0,0,0,.15)';
+    document.body.appendChild(b); }
+  b.textContent = text; b.style.color = ok===false ? '#a24632' : '#4b5a6b';
+}
+function fbQueue(key, value){
+  if(!fbOn() || !FB_PREFIX.some(p=>String(key).startsWith(p))) return;
+  clearTimeout(fbTimers[key]); fbBadge('☁ 保存中…');
+  fbTimers[key] = setTimeout(async ()=>{
+    try{
+      const r = await fetch(fbBase()+'/'+fbKey(key)+'.json', {method:'PUT', body:JSON.stringify(String(value))});
+      if(!r.ok) throw new Error(r.status);
+      delete fbTimers[key];
+      if(!Object.keys(fbTimers).length) fbBadge('☁ 同期済み');
+    }catch(e){ fbBadge('☁ 同期できませんでした（この端末には保存済み）', false); }
+  }, 700);
+}
+async function fbPull(){
+  if(!fbOn()) return;
+  try{
+    fbBadge('☁ 読み込み中…');
+    const r = await fetch(fbBase()+'.json'); if(!r.ok) throw new Error(r.status);
+    const remote = (await r.json()) || {};
+    Object.keys(remote).forEach(k=>{ if(FB_PREFIX.some(p=>k.startsWith(p))) try{ localStorage.setItem(k, remote[k]); }catch(e){} });
+    for(let i=0;i<localStorage.length;i++){          // クラウドにまだ無いこの端末のデータは送る（初回移行）
+      const k = localStorage.key(i);
+      if(FB_PREFIX.some(p=>k.startsWith(p)) && !(fbKey(k) in remote)) fbQueue(k, localStorage.getItem(k));
+    }
+    fbBadge('☁ 同期済み');
+  }catch(e){ fbBadge('☁ オフライン（この端末のデータで表示）', false); }
+}
 /* ---------- storage adapter (works both inside Claude artifact and as a local file) ---------- */
 const storageAdapter = {
   async get(key, shared){
@@ -450,6 +494,7 @@ const storageAdapter = {
     }
     try{
       localStorage.setItem(key, value);
+      fbQueue(key, value);
       return {key, value, shared};
     }catch(e){ return null; }
   }
@@ -1960,6 +2005,7 @@ return {init,sync,setView,pick,tab,setCat,setAuto,setReflect,setItem,resetItems,
 /* ---------- init ---------- */
 async function init(){
   HOLIDAYS = computeHolidays(schoolYear);
+  await fbPull();
   await loadAll();
   await BS.init();
   await loadColumnWidths();
