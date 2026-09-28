@@ -1,0 +1,1978 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>進路日程作成ツール</title>
+<style>
+  :root{
+    --ink:#1f2d3d;
+    --ink-soft:#4b5a6b;
+    --paper:#faf9f6;
+    --paper-line:#c9c2b0;
+    --navy:#233a5e;
+    --navy-deep:#152840;
+    --moss:#4c6b57;
+    --moss-bg:#e7ede9;
+    --rust:#a24632;
+    --rust-bg:#f3e4df;
+    --gold:#b08a3e;
+    --white:#ffffff;
+    --zebra:#f6f4ee;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans JP",sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+    line-height:1.5;
+  }
+  .app{max-width:1560px;margin:0 auto;padding:0 0 60px;}
+
+  .app-header{
+    background:var(--navy-deep);color:var(--white);padding:20px 28px 16px;
+    border-bottom:4px solid var(--gold);display:flex;justify-content:space-between;
+    align-items:flex-end;flex-wrap:wrap;gap:14px;
+  }
+  .app-header h1{margin:0 0 4px;font-size:22px;font-weight:700;letter-spacing:.03em;}
+  .app-header p{margin:0;font-size:12.5px;color:#c9d2de;}
+  .year-select{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.08);padding:8px 14px;border-radius:4px;}
+  .year-select label{font-size:12.5px;color:#dbe2ec;}
+  .year-select input{width:74px;font-size:15px;font-weight:700;padding:4px 6px;border:1px solid #8fa2ba;border-radius:3px;font-family:inherit;}
+  .year-select span{font-size:12px;color:#a9b6c8;}
+
+  .tabbar{display:flex;gap:2px;background:var(--navy);padding:0 24px;overflow-x:auto;}
+  .tabbtn{appearance:none;border:none;background:transparent;color:#cfd8e6;padding:13px 18px;font-size:14px;font-weight:600;cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;font-family:inherit;}
+  .tabbtn:hover{color:#fff;}
+  .tabbtn.active{color:#fff;border-bottom-color:var(--gold);background:rgba(255,255,255,.06);}
+
+  .panel{display:none;padding:22px 28px;}
+  .panel.active{display:block;}
+
+  .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .btn{appearance:none;border:1px solid var(--navy);background:var(--navy);color:#fff;padding:9px 16px;border-radius:3px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit;}
+  .btn:hover{background:var(--navy-deep);}
+  .btn.secondary{background:#fff;color:var(--navy);border:1px solid var(--navy);}
+  .btn.secondary:hover{background:#eef1f5;}
+  .month-switch{display:flex;gap:6px;margin:0 0 14px;}
+  .month-switch button{appearance:none;border:2px solid var(--navy);background:#fff;color:var(--navy);padding:8px 18px;border-radius:3px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;}
+  .month-switch button.active{background:var(--navy);color:#fff;}
+
+  .status-msg{font-size:12.5px;color:var(--moss);min-height:16px;}
+  .status-msg.saving{color:var(--gold);}
+  .status-msg.err{color:var(--rust);}
+
+  .hint{background:#fff;border:1px solid var(--paper-line);border-left:4px solid var(--gold);padding:12px 16px;font-size:13px;color:var(--ink-soft);margin:0 0 16px;border-radius:2px;}
+  .hint b{color:var(--ink);}
+
+  .rte-toolbar{
+    display:flex;align-items:center;gap:6px;background:#fff;border:2px solid var(--navy);
+    padding:8px 12px;margin-bottom:12px;border-radius:4px;position:sticky;top:0;z-index:5;flex-wrap:wrap;
+  }
+  .rte-toolbar span.lbl{font-size:12.5px;color:var(--ink-soft);margin-right:4px;}
+  .rte-toolbar button{appearance:none;border:1px solid var(--paper-line);background:#fff;border-radius:3px;padding:6px 12px;font-size:13px;cursor:pointer;font-family:inherit;}
+  .rte-toolbar button:hover{background:#f1efe9;}
+  .rte-toolbar button.b-bold{font-weight:900;}
+  .rte-toolbar button.c-swatch{width:28px;height:28px;padding:0;border:2px solid #fff;box-shadow:0 0 0 1px var(--paper-line);}
+  .rte-toolbar button.sym-btn{font-weight:700;padding:6px 10px;}
+  .rte-toolbar .divider{width:1px;height:22px;background:var(--paper-line);margin:0 4px;}
+
+  table.entry{width:100%;border-collapse:collapse;table-layout:fixed;background:#fff;font-size:var(--entry-font-size,13px);border:2px solid var(--navy);}
+  table.entry th,table.entry td{border:1px solid var(--paper-line);padding:6px 7px;vertical-align:top;}
+  table.entry th{background:var(--navy);color:#fff;font-weight:700;font-size:12.5px;}
+  table.entry td.daycell{text-align:center;font-weight:700;}
+  table.entry td.wdcell{text-align:center;color:var(--ink-soft);font-weight:700;}
+  table.entry tr.sat td.daycell,table.entry tr.sat td.wdcell{color:#2a5fa8;}
+  table.entry tr.sun td.daycell,table.entry tr.sun td.wdcell,
+  table.entry tr.holiday td.daycell,table.entry tr.holiday td.wdcell{color:var(--rust);}
+  table.entry tr.sun,table.entry tr.holiday{background:var(--rust-bg) !important;}
+  table.entry tr.sat{background:#e7edf5 !important;}
+  .rte{min-height:38px;border:1px solid transparent;background:transparent;font-family:inherit;font-size:var(--entry-font-size,13px);padding:4px;white-space:pre-wrap;outline:none;}
+  .rte:hover,.rte:focus{border-color:var(--paper-line);background:#fffef9;}
+  table.entry select,table.entry input[type=text]{width:100%;border:1px solid var(--paper-line);font-family:inherit;font-size:var(--entry-font-size,13px);padding:4px;background:#fff;}
+  .staff-only{background:#fde3e3;border-bottom:2px dashed var(--rust);border-radius:2px;padding:0 2px;}
+  .rte-hint{font-size:11px;color:var(--ink-soft);margin-top:3px;}
+  .rte-mini{min-height:18px;outline:none;padding:1px 2px;border:1px dashed transparent;border-radius:2px;}
+  .rte-mini:hover,.rte-mini:focus{border-color:var(--paper-line);background:#fffef9;}
+  .override-actions{display:flex;gap:8px;margin-top:2px;flex-wrap:wrap;}
+  .override-actions.hidden{display:none;}
+  .reset-override{font-size:9px;background:none;border:none;color:var(--navy);text-decoration:underline;cursor:pointer;padding:0;font-family:inherit;}
+  .reset-override.full-revert{color:var(--rust);}
+  .arrow-layer-wrap{position:relative;}
+  .arrow-layer{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;}
+  .arrow-layer.drawing{pointer-events:auto;cursor:crosshair;}
+  .arrow-hit{pointer-events:auto;cursor:pointer;}
+  .arrow-handle{fill:#fff;stroke:var(--navy);stroke-width:2.5;cursor:move;opacity:0;}
+  .arrow-handle-hit{fill:transparent;cursor:move;opacity:0;}
+  .arrow-layer.drawing .arrow-handle{opacity:1;pointer-events:auto;}
+  .arrow-layer.drawing .arrow-handle-hit{opacity:1;pointer-events:auto;}
+  #btnArrowMode.active-mode{background:var(--navy);color:#fff;}
+  #btnClearArrows{color:var(--rust);border-color:var(--rust);}
+  table.entry th, table.grid th, table.interview th{position:relative;}
+  .col-resize-handle{
+    position:absolute; top:0; right:-4px; width:8px; height:100%; cursor:col-resize; z-index:6;
+  }
+  .col-resize-handle:hover, .col-resize-handle.active{background:rgba(255,255,255,.35);}
+  @media print{ .col-resize-handle{display:none !important;} }
+  .arrow-mode-banner{
+    position:sticky;top:0;z-index:20;background:var(--navy);color:#fff;
+    padding:10px 16px;border-radius:4px;margin-bottom:10px;font-size:13.5px;font-weight:600;
+    display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+    box-shadow:0 2px 8px rgba(0,0,0,.25);
+  }
+  .arrow-mode-banner.hidden{display:none;}
+  .arrow-mode-banner button{
+    appearance:none;border:2px solid #fff;background:#fff;color:var(--navy);
+    padding:7px 14px;border-radius:3px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;
+  }
+  .arrow-mode-banner button:hover{background:var(--gold);border-color:var(--gold);color:#fff;}
+
+  .preview-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px;}
+  .sheet{background:#fff;border:1px solid var(--paper-line);padding:16px 18px;}
+  .sheet-title{text-align:center;font-size:18px;font-weight:700;color:var(--navy-deep);margin:0 0 4px;}
+  .sheet-sub{text-align:center;font-size:11px;color:var(--ink-soft);margin:0 0 14px;}
+  .month-pair-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
+  .print-page{margin-bottom:26px;}
+  table.grid{width:100%;border-collapse:collapse;table-layout:fixed;border:2px solid var(--navy);}
+  table.grid th,table.grid td{border:1px solid #9aa6b5;padding:4px 5px;font-size:11px;line-height:1.25;vertical-align:top;word-break:break-word;white-space:pre-wrap;}
+  table.grid th{background:var(--navy);color:#fff;font-weight:700;text-align:center;font-size:10.5px;}
+  table.grid td.daycell{text-align:center;font-weight:700;}
+  table.grid td.wdcell{text-align:center;font-weight:700;color:var(--ink-soft);}
+  table.grid tr.sat{background:#e7edf5;}
+  table.grid tr.sat td.daycell,table.grid tr.sat td.wdcell{color:#2a5fa8;}
+  table.grid tr.sun,table.grid tr.holiday{background:var(--rust-bg);}
+  table.grid tr.sun td.daycell,table.grid tr.sun td.wdcell,
+  table.grid tr.holiday td.daycell,table.grid tr.holiday td.wdcell{color:var(--rust);}
+  table.grid td.lunchcell,table.grid td.pdcell{text-align:center;}
+  table.grid td.pdcell.off,table.grid td.pdcell.off input{color:#d32f2f !important;font-weight:700;}
+  .hscroll-top{position:sticky;top:0;z-index:30;overflow-x:auto;overflow-y:hidden;height:18px;background:#efe9d8;border:1px solid var(--paper-line);margin-bottom:4px;}
+  .hscroll-top>div{height:1px;}
+  .month-head{background:var(--gold);color:#fff;text-align:center;font-weight:700;padding:5px;font-size:13px;position:relative;}
+  .rowh-inline{position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:10px;font-weight:600;display:flex;align-items:center;gap:2px;background:rgba(255,255,255,.18);border-radius:10px;padding:1px 6px;}
+  .rowh-inline .rowh-btn{border:none;background:none;color:#fff;font-weight:900;cursor:pointer;padding:0 2px;font-size:12px;}
+  .rowh-inline .rowh-val{min-width:26px;text-align:center;}
+  @media print{ .rowh-inline{display:none !important;} }
+  .sheet.b4-preview{overflow-x:auto;background:#d9d4c5;padding:24px;}
+  .sheet.b4-preview .print-page{
+    width:364mm;min-height:257mm;box-sizing:border-box;margin:0 auto 26px;background:#fff;
+    padding:8mm;box-shadow:0 0 0 1px #9a9384,0 6px 18px rgba(0,0,0,.25);
+  }
+  .sheet.b4-preview .sheet-title,.sheet.b4-preview .sheet-sub{display:block;}
+
+  .role-select{background:#fff;border:2px solid var(--navy);padding:14px 16px;margin-bottom:18px;border-radius:4px;}
+  .role-select label{display:inline-flex;align-items:center;gap:6px;margin-right:22px;font-size:14px;font-weight:600;cursor:pointer;}
+  table.interview{width:100%;border-collapse:collapse;table-layout:fixed;background:#fff;font-size:13px;border:2px solid var(--navy);}
+  table.interview th,table.interview td{border:1px solid var(--paper-line);padding:7px 8px;}
+  table.interview th{background:var(--navy);color:#fff;font-size:12.5px;}
+  table.interview tr.sat{background:#e7edf5 !important;}
+  table.interview tr.sun,table.interview tr.holiday{background:var(--rust-bg) !important;}
+  table.interview td.daycell{text-align:center;font-weight:700;}
+  table.interview select{width:100%;border:1px solid var(--paper-line);padding:5px;font-family:inherit;font-size:13.5px;background:#fff;}
+  table.interview input[type=text]{width:100%;border:1px solid var(--paper-line);padding:5px;font-family:inherit;font-size:13px;}
+  table.interview td.disabled-cell select,table.interview td.disabled-cell input{background:#f1f1ef;color:#999;}
+  .interview-legend{font-size:12px;color:var(--ink-soft);margin:10px 0 4px;}
+
+  .layout-switch{margin:0 !important;}
+  .layout-switch button{padding:6px 12px;font-size:13px;}
+  .month-pair-row.single{grid-template-columns:1fr;}
+  .month-pair-row.single table.grid td{font-size:13px;padding:5px 6px;}
+  .month-pair-row.single table.grid th{font-size:12px;padding:5px 6px;}
+  .sheet.b4-preview.portrait .print-page{width:250mm;min-height:337mm;}
+  .howto ol{padding-left:22px;}
+  .howto li{margin-bottom:10px;font-size:14px;}
+  .howto h3{color:var(--navy-deep);font-size:15px;margin:22px 0 8px;}
+
+  @media print{
+    body{background:#fff;}
+    .app-header,.tabbar,.preview-toolbar,.hint,.month-switch{display:none !important;}
+    .panel{display:none !important;padding:0 !important;}
+    .panel.printing{display:block !important;}
+    .sheet{border:none;padding:0;}
+    @page{size:B4 landscape;margin:8mm;}
+    .print-page{page-break-after:always;break-after:page;}
+    .print-page:last-child{page-break-after:auto;break-after:auto;}
+    .month-pair-row{page-break-inside:avoid;break-inside:avoid;}
+    .sheet.b4-preview{background:#fff !important;padding:0 !important;overflow:visible !important;}
+    .sheet.b4-preview .print-page{width:auto !important;min-height:0 !important;padding:0 !important;margin:0 !important;box-shadow:none !important;}
+    .print-page{margin-bottom:0 !important;}
+    .hscroll-top{display:none !important;}
+    .reset-override,.override-actions{display:none !important;}
+    .rte-mini{border-color:transparent !important;background:transparent !important;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="app-header">
+    <div>
+      <h1>進路日程作成ツール</h1>
+      <p>12月〜3月の進路関係日程を一度入力すれば、職員用・生徒配布用（B4印刷）・面接日程調整表が自動で作れます。</p>
+    </div>
+    <div class="year-select">
+      <label>年度（12月がスタートの年）</label>
+      <input type="number" id="schoolYearInput" value="2026" min="2020" max="2100">
+      <span>年度<br>（1〜3月は翌年）</span>
+    </div>
+  </div>
+
+  <div class="tabbar">
+    <button class="tabbtn active" data-tab="entry">① 日程入力</button>
+    <button class="tabbtn" data-tab="staff">② 職員用プレビュー</button>
+    <button class="tabbtn" data-tab="student">③ 生徒配布用プレビュー</button>
+    <button class="tabbtn" data-tab="interview">④ 面接日程調整</button>
+    <button class="tabbtn" data-tab="boshu">⑤ 募集要項</button>
+    <button class="tabbtn" data-tab="howto">使い方</button>
+  </div>
+
+  <!-- ① entry -->
+  <div class="panel active" id="panel-entry">
+    <div class="hint"><b>ここに入力した内容が②③④すべてに反映されます。</b>土日・祝日は日付から自動で色がつきます（成人の日・春分の日なども自動計算）。同じマスの中で一部分だけ生徒に見せたくない場合は、その文字を選択して下のツールバーの「選択部分を生徒に見せない」を押してください。</div>
+    <div class="rte-toolbar" id="rteToolbar">
+      <button type="button" id="btnUndo" style="font-weight:700;">↺ 元に戻す</button>
+      <div class="divider"></div>
+      <span class="lbl">選択した文字に適用：</span>
+      <button type="button" class="b-bold" data-cmd="bold">B 太字</button>
+      <button type="button" id="btnFontSmaller" title="選択部分の文字を小さく">A－</button>
+      <button type="button" id="btnFontBigger" title="選択部分の文字を大きく">A＋</button>
+      <div class="divider"></div>
+      <button type="button" class="c-swatch" data-color="#1f2d3d" style="background:#1f2d3d" title="黒"></button>
+      <button type="button" class="c-swatch" data-color="#c0392b" style="background:#c0392b" title="赤"></button>
+      <button type="button" class="c-swatch" data-color="#1f5fae" style="background:#1f5fae" title="青"></button>
+      <button type="button" class="c-swatch" data-color="#2f7d4f" style="background:#2f7d4f" title="緑"></button>
+      <button type="button" class="c-swatch" data-color="#d2691e" style="background:#d2691e" title="橙"></button>
+      <button type="button" class="c-swatch" data-color="#7d3c98" style="background:#7d3c98" title="紫"></button>
+      <button type="button" class="c-swatch" data-color="#c2185b" style="background:#c2185b" title="ピンク"></button>
+      <div class="divider"></div>
+      <span class="lbl">記号挿入：</span>
+      <button type="button" class="sym-btn" data-sym="／">／</button>
+      <button type="button" class="sym-btn" data-sym="＼">＼</button>
+      <button type="button" class="sym-btn" data-sym="★">★</button>
+      <div class="divider"></div>
+      <span class="lbl">図形：</span>
+      <button type="button" id="btnArrowMode">→ 矢印モード</button>
+      <button type="button" id="btnClearArrows" class="ghost">この月の矢印を全部消す</button>
+      <button type="button" id="btnDeleteSelectedArrows" style="background:#fde3e3;border-color:var(--rust);color:var(--rust);font-weight:700;">選択した矢印を削除</button>
+      <div class="divider"></div>
+      <span class="lbl">生徒への表示：</span>
+      <button type="button" id="btnHideFromStudent" style="background:#fde3e3;border-color:var(--rust);color:var(--rust);font-weight:700;">選択部分を生徒に見せない</button>
+      <button type="button" id="btnShowToStudent" style="background:var(--moss-bg);border-color:var(--moss);color:var(--moss);font-weight:700;">表示に戻す</button>
+    </div>
+    <div class="rte-hint">同じマス（同じ行事欄）の中でも、一部だけ選択して「生徒に見せない」を押せば、その部分だけ生徒配布用から消えます（例：学力診断テストは表示、小中別会議だけ非表示、など）。薄い赤色の下線がついた部分が生徒には見えなくなります。<b>文字を選択して「A－」「A＋」を押すと、その部分だけ文字を大きく／小さくできます</b>（右上の「文字サイズ」は表全体を一気に変える設定で、こちらは個別の文字だけを変える設定です）。<b>矢印のクリックによる選択・削除はいつでもできます。</b>「→ 矢印モード」をONにしたときだけ、表の上をドラッグして新しい矢印を引いたり、端の点をドラッグして動かしたりできます（ONの間は上に青い帯が出ます。文字入力に戻るときは帯の中の「文字入力に戻す」を押してください）。矢印をクリックすると選択（オレンジの点線）され、複数選んで「選択した矢印を削除」でまとめて消せます。間違えて消してしまったときは、左上の「↺ 元に戻す」で直前の状態に戻せます。</div>
+    <div class="row" style="justify-content:space-between;margin-bottom:8px;">
+      <div class="month-switch" id="entryMonthSwitch"></div>
+      <div class="row">
+        <span class="pill">文字サイズ
+          <button type="button" id="btnFontDown" style="border:none;background:none;font-size:15px;font-weight:900;cursor:pointer;padding:0 4px;">－</button>
+          <span id="entryFontSizeLabel" style="min-width:34px;text-align:center;font-weight:700;">13px</span>
+          <button type="button" id="btnFontUp" style="border:none;background:none;font-size:15px;font-weight:900;cursor:pointer;padding:0 4px;">＋</button>
+        </span>
+        <span class="pill">行の高さ（この月）
+          <button type="button" id="btnRowHDown" style="border:none;background:none;font-size:15px;font-weight:900;cursor:pointer;padding:0 4px;">－</button>
+          <span id="entryRowHLabel" style="min-width:44px;text-align:center;font-weight:700;">自動</span>
+          <button type="button" id="btnRowHUp" style="border:none;background:none;font-size:15px;font-weight:900;cursor:pointer;padding:0 4px;">＋</button>
+        </span>
+        <span class="status-msg" id="entryStatus"></span>
+        <button class="btn secondary" id="btnReset">この月のデータを初期データに戻す</button>
+      </div>
+    </div>
+    <div id="arrowModeBanner" class="arrow-mode-banner hidden">
+      🖊 矢印モード：ON（矢印をクリックで選択／端の点をドラッグで移動／空いた場所をドラッグで新規作成）
+      <button type="button" id="btnArrowModeOffInBanner">文字入力に戻す（矢印モードOFF）</button>
+    </div>
+    <div id="entryTableWrap"></div>
+  </div>
+
+  <!-- ② staff preview -->
+  <div class="panel" id="panel-staff">
+    <div class="preview-toolbar">
+      <div class="hint" style="margin:0;flex:1;min-width:280px;">職員用（B4横で印刷）。学校行事・進路関係・給食・校時をすべて表示します。12月+1月で1ページ、2月+3月で1ページに収まるよう自動調整されます。右のボタンで<b>「1か月ずつB4縦」</b>（12・1・2・3月を1枚ずつ、計4枚）にも切り替えられます。</div>
+      <div class="month-switch layout-switch"></div>
+      <button class="btn secondary" id="btnB4Staff" onclick="toggleB4Preview('staff')">🔍 B4 100%表示で確認</button>
+      <button class="btn" id="btnPrintStaff" onclick="printPanel('staff')">🖨 このページを印刷（B4横）</button>
+    </div>
+    <div class="sheet" id="staffSheet"></div>
+  </div>
+
+  <!-- ③ student preview -->
+  <div class="panel" id="panel-student">
+    <div class="preview-toolbar">
+      <div class="hint" style="margin:0;flex:1;min-width:280px;">生徒配布用（B4横で印刷）。学校行事・進路関係のみを表示します（日程入力で「生徒に見せない」とマークした部分は自動的に消えます）。右のボタンで<b>「1か月ずつB4縦」</b>にも切り替えられます。<b>下の表は直接クリックして文字を書き換えられます。</b>書き換えたマスの下に「①の新しい内容を追加」（すでにある行は追加せず、①に新しく増えた行だけを下に足します）と「すべて①に戻す」（自分の書き換えを消して①の内容に戻す）の2つのボタンが出ます。万一同じ行が重複したときは、そのまま文字をクリックして直接消してください。</div>
+      <div class="month-switch layout-switch"></div>
+      <button class="btn secondary" id="btnB4Student" onclick="toggleB4Preview('student')">🔍 B4 100%表示で確認</button>
+      <button class="btn" id="btnPrintStudent" onclick="printPanel('student')">🖨 このページを印刷（B4横）</button>
+    </div>
+    <div class="sheet" id="studentSheet"></div>
+  </div>
+
+  <!-- ④ interview -->
+  <div class="panel" id="panel-interview">
+    <div class="hint"><b>校長先生・教頭先生には、このツールのリンクをそのまま送ってください。</b>それぞれ自分の役割を選ぶと、自分の欄だけ入力できます。土日、または校時が０〜４の日は自動的に「／」が入ります（欄が空欄のときのみ。手動で○×を入れれば上書きされます）。</div>
+    <div class="role-select">
+      <span style="font-weight:700;margin-right:14px;">あなたの役割：</span>
+      <label><input type="radio" name="role" value="staff" checked> 教務（すべて編集）</label>
+      <label><input type="radio" name="role" value="principal"> 校長先生</label>
+      <label><input type="radio" name="role" value="vp"> 教頭先生</label>
+    </div>
+    <div class="row" style="justify-content:space-between;margin-bottom:8px;">
+      <div class="month-switch" id="interviewMonthSwitch"></div>
+      <div class="row">
+        <span class="pill">行の高さ（この月）
+          <button type="button" id="btnIntRowHDown" style="border:none;background:none;font-size:15px;font-weight:900;cursor:pointer;padding:0 4px;">－</button>
+          <span id="interviewRowHLabel" style="min-width:44px;text-align:center;font-weight:700;">自動</span>
+          <button type="button" id="btnIntRowHUp" style="border:none;background:none;font-size:15px;font-weight:900;cursor:pointer;padding:0 4px;">＋</button>
+        </span>
+        <span class="status-msg" id="interviewStatus"></span>
+        <button class="btn secondary" onclick="printInterview()">🖨 調整表を印刷</button>
+      </div>
+    </div>
+    <div class="interview-legend">○＝面接可　×＝不可　／＝対象外（土日・校時0〜4は自動）</div>
+    <div id="interviewTableWrap"></div>
+  </div>
+
+  <!-- howto -->
+  <!-- ⑤ 募集要項 -->
+  <div class="panel" id="panel-boshu">
+    <div class="hint"><b>高校ごとの募集要項をまとめる場所です。</b>下でチェックした項目（初期設定は事前登録・出願・追試験の日付）は、「① 日程入力」の<b>「高校別出願日」欄に自動で入ります</b>。上の「全体設定」は一括の設定で、<b>各高校の日付の下にある「日程表に載せる」チェックで、その高校だけ個別に選べます</b>（個別に選んだ高校は全体設定より優先されます）。自動で入った行は手で消さず、ここでチェックを外してください。</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px">
+      <button class="btn" onclick="document.getElementById('bsPick').click()">募集要項を読み取る（PDF・画像）</button>
+      <input type="file" id="bsPick" accept="application/pdf,image/*" hidden>
+      <button class="btn" id="bsTxBtn">文章を貼り付けて読み取る</button>
+      <button class="btn secondary" id="bsAdd">手入力で追加</button>
+      <button class="btn secondary" id="bsSetBtn">⚙ Gemini設定</button>
+      <span class="status-msg" id="bsSt"></span>
+    </div>
+    <div id="bsAuto" style="font-size:13px;margin-bottom:10px"></div>
+    <div id="bsTabs" class="month-switch" style="flex-wrap:wrap;margin:0 0 10px"></div>
+    <div id="bsMain"></div>
+  </div>
+
+  <div class="panel" id="panel-howto">
+    <div class="howto">
+      <h3>基本の流れ</h3>
+      <ol>
+        <li>右上の「年度」を今年度の12月側の西暦に合わせてください。年度を変えると曜日・土日・祝日の色付けはすべて自動で計算し直されます（祝日は元日・成人の日・建国記念の日・天皇誕生日・春分の日・振替休日を自動計算しています）。</li>
+        <li>「① 日程入力」で学校行事・進路関係の予定・給食・校時を月ごとに入力します。大事な内容は文字を選択して上のツールバーで太字や色をつけられます。「→」などの記号もボタンから入力できます。</li>
+        <li>同じマスの中の一部分だけ生徒に見せたくない場合は、その文字をドラッグして選択し、ツールバーの「選択部分を生徒に見せない」を押してください（例：「学力診断テスト／小中別会議」のうち「小中別会議」だけ選んで非表示にする、など）。薄い赤の下線がついた部分が、生徒配布用プレビューでは自動的に消えます。職員用には常にすべて表示されます。元に戻したいときは、その部分にカーソルを置いて「表示に戻す」を押してください。</li>
+        <li>「② 職員用プレビュー」「③ 生徒配布用プレビュー」で仕上がりを確認し、印刷ボタンでB4横に印刷します（プリンター側の用紙設定もB4にしてください）。12月+1月で1ページ、2月+3月で1ページに自動的に収まるよう縮小されます。</li>
+        <li>③生徒配布用プレビューは、表の中の文字を直接クリックして書き換えることもできます。書き換えたマスの下に2つボタンが出ます。「①の新しい内容を追加」は、自分が書き換えた文章を残したまま、あとから①に追加した内容だけを付け足します。「すべて①に戻す」は、自分の書き換えを消して①の内容にそのまま戻します。</li>
+        <li>「④ 面接日程調整」のリンクを校長先生・教頭先生に送り、それぞれ「校長先生」「教頭先生」を選んでもらえば自分の欄だけ入力できます。</li>
+        <li>どのタブも、表の見出し（日・曜・学校行事…）の境目にマウスを合わせるとカーソルが変わります。そこをドラッグすると列の幅を調整できます（①②③④すべてのタブで使えます。幅は自動的に保存されます）。</li>
+      </ol>
+      <h3>募集要項と「高校別出願日」欄</h3>
+      <ol>
+        <li>「⑤ 募集要項」で読み取った日付（事前登録・出願・追試験など）は、①②③の<b>「高校別出願日」欄</b>に高校名つきで自動的に入ります。「進路関係」欄とは別なので、手入力の内容と混ざりません。</li>
+        <li>どの項目を載せるかは、⑤の上にある<b>全体設定</b>で一括で決められます。高校によって載せたい項目が違うときは、その高校の列にある日付の下の<b>「日程表に載せる」チェック</b>で個別に切り替えてください（その高校だけ個別設定になり、全体設定より優先されます）。高校ごと丸ごと載せたくない場合は、列の上の「日程表に載せる」を外します。</li>
+        <li>⑤は<b>「1校ずつ見る」</b>（担任の先生向け。日程が大きく並び、項目もゆったり読めます）と<b>「一覧で比べる」</b>（学校を横に並べて比較・日程表への反映設定）を右上のボタンで切り替えられます。</li>
+        <li>学校が増えたら、⑤の上にあるタブ（<b>すべて／県内私立／県外私立／国立／通信制</b>）で絞り込めます。各高校の名前の下の「区分」で振り分けます（新しく読み取るときは、開いているタブの区分が最初から選ばれます）。区分は表示を分けるだけで、日程表への反映には影響しません。</li>
+        <li>「B4 100%表示で確認」中は、横スクロールバーが画面の上にも出ます（下のバーと連動）。上のバーは、下へスクロールしても画面上部に残ります。</li>
+        <li>校時の欄は、月火木金＝6、水＝5を標準として、<b>標準と違う数字が入ると自動で赤字</b>になります（土日に数字を入れた場合も赤）。</li>
+        <li>「② 職員用」「③ 生徒配布用」の右上のボタンで、<b>1か月ずつB4縦（12・1・2・3月を1枚ずつ、計4枚）</b>か、従来の2か月ずつB4横かを選んで印刷できます。縦のときはプリンターの用紙設定もB4・縦にしてください。</li>
+      </ol>
+      <h3>保存について（重要）</h3>
+      <ol>
+        <li>Claudeの会話上（アーティファクト）でこのツールを開いている場合は、同じリンクを開いた全員が同じデータを共有します。校長先生・教頭先生に別端末から入力してもらいたい場合は、ダウンロードしたファイルではなく、この会話のリンクを共有してください。</li>
+        <li>ファイルとしてダウンロードして開いた場合（file:// で始まるURLの場合）は、その端末のブラウザ内だけに保存され、他の人とは共有されません。</li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+<style>
+#panel-boshu .bs-wrap{overflow:auto;background:#fff;border:1px solid var(--paper-line);max-height:calc(100vh - 130px)}
+#panel-boshu table.bs-t{border-collapse:separate;border-spacing:0;min-width:100%;font-size:13px}
+#panel-boshu .bs-t th,#panel-boshu .bs-t td{padding:7px 10px;border-bottom:1px solid var(--paper-line);border-right:1px solid var(--paper-line);vertical-align:top;text-align:left;min-width:250px;max-width:330px}
+#panel-boshu .bs-t th.k,#panel-boshu .bs-t td.k{position:sticky;left:0;min-width:110px;max-width:110px;background:#f4f1ea;font-weight:700;z-index:1}
+#panel-boshu .bs-t thead th{position:sticky;top:0;background:#fff;z-index:2}#panel-boshu .bs-t thead th.k{z-index:3}
+#panel-boshu #bsTabs button{padding:7px 16px;font-size:13.5px}
+#panel-boshu select.bs-cat{font:inherit;font-size:12px;padding:2px 4px;margin:2px 0 4px;border:1px solid var(--paper-line);max-width:100%}
+#panel-boshu .bs1-card{background:#fff;border:1px solid var(--paper-line);padding:20px 26px 16px;max-width:1000px}
+#panel-boshu .bs1-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+#panel-boshu .bs1-name{font-size:26px;font-weight:700;color:var(--navy-deep)}
+#panel-boshu .bs1-sub{font-size:14px;color:var(--ink-soft);margin-top:2px}
+#panel-boshu .bs1-keys{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:16px 0 4px}
+#panel-boshu .bs1-key{background:var(--zebra);border-left:4px solid var(--gold);padding:8px 12px}
+#panel-boshu .bs1-key .l{font-size:12.5px;color:var(--ink-soft)}
+#panel-boshu .bs1-key .v{font-size:18px;font-weight:700;margin-top:2px}
+#panel-boshu .bs1-g{margin:22px 0 0;background:#e9edf4;color:var(--navy);font-size:16px;padding:7px 12px}
+#panel-boshu .bs1-row{display:grid;grid-template-columns:13em 1fr;gap:12px;padding:10px 12px;border-bottom:1px solid #e3ded0;font-size:15.5px;line-height:1.8}
+#panel-boshu .bs1-row .k{font-weight:700;color:var(--navy)}
+#panel-boshu .bs1-foot{margin-top:16px;font-size:12.5px;color:var(--ink-soft)}
+@media(max-width:700px){#panel-boshu .bs1-row{grid-template-columns:1fr;gap:2px}}
+#panel-boshu .bs-inc{display:block;margin-top:5px;font-size:11.5px;font-weight:400;color:#8a929c}
+#panel-boshu .bs-inc.on{color:var(--moss);font-weight:700}
+#panel-boshu .bs-link{border:none;background:none;color:var(--navy);text-decoration:underline;cursor:pointer;padding:0;font:inherit;font-size:11.5px}
+#panel-boshu .bs-t tr.g td{background:#e9edf4;color:var(--navy);font-weight:700;position:sticky;left:0}
+</style>
+<dialog id="bsSet" style="border:1px solid #999;border-radius:6px;padding:0;width:min(520px,94vw)">
+  <div style="padding:12px 16px;border-bottom:1px solid #ddd;font-weight:700">Gemini設定（募集要項の読み取り用）</div>
+  <div style="padding:8px 16px">
+    <label style="font-size:12px">APIキー</label><input id="bsK" type="password" autocomplete="off" style="width:100%;box-sizing:border-box;padding:5px 7px">
+    <label style="font-size:12px;display:block;margin-top:8px">モデル名</label><input id="bsM" style="width:100%;box-sizing:border-box;padding:5px 7px">
+    <p style="font-size:12px">キーはこのブラウザの中にだけ保存され、ほかの先生とは共有されません。共有パソコンでは使い終わったら空にしてください。</p></div>
+  <div style="padding:12px 16px;border-top:1px solid #ddd;display:flex;gap:8px;justify-content:flex-end">
+    <button class="btn secondary" onclick="document.getElementById('bsSet').close()">閉じる</button><button class="btn" onclick="BS.saveSet()">保存</button></div>
+</dialog>
+<dialog id="bsEd" style="border:1px solid #999;border-radius:6px;padding:0;width:min(760px,94vw);max-height:92vh">
+  <div style="padding:12px 16px;border-bottom:1px solid #ddd;font-weight:700" id="bsEdT"></div>
+  <div style="padding:8px 16px;overflow:auto;max-height:68vh" id="bsEdB"></div>
+  <div style="padding:12px 16px;border-top:1px solid #ddd;display:flex;gap:8px;justify-content:flex-end">
+    <button class="btn secondary" id="bsDel" style="color:#a12a1a" onclick="BS.delS()">この学校を削除</button><span style="flex:1"></span>
+    <button class="btn secondary" onclick="document.getElementById('bsEd').close()">キャンセル</button><button class="btn" onclick="BS.saveS()">保存</button></div>
+</dialog>
+
+<dialog id="bsTx" style="border:1px solid #999;border-radius:6px;padding:0;width:min(720px,94vw)">
+  <div style="padding:12px 16px;border-bottom:1px solid #ddd;font-weight:700">募集要項の文章を貼り付けて読み取り</div>
+  <div style="padding:8px 16px"><p style="font-size:13px;margin:4px 0 8px">募集要項のPDFをChromeで開き、<b>Ctrl+A → Ctrl+C</b>で全文をコピーして、下に貼り付けてください。</p>
+    <textarea id="bsTxA" style="width:100%;box-sizing:border-box;min-height:260px;padding:6px;font:inherit"></textarea></div>
+  <div style="padding:12px 16px;border-top:1px solid #ddd;display:flex;gap:8px;justify-content:flex-end">
+    <button class="btn secondary" onclick="document.getElementById('bsTx').close()">閉じる</button><button class="btn" id="bsTxGo">読み取る</button></div>
+</dialog>
+<script>
+window.__INITIAL_SCHEDULE__ = {"12": [{"day": 1, "ev": "全校朝会\nいのちの授業", "career": "", "lunch": "", "time": ""}, {"day": 2, "ev": "学力診断テスト\n小中別会議", "career": "", "lunch": "", "time": ""}, {"day": 3, "ev": "市内音楽会", "career": "", "lunch": "", "time": ""}, {"day": 4, "ev": "心の健康授業９年", "career": "", "lunch": "", "time": ""}, {"day": 5, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 6, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 7, "ev": "人権集会", "career": "", "lunch": "", "time": ""}, {"day": 8, "ev": "持久走前検診PM", "career": "査定会議 ?", "lunch": "", "time": ""}, {"day": 9, "ev": "職員会議\nレポート研修", "career": "", "lunch": "", "time": ""}, {"day": 10, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 11, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 12, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 13, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 14, "ev": "生徒会選挙", "career": "", "lunch": "", "time": ""}, {"day": 15, "ev": "地域清掃ボランティア活動", "career": "", "lunch": "", "time": ""}, {"day": 16, "ev": "個人懇談\nマラソン大会", "career": "", "lunch": "", "time": ""}, {"day": 17, "ev": "個人懇談", "career": "", "lunch": "", "time": ""}, {"day": 18, "ev": "個人懇談\n給食最終日", "career": "私立高校「出願決定届」〆切", "lunch": "", "time": ""}, {"day": 19, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 20, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 21, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 22, "ev": "足跡", "career": "", "lunch": "", "time": ""}, {"day": 23, "ev": "終業式", "career": "願書下書き〆切り\n私立高校「申込確認書」〆切\n自己アピール文下書き〆切\n※校内進路希望調査配布", "lunch": "", "time": ""}, {"day": 24, "ev": "", "career": "私立高校申込確認書点検（AM）\n奈良工専出願書類点検（推薦）\n奈良工専（推薦）出願開始", "lunch": "", "time": ""}, {"day": 25, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 26, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 27, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 28, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 29, "ev": "学校閉庁日", "career": "", "lunch": "", "time": ""}, {"day": 30, "ev": "学校閉庁日", "career": "", "lunch": "", "time": ""}, {"day": 31, "ev": "学校閉庁日", "career": "", "lunch": "", "time": ""}], "1": [{"day": 1, "ev": "学校閉庁日", "career": "", "lunch": "", "time": ""}, {"day": 2, "ev": "学校閉庁日", "career": "", "lunch": "", "time": ""}, {"day": 3, "ev": "学校閉庁日", "career": "", "lunch": "", "time": ""}, {"day": 4, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 5, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 6, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 7, "ev": "始業式\n小中別・\n校務分掌会議", "career": "書類返却（自己アピール文、申込確認書等）\n奈良工専教師持参（出願）（10～15時）9日まで", "lunch": "×", "time": ""}, {"day": 8, "ev": "二測定", "career": "※校内進路希望調査提出（公立受検者のみ）", "lunch": "×", "time": 3}, {"day": 9, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 10, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 11, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 12, "ev": "給食開始\n学力診断テスト", "career": "", "lunch": "○", "time": 6}, {"day": 13, "ev": "４限下校\nレポート研修\n一覧表提出", "career": "奈良私立書類点検", "lunch": "○", "time": 4}, {"day": 14, "ev": "一覧表提出", "career": "", "lunch": "○", "time": 5}, {"day": 15, "ev": "一覧表提出\n14：30五郡市", "career": "奈良私立出願（朝一郵送）", "lunch": "○", "time": 6}, {"day": 16, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 17, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 18, "ev": "", "career": "", "lunch": "○", "time": 6}, {"day": 19, "ev": "", "career": "大阪・和歌山私立・県立大出願書類点検　", "lunch": "○", "time": 4}, {"day": 20, "ev": "市人教研究大会", "career": "自己アピール文清書〆切", "lunch": "○", "time": 3}, {"day": 21, "ev": "", "career": "一般選抜出願決定届配布", "lunch": "○", "time": 6}, {"day": 22, "ev": "", "career": "大阪・和歌山私立出願（朝一郵送）", "lunch": "○", "time": 6}, {"day": 23, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 24, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 25, "ev": "４限下校\n（５限公立出願登録）", "career": "県立高校出願準備開始?\n公立受検者出願登録（５限）", "lunch": "○", "time": 4}, {"day": 26, "ev": "４限下校", "career": "入力情報確認作業・自己アピール文点検\n県立大学附属出願（教師持参）１４時～16時半？", "lunch": "○", "time": 4}, {"day": 27, "ev": "", "career": "", "lunch": "✕", "time": 5}, {"day": 28, "ev": "", "career": "", "lunch": "〇", "time": 6}, {"day": 29, "ev": "５教科テスト", "career": "進路事務", "lunch": "○", "time": 5}, {"day": 30, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 31, "ev": "", "career": "", "lunch": "", "time": ""}], "2": [{"day": 1, "ev": "", "career": "", "lunch": "○", "time": 6}, {"day": 2, "ev": "４限下校", "career": "一次選抜調査書点検", "lunch": "○", "time": 4}, {"day": 3, "ev": "職員会議", "career": "", "lunch": "○", "time": 5}, {"day": 4, "ev": "", "career": "", "lunch": "○", "time": 6}, {"day": 5, "ev": "４限下校", "career": "一次選抜出願決定届〆切\n県内私立　事前指導（５限目）", "lunch": "○", "time": 4}, {"day": 6, "ev": "", "career": "県内私立 入試", "lunch": "", "time": ""}, {"day": 7, "ev": "", "career": "　　　　　県内私立　合格発表", "lunch": "", "time": ""}, {"day": 8, "ev": "４限下校\n（5限入力）", "career": "一次選抜出願開始（第一期間）\n一次選抜入力", "lunch": "○", "time": 4}, {"day": 9, "ev": "４限下校", "career": "県外私立　事前指導\n県立大附属　事前指導", "lunch": "○", "time": 4}, {"day": 10, "ev": "自宅学習\nテスト一週間前", "career": "県外私立 入試", "lunch": "×", "time": 0}, {"day": 11, "ev": "", "career": "県外私立 入試\n県立大附属一般　入試", "lunch": "", "time": ""}, {"day": 12, "ev": "学習参観日?", "career": "公立入試入金締め切り\n県外私立合格発表", "lunch": "○", "time": 4}, {"day": 13, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 14, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 15, "ev": "", "career": "希望の方のみ三者懇談", "lunch": "○", "time": 4}, {"day": 16, "ev": "", "career": "希望の方のみ三者懇談\n第一出願期間最終日", "lunch": "○", "time": 4}, {"day": 17, "ev": "校務分掌会議", "career": "希望の方のみ三者懇談\n第二出願期間", "lunch": "〇", "time": 3}, {"day": 18, "ev": "", "career": "", "lunch": "〇", "time": 3}, {"day": 19, "ev": "14：30五郡市", "career": "第二出願期間最終日", "lunch": "○", "time": 3}, {"day": 20, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 21, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 22, "ev": "４限下校", "career": "一次選抜事前指導（５限）", "lunch": "○", "time": 4}, {"day": 23, "ev": "天皇誕生日", "career": "", "lunch": "", "time": ""}, {"day": 24, "ev": "自宅学習\n期末テスト7.8", "career": "一次選抜入試", "lunch": "×", "time": 0}, {"day": 25, "ev": "自宅学習\n期末テスト7.8", "career": "一次選抜入試", "lunch": "×", "time": 0}, {"day": 26, "ev": "期末テスト7.8", "career": "", "lunch": "○", "time": 3}, {"day": 27, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 28, "ev": "", "career": "", "lunch": "", "time": ""}], "3": [{"day": 1, "ev": "委員会", "career": "", "lunch": "○", "time": 3}, {"day": 2, "ev": "", "career": "", "lunch": "○", "time": 3}, {"day": 3, "ev": "総括会議", "career": "", "lunch": "○", "time": 3}, {"day": 4, "ev": "", "career": "", "lunch": "○", "time": 3}, {"day": 5, "ev": "", "career": "", "lunch": "○", "time": 3}, {"day": 6, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 7, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 8, "ev": "", "career": "一次選抜合格発表", "lunch": "✕", "time": 3}, {"day": 9, "ev": "", "career": "", "lunch": "✕", "time": 3}, {"day": 10, "ev": "総括会議\n予行練習", "career": "", "lunch": "×", "time": 3}, {"day": 11, "ev": "卒業式", "career": "", "lunch": "×", "time": ""}, {"day": 12, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 13, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 14, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 15, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 16, "ev": "9：30五郡市", "career": "", "lunch": "", "time": ""}, {"day": 17, "ev": "給食最終日", "career": "", "lunch": "", "time": ""}, {"day": 18, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 19, "ev": "小学部卒業式", "career": "", "lunch": "", "time": ""}, {"day": 20, "ev": "春分の日", "career": "", "lunch": "", "time": ""}, {"day": 21, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 22, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 23, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 24, "ev": "修了式", "career": "", "lunch": "", "time": ""}, {"day": 25, "ev": "職員作業", "career": "", "lunch": "", "time": ""}, {"day": 26, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 27, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 28, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 29, "ev": "", "career": "", "lunch": "", "time": ""}, {"day": 30, "ev": "", "career": "抄本提出日?", "lunch": "", "time": ""}, {"day": 31, "ev": "", "career": "", "lunch": "", "time": ""}]};
+</script>
+
+<script>
+/* ---------- storage adapter (works both inside Claude artifact and as a local file) ---------- */
+const storageAdapter = {
+  async get(key, shared){
+    if(typeof window.storage !== 'undefined' && window.storage){
+      try{ return await window.storage.get(key, shared); }catch(e){}
+    }
+    try{
+      const v = localStorage.getItem(key);
+      return v ? {key, value:v, shared} : null;
+    }catch(e){ return null; }
+  },
+  async set(key, value, shared){
+    if(typeof window.storage !== 'undefined' && window.storage){
+      try{ return await window.storage.set(key, value, shared); }catch(e){}
+    }
+    try{
+      localStorage.setItem(key, value);
+      return {key, value, shared};
+    }catch(e){ return null; }
+  }
+};
+
+/* ---------- date / holiday helpers ---------- */
+const WEEKDAY_JP = ['日','月','火','水','木','金','土'];
+function isLeap(y){ return (y%4===0 && y%100!==0) || y%400===0; }
+function getMonths(schoolYear){
+  return [
+    {key:'12', label:'12月', year:schoolYear,   days:31},
+    {key:'1',  label:'1月',  year:schoolYear+1, days:31},
+    {key:'2',  label:'2月',  year:schoolYear+1, days: isLeap(schoolYear+1)?29:28},
+    {key:'3',  label:'3月',  year:schoolYear+1, days:31},
+  ];
+}
+function weekdayOf(year, month, day){
+  return WEEKDAY_JP[new Date(year, month-1, day).getDay()];
+}
+function pad2(n){ return String(n).padStart(2,'0'); }
+function nthWeekday(year, monthIndex0, weekday, n){
+  let count=0;
+  const date = new Date(year, monthIndex0, 1);
+  while(date.getMonth()===monthIndex0){
+    if(date.getDay()===weekday){ count++; if(count===n) return date.getDate(); }
+    date.setDate(date.getDate()+1);
+  }
+  return null;
+}
+function vernalEquinoxDay(y){
+  // valid approximation for 1980-2099 (matches official government-published dates in this range)
+  return Math.floor(20.8431 + 0.242194*(y-1980) - Math.floor((y-1980)/4));
+}
+function computeHolidays(schoolYear){
+  const map = {};
+  function add(y,m,d,name){ map[y+'-'+pad2(m)+'-'+pad2(d)] = name; }
+  const y2 = schoolYear+1;
+  add(y2,1,1,'元日');
+  const seijin = nthWeekday(y2,0,1,2); if(seijin) add(y2,1,seijin,'成人の日');
+  add(y2,2,11,'建国記念の日');
+  add(y2,2,23,'天皇誕生日');
+  const eq = vernalEquinoxDay(y2); add(y2,3,eq,'春分の日');
+  // 振替休日: any holiday landing on Sunday shifts to next non-holiday day
+  Object.keys(map).slice().forEach(key=>{
+    const [yy,mm,dd] = key.split('-').map(Number);
+    const dt = new Date(yy,mm-1,dd);
+    if(dt.getDay()===0){
+      let next = new Date(dt);
+      do{ next.setDate(next.getDate()+1); }
+      while(map[next.getFullYear()+'-'+pad2(next.getMonth()+1)+'-'+pad2(next.getDate())]);
+      add(next.getFullYear(), next.getMonth()+1, next.getDate(), '振替休日');
+    }
+  });
+  return map;
+}
+let HOLIDAYS = {};
+function holidayNameOf(year, month, day){
+  return HOLIDAYS[year+'-'+pad2(month)+'-'+pad2(day)] || null;
+}
+function toHalfWidthDigits(str){
+  return String(str).replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0)-0xFEE0));
+}
+
+/* ---------- state ---------- */
+let schoolYear = 2026;
+const COLWIDTH_DEFAULTS = {
+  entry:     [4, 4, 25, 27, 24, 8, 8],
+  staff:     [7, 6, 25, 25, 25, 6, 6],
+  student:   [8, 7, 29, 29, 27],
+  interview: [8, 6, 28, 18, 18, 22]
+};
+let columnWidths = {entry:{}, staff:{}, student:{}, interview:{}};
+function getColWidths(type, monthKey){
+  if(!columnWidths[type][monthKey]) columnWidths[type][monthKey] = COLWIDTH_DEFAULTS[type].slice();
+  return columnWidths[type][monthKey];
+}
+function columnWidthsStorageKey(){ return 'route-colwidths-v2'; }
+
+/* ---------- entry screen font size (personal display preference) ---------- */
+let entryFontSize = 13;
+const ENTRY_FONT_MIN = 10, ENTRY_FONT_MAX = 24;
+function applyEntryFontSize(){
+  document.documentElement.style.setProperty('--entry-font-size', entryFontSize+'px');
+  const label = document.getElementById('entryFontSizeLabel');
+  if(label) label.textContent = entryFontSize+'px';
+}
+async function loadEntryFontSize(){
+  try{
+    const r = await storageAdapter.get('route-entry-fontsize-v1', false);
+    if(r){ const v = parseInt(r.value,10); if(v>=ENTRY_FONT_MIN && v<=ENTRY_FONT_MAX) entryFontSize = v; }
+  }catch(e){}
+  applyEntryFontSize();
+}
+function saveEntryFontSize(){
+  storageAdapter.set('route-entry-fontsize-v1', String(entryFontSize), false);
+}
+
+/* ---------- row height, adjustable per month per table type ---------- */
+// rowHeights.entry['12'] = 34  -> custom px height for December rows on the entry tab
+// rowHeights.staff['1']  = 40  -> custom px height for January rows on the staff preview, etc.
+let rowHeights = {entry:{}, staff:{}, student:{}, interview:{}};
+const ROW_HEIGHT_STEP = 3;
+const ROW_HEIGHT_MIN = 18, ROW_HEIGHT_MAX = 90;
+function rowHeightsStorageKey(){ return 'route-rowheights-v1'; }
+async function loadRowHeights(){
+  try{
+    const r = await storageAdapter.get(rowHeightsStorageKey(), true);
+    if(r){
+      const obj = JSON.parse(r.value);
+      Object.keys(rowHeights).forEach(k=>{ if(obj[k] && typeof obj[k]==='object') rowHeights[k]=obj[k]; });
+    }
+  }catch(e){}
+}
+let saveRowHeightsTimer = null;
+function saveRowHeights(){
+  clearTimeout(saveRowHeightsTimer);
+  saveRowHeightsTimer = setTimeout(()=>{
+    storageAdapter.set(rowHeightsStorageKey(), JSON.stringify(rowHeights), true);
+  }, 400);
+}
+function applyRowHeightToTable(tableEl, px){
+  tableEl.querySelectorAll('tbody tr').forEach(tr=>{
+    tr.querySelectorAll('td').forEach(td=>{ td.style.height = px ? px+'px' : ''; });
+  });
+}
+function bumpRowHeight(type, monthKey, delta, tables){
+  const current = rowHeights[type][monthKey] || null;
+  const base = current || 0; // 0 means "let the browser decide" as a starting point
+  let next = (base || estimateNaturalRowHeight(tables && tables[0])) + delta;
+  next = Math.max(ROW_HEIGHT_MIN, Math.min(ROW_HEIGHT_MAX, next));
+  rowHeights[type][monthKey] = next;
+  (tables||[]).forEach(t=>applyRowHeightToTable(t, next));
+  saveRowHeights();
+  return next;
+}
+function estimateNaturalRowHeight(tableEl){
+  if(!tableEl) return 26;
+  const firstRow = tableEl.querySelector('tbody tr');
+  if(!firstRow) return 26;
+  return Math.max(ROW_HEIGHT_MIN, firstRow.getBoundingClientRect().height);
+}
+function wireMonthRowHeightControls(sheetEl){
+  sheetEl.querySelectorAll('.rowh-inline').forEach(ctrl=>{
+    const type = ctrl.dataset.type, month = ctrl.dataset.month;
+    const wrap = ctrl.closest('.month-head').parentElement;
+    const table = wrap ? wrap.querySelector('table.grid') : null;
+    const valEl = ctrl.querySelector('.rowh-val');
+    const stored = rowHeights[type][month];
+    if(table && stored) applyRowHeightToTable(table, stored);
+    if(valEl) valEl.textContent = stored ? Math.round(stored)+'px' : '自動';
+    ctrl.querySelectorAll('.rowh-btn').forEach(btn=>{
+      btn.addEventListener('mousedown', e=>{ e.preventDefault(); e.stopPropagation(); });
+      btn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        const delta = parseInt(btn.dataset.dir,10) * ROW_HEIGHT_STEP;
+        const newVal = bumpRowHeight(type, month, delta, table?[table]:[]);
+        if(valEl) valEl.textContent = newVal+'px';
+      });
+    });
+  });
+}
+async function loadColumnWidths(){
+  try{
+    const r = await storageAdapter.get(columnWidthsStorageKey(), true);
+    if(r){
+      const obj = JSON.parse(r.value);
+      Object.keys(columnWidths).forEach(type=>{
+        if(obj[type] && typeof obj[type]==='object'){
+          Object.keys(obj[type]).forEach(monthKey=>{
+            const arr = obj[type][monthKey];
+            if(Array.isArray(arr) && arr.length===COLWIDTH_DEFAULTS[type].length) columnWidths[type][monthKey]=arr;
+          });
+        }
+      });
+    }
+  }catch(e){}
+}
+let saveColWidthsTimer = null;
+function saveColumnWidths(){
+  clearTimeout(saveColWidthsTimer);
+  saveColWidthsTimer = setTimeout(()=>{
+    storageAdapter.set(columnWidthsStorageKey(), JSON.stringify(columnWidths), true);
+  }, 400);
+}
+/* ---------- print layout: 'pair' = 2か月/枚(B4横) , 'single' = 1か月/枚(B4縦) ---------- */
+let printLayout = 'pair';
+async function loadPrintLayout(){
+  try{ const r = await storageAdapter.get('route-print-layout-v1', false); if(r && (r.value==='single'||r.value==='pair')) printLayout = r.value; }catch(e){}
+}
+function syncLayoutUI(){
+  document.querySelectorAll('.layout-switch').forEach(box=>{
+    box.innerHTML = '';
+    [['pair','2か月／枚（B4横）'],['single','1か月／枚（B4縦・計4枚）']].forEach(([v,label])=>{
+      const b = document.createElement('button');
+      b.type = 'button'; b.textContent = label;
+      if(printLayout===v) b.classList.add('active');
+      b.addEventListener('click', ()=>setPrintLayout(v));
+      box.appendChild(b);
+    });
+  });
+  const lbl = printLayout==='single' ? '🖨 このページを印刷（B4縦）' : '🖨 このページを印刷（B4横）';
+  ['btnPrintStaff','btnPrintStudent'].forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent = lbl; });
+  ['staffSheet','studentSheet'].forEach(id=>{ const el=document.getElementById(id); if(el) el.classList.toggle('portrait', printLayout==='single'); });
+}
+function setPrintLayout(v){
+  printLayout = v;
+  storageAdapter.set('route-print-layout-v1', v, false);
+  syncLayoutUI();
+  renderStaffPreview(); renderStudentPreview();
+}
+let MONTHS = getMonths(schoolYear);
+let schedule = null;
+let interview = null;
+let arrows = null;
+let currentEntryMonth = '12';
+let currentInterviewMonth = '12';
+let currentRole = 'staff';
+let saveTimer = null;
+let saveTimerI = null;
+let saveTimerA = null;
+let arrowDrawMode = false;
+
+/* ---------- undo (like Word's "back" button) ---------- */
+let undoStack = [];
+const UNDO_LIMIT = 40;
+function pushUndo(){
+  try{
+    undoStack.push(JSON.stringify({schedule, arrows}));
+    if(undoStack.length > UNDO_LIMIT) undoStack.shift();
+  }catch(e){}
+}
+function doUndo(){
+  if(undoStack.length===0) return;
+  const snap = undoStack.pop();
+  try{
+    const obj = JSON.parse(snap);
+    schedule = obj.schedule;
+    arrows = obj.arrows;
+    try{ selectedArrowIdxs = new Set(); }catch(e){}
+    renderEntryTable();
+    renderStaffPreview();
+    renderStudentPreview();
+    renderInterviewTable();
+    saveSchedule();
+    saveArrows();
+  }catch(e){}
+}
+
+function scheduleStorageKey(){ return 'route-schedule-v3:'+schoolYear; }
+function interviewStorageKey(){ return 'interview-schedule-v3:'+schoolYear; }
+function arrowsStorageKey(){ return 'route-arrows-v1:'+schoolYear; }
+
+/* ---------- draggable column widths (applies across all tabs) ---------- */
+// tables: array/NodeList of <table> elements that share the exact same column
+// structure (e.g. the same month table repeated 4 times in a preview sheet).
+// widths: the shared percentage array (mutated in place, summed to 100).
+function makeColumnsResizable(tables, widths){
+  const list = Array.from(tables).filter(t=>t.querySelector('colgroup'));
+  if(list.length===0) return;
+  const first = list[0];
+  const headerCells = first.querySelectorAll('thead th');
+  headerCells.forEach((th, i)=>{
+    if(i >= widths.length-1) return; // no handle after the last column
+    const handle = document.createElement('div');
+    handle.className = 'col-resize-handle';
+    th.appendChild(handle);
+    handle.addEventListener('mousedown', (e)=>{
+      e.preventDefault(); e.stopPropagation();
+      handle.classList.add('active');
+      const tableWidthPx = first.getBoundingClientRect().width;
+      const startX = e.clientX;
+      const startLeft = widths[i], startRight = widths[i+1];
+      function onMove(e2){
+        const deltaPct = ((e2.clientX-startX)/tableWidthPx)*100;
+        let newLeft = startLeft + deltaPct;
+        let newRight = startRight - deltaPct;
+        if(newLeft < 3 || newRight < 3) return;
+        widths[i] = newLeft; widths[i+1] = newRight;
+        list.forEach(t=>{
+          const cols = t.querySelectorAll('colgroup col');
+          if(cols[i]) cols[i].style.width = newLeft+'%';
+          if(cols[i+1]) cols[i+1].style.width = newRight+'%';
+        });
+      }
+      function onUp(){
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        handle.classList.remove('active');
+        saveColumnWidths();
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  });
+}
+function colgroupHtml(widths){
+  return '<colgroup>' + widths.map(w=>`<col style="width:${w}%">`).join('') + '</colgroup>';
+}
+function escapeHtml(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function textToHtml(s){
+  return escapeHtml(s).replace(/\n/g,'<br>');
+}
+
+function freshScheduleFromEmbedded(){
+  const src = window.__INITIAL_SCHEDULE__;
+  const out = {};
+  MONTHS.forEach(m=>{
+    out[m.key] = (src[m.key]||[]).map(d=>({
+      day:d.day,
+      ev: textToHtml(d.ev||''),
+      career: textToHtml(d.career||''),
+      school: '',
+      lunch:d.lunch||'',
+      time:(d.time===undefined||d.time===null)?'':String(d.time)
+    }));
+  });
+  return out;
+}
+function freshInterview(){
+  const out = {};
+  ['12','1','2'].forEach(k=>{
+    const monthDef = MONTHS.find(m=>m.key===k);
+    out[k] = [];
+    for(let d=1; d<=monthDef.days; d++){
+      out[k].push({day:d, principal:'', vp:'', note:''});
+    }
+  });
+  return out;
+}
+function freshArrows(){
+  const out = {};
+  MONTHS.forEach(m=>{ out[m.key] = []; });
+  return out;
+}
+
+/* ---------- load / save ---------- */
+async function loadAll(){
+  try{
+    const r = await storageAdapter.get(scheduleStorageKey(), true);
+    schedule = r ? JSON.parse(r.value) : freshScheduleFromEmbedded();
+  }catch(e){ schedule = freshScheduleFromEmbedded(); }
+  try{
+    const r2 = await storageAdapter.get(interviewStorageKey(), true);
+    interview = r2 ? JSON.parse(r2.value) : freshInterview();
+  }catch(e){ interview = freshInterview(); }
+  try{
+    const r3 = await storageAdapter.get(arrowsStorageKey(), true);
+    arrows = r3 ? JSON.parse(r3.value) : freshArrows();
+  }catch(e){ arrows = freshArrows(); }
+  MONTHS.forEach(m=>{ if(!arrows[m.key]) arrows[m.key] = []; });
+}
+function saveSchedule(){
+  const el = document.getElementById('entryStatus');
+  if(el){ el.textContent = '保存中…'; el.className='status-msg saving'; }
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async ()=>{
+    const res = await storageAdapter.set(scheduleStorageKey(), JSON.stringify(schedule), true);
+    if(el){
+      if(res){ el.textContent = '保存しました'; el.className='status-msg'; }
+      else { el.textContent = '保存に失敗しました。もう一度お試しください。'; el.className='status-msg err'; }
+    }
+  }, 500);
+}
+function saveInterview(){
+  const el = document.getElementById('interviewStatus');
+  if(el){ el.textContent = '保存中…'; el.className='status-msg saving'; }
+  clearTimeout(saveTimerI);
+  saveTimerI = setTimeout(async ()=>{
+    const res = await storageAdapter.set(interviewStorageKey(), JSON.stringify(interview), true);
+    if(el){
+      if(res){ el.textContent = '保存しました'; el.className='status-msg'; }
+      else { el.textContent = '保存に失敗しました。もう一度お試しください。'; el.className='status-msg err'; }
+    }
+  }, 500);
+}
+function saveArrows(){
+  const el = document.getElementById('entryStatus');
+  if(el){ el.textContent = '保存中…'; el.className='status-msg saving'; }
+  clearTimeout(saveTimerA);
+  saveTimerA = setTimeout(async ()=>{
+    const res = await storageAdapter.set(arrowsStorageKey(), JSON.stringify(arrows), true);
+    if(el){
+      if(res){ el.textContent = '保存しました'; el.className='status-msg'; }
+      else { el.textContent = '保存に失敗しました。もう一度お試しください。'; el.className='status-msg err'; }
+    }
+  }, 400);
+}
+
+/* ---------- year switch ---------- */
+document.getElementById('schoolYearInput').addEventListener('change', async (e)=>{
+  const v = parseInt(e.target.value, 10);
+  if(!v || v<2000 || v>2100){ e.target.value = schoolYear; return; }
+  schoolYear = v;
+  MONTHS = getMonths(schoolYear);
+  HOLIDAYS = computeHolidays(schoolYear);
+  await loadAll();
+  if(BS.sync()) saveSchedule();
+  renderEntryMonthSwitch(); renderEntryTable();
+  renderInterviewMonthSwitch(); renderInterviewTable();
+  renderStaffPreview(); renderStudentPreview();
+});
+
+/* ---------- tabs ---------- */
+document.querySelectorAll('.tabbtn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tabbtn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-'+btn.dataset.tab).classList.add('active');
+    if(btn.dataset.tab==='staff') renderStaffPreview();
+    if(btn.dataset.tab==='student') renderStudentPreview();
+    if(btn.dataset.tab==='interview') renderInterviewTable();
+  });
+});
+
+/* ---------- rich text toolbar ---------- */
+document.querySelectorAll('#rteToolbar button').forEach(btn=>{
+  btn.addEventListener('mousedown', (e)=>{ e.preventDefault(); });
+});
+document.querySelectorAll('#rteToolbar button[data-cmd], #rteToolbar button[data-color], #rteToolbar button[data-sym]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    if(btn.dataset.cmd==='bold'){ document.execCommand('bold', false, null); }
+    if(btn.dataset.color){ document.execCommand('foreColor', false, btn.dataset.color); }
+    if(btn.dataset.sym){ document.execCommand('insertText', false, btn.dataset.sym); }
+    const active = document.activeElement;
+    if(active && active.classList && active.classList.contains('rte')){
+      commitRte(active);
+    }
+  });
+});
+document.getElementById('btnHideFromStudent').addEventListener('click', markStaffOnly);
+document.getElementById('btnFontSmaller').addEventListener('mousedown', e=>e.preventDefault());
+document.getElementById('btnFontSmaller').addEventListener('click', ()=>adjustSelectionFontSize(-2));
+document.getElementById('btnFontBigger').addEventListener('mousedown', e=>e.preventDefault());
+document.getElementById('btnFontBigger').addEventListener('click', ()=>adjustSelectionFontSize(2));
+document.getElementById('btnShowToStudent').addEventListener('click', unmarkStaffOnly);
+function commitRte(div){
+  const idx = parseInt(div.dataset.idx);
+  const field = div.dataset.field;
+  schedule[currentEntryMonth][idx][field] = div.innerHTML;
+  saveSchedule();
+  applyRowHighlight(div.closest('tr'), idx);
+}
+function currentRteDiv(){
+  const sel = window.getSelection();
+  if(!sel || !sel.rangeCount) return null;
+  let node = sel.anchorNode;
+  while(node && !(node.nodeType===1 && node.classList && node.classList.contains('rte'))) node = node.parentNode;
+  return node;
+}
+function markStaffOnly(){
+  const sel = window.getSelection();
+  if(!sel || !sel.rangeCount) return;
+  const range = sel.getRangeAt(0);
+  if(range.collapsed){ alert('生徒に見せたくない部分を、まずドラッグして選択してから押してください。'); return; }
+  const div = currentRteDiv();
+  if(!div) return;
+  pushUndo();
+  const span = document.createElement('span');
+  span.className = 'staff-only';
+  try{
+    range.surroundContents(span);
+  }catch(e){
+    const content = range.extractContents();
+    span.appendChild(content);
+    range.insertNode(span);
+  }
+  sel.removeAllRanges();
+  commitRte(div);
+}
+function unmarkStaffOnly(){
+  const sel = window.getSelection();
+  const div = currentRteDiv();
+  let node = sel && sel.anchorNode ? sel.anchorNode : null;
+  while(node && node.nodeType!==1) node = node.parentNode;
+  const span = node && node.closest ? node.closest('.staff-only') : null;
+  if(span){
+    pushUndo();
+    const parent = span.parentNode;
+    while(span.firstChild) parent.insertBefore(span.firstChild, span);
+    parent.removeChild(span);
+  }
+  if(div) commitRte(div);
+}
+/* ---------- per-selection font size (independent of the whole-screen font size control) ---------- */
+const SELECTION_FONT_MIN = 8, SELECTION_FONT_MAX = 40;
+function adjustSelectionFontSize(delta){
+  const sel = window.getSelection();
+  if(!sel || !sel.rangeCount){ return; }
+  const range = sel.getRangeAt(0);
+  if(range.collapsed){ alert('文字サイズを変えたい部分を、まずドラッグして選択してから押してください。'); return; }
+  const div = currentRteDiv();
+  if(!div) return;
+  pushUndo();
+  let container = range.commonAncestorContainer;
+  if(container.nodeType===3) container = container.parentElement;
+  const existingSpan = container && container.closest ? container.closest('span[data-fs]') : null;
+  if(existingSpan && existingSpan.contains(range.startContainer) && existingSpan.contains(range.endContainer)){
+    let size = parseInt(existingSpan.dataset.fs, 10) || entryFontSize;
+    size = Math.max(SELECTION_FONT_MIN, Math.min(SELECTION_FONT_MAX, size+delta));
+    existingSpan.dataset.fs = size;
+    existingSpan.style.fontSize = size+'px';
+  } else {
+    const refEl = container instanceof Element ? container : div;
+    const baseSize = parseInt(window.getComputedStyle(refEl).fontSize, 10) || entryFontSize;
+    const size = Math.max(SELECTION_FONT_MIN, Math.min(SELECTION_FONT_MAX, baseSize+delta));
+    const span = document.createElement('span');
+    span.dataset.fs = size;
+    span.style.fontSize = size+'px';
+    try{
+      range.surroundContents(span);
+    }catch(e){
+      const content = range.extractContents();
+      span.appendChild(content);
+      range.insertNode(span);
+    }
+  }
+  sel.removeAllRanges();
+  commitRte(div);
+}
+function stripStaffOnly(html){
+  const div = document.createElement('div');
+  div.innerHTML = html || '';
+  div.querySelectorAll('.staff-only').forEach(el=>el.remove());
+  return div.innerHTML;
+}
+
+/* ---------- freeform arrows (span across cells, like a drawing layer) ---------- */
+function getSvgPoint(svg, evt){
+  const rect = svg.getBoundingClientRect();
+  const xPct = Math.max(0, Math.min(1, (evt.clientX-rect.left)/rect.width));
+  const yPct = Math.max(0, Math.min(1, (evt.clientY-rect.top)/rect.height));
+  return {x: xPct*1000, y: yPct*1000};
+}
+let selectedArrowIdxs = new Set();
+function arrowGroupMarkup(list, markerId, color, editable){
+  let html = `<defs><marker id="${markerId}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="${color}"/></marker>`+
+    `<marker id="${markerId}-sel" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#c0392b"/></marker></defs>`;
+  list.forEach((a,i)=>{
+    const isSel = editable && selectedArrowIdxs.has(i);
+    const lineColor = isSel ? '#c0392b' : color;
+    const marker = isSel ? markerId+'-sel' : markerId;
+    html += `<g data-idx="${i}">`+
+      `<line class="arrow-hit" data-idx="${i}" x1="${a.x1}" y1="${a.y1}" x2="${a.x2}" y2="${a.y2}" stroke="transparent" stroke-width="28"/>`+
+      `<line class="arrow-visible" x1="${a.x1}" y1="${a.y1}" x2="${a.x2}" y2="${a.y2}" stroke="${lineColor}" stroke-width="${isSel?6:4}" stroke-dasharray="${isSel?'10 6':''}" marker-end="url(#${marker})"/>`;
+    if(editable){
+      html += `<circle class="arrow-handle-hit" data-idx="${i}" data-pt="1" cx="${a.x1}" cy="${a.y1}" r="20"/>`+
+        `<circle class="arrow-handle" data-idx="${i}" data-pt="1" cx="${a.x1}" cy="${a.y1}" r="6"/>`+
+        `<circle class="arrow-handle-hit" data-idx="${i}" data-pt="2" cx="${a.x2}" cy="${a.y2}" r="20"/>`+
+        `<circle class="arrow-handle" data-idx="${i}" data-pt="2" cx="${a.x2}" cy="${a.y2}" r="6"/>`;
+    }
+    html += `</g>`;
+  });
+  return html;
+}
+function renderArrowLayer(){
+  const svg = document.getElementById('entryArrowLayer');
+  if(!svg) return;
+  const list = arrows[currentEntryMonth] || [];
+  svg.innerHTML = arrowGroupMarkup(list, 'arrowhead-entry', '#233a5e', true);
+}
+function toggleArrowSelect(idx){
+  if(selectedArrowIdxs.has(idx)) selectedArrowIdxs.delete(idx);
+  else selectedArrowIdxs.add(idx);
+}
+let arrowDrawState = null;   // drawing a brand-new arrow
+let arrowPreviewLine = null;
+let arrowDragHandle = null;  // {idx, pt:'1'|'2', moved, startX, startY} moving an existing endpoint
+let arrowClickCandidate = null; // possible click-to-select on an existing arrow line
+function setupArrowLayer(){
+  const svg = document.getElementById('entryArrowLayer');
+  if(!svg) return;
+  svg.classList.toggle('drawing', arrowDrawMode);
+  svg.addEventListener('mousedown', (e)=>{
+    const target = e.target;
+    // clicking an existing arrow to select/delete it works regardless of arrow mode
+    if(target.classList && target.classList.contains('arrow-hit')){
+      e.stopPropagation();
+      arrowClickCandidate = {idx: parseInt(target.dataset.idx), startX:e.clientX, startY:e.clientY};
+      return;
+    }
+    if(!arrowDrawMode) return; // empty space with mode off: let the click pass through to the table
+    if(target.classList && (target.classList.contains('arrow-handle') || target.classList.contains('arrow-handle-hit'))){
+      e.stopPropagation();
+      arrowDragHandle = {idx: parseInt(target.dataset.idx), pt: target.dataset.pt, moved:false, startX:e.clientX, startY:e.clientY};
+      return;
+    }
+    const pt = getSvgPoint(svg, e);
+    arrowDrawState = {svg, x1:pt.x, y1:pt.y, x2:pt.x, y2:pt.y};
+    arrowPreviewLine = document.createElementNS('http://www.w3.org/2000/svg','line');
+    arrowPreviewLine.setAttribute('stroke', '#233a5e');
+    arrowPreviewLine.setAttribute('stroke-width', '4');
+    arrowPreviewLine.setAttribute('stroke-dasharray', '6 4');
+    arrowPreviewLine.setAttribute('x1', arrowDrawState.x1); arrowPreviewLine.setAttribute('y1', arrowDrawState.y1);
+    arrowPreviewLine.setAttribute('x2', arrowDrawState.x2); arrowPreviewLine.setAttribute('y2', arrowDrawState.y2);
+    svg.appendChild(arrowPreviewLine);
+  });
+  svg.addEventListener('mousemove', (e)=>{
+    if(arrowDragHandle){
+      if(!arrowDragHandle.moved && Math.hypot(e.clientX-arrowDragHandle.startX, e.clientY-arrowDragHandle.startY) > 3){
+        arrowDragHandle.moved = true;
+        pushUndo();
+      }
+      const pt = getSvgPoint(svg, e);
+      const arr = arrows[currentEntryMonth][arrowDragHandle.idx];
+      if(!arr) return;
+      if(arrowDragHandle.pt==='1'){ arr.x1=pt.x; arr.y1=pt.y; } else { arr.x2=pt.x; arr.y2=pt.y; }
+      const g = svg.querySelectorAll('g')[arrowDragHandle.idx];
+      if(g){
+        g.querySelectorAll('line').forEach(line=>{
+          line.setAttribute('x1', arr.x1); line.setAttribute('y1', arr.y1);
+          line.setAttribute('x2', arr.x2); line.setAttribute('y2', arr.y2);
+        });
+        g.querySelectorAll('circle').forEach(c=>{
+          if(c.dataset.pt==='1'){ c.setAttribute('cx', arr.x1); c.setAttribute('cy', arr.y1); }
+          else { c.setAttribute('cx', arr.x2); c.setAttribute('cy', arr.y2); }
+        });
+      }
+      return;
+    }
+    if(!arrowDrawState || arrowDrawState.svg!==svg) return;
+    const pt = getSvgPoint(svg, e);
+    arrowDrawState.x2 = pt.x; arrowDrawState.y2 = pt.y;
+    if(arrowPreviewLine){ arrowPreviewLine.setAttribute('x2', pt.x); arrowPreviewLine.setAttribute('y2', pt.y); }
+  });
+}
+window.addEventListener('mouseup', (e)=>{
+  if(arrowDragHandle){
+    if(arrowDragHandle.moved){
+      saveArrows();
+    } else {
+      toggleArrowSelect(arrowDragHandle.idx);
+    }
+    arrowDragHandle = null;
+    renderArrowLayer();
+    return;
+  }
+  if(arrowClickCandidate){
+    const dx = e.clientX-arrowClickCandidate.startX, dy = e.clientY-arrowClickCandidate.startY;
+    if(Math.sqrt(dx*dx+dy*dy) < 6){
+      toggleArrowSelect(arrowClickCandidate.idx);
+    }
+    arrowClickCandidate = null;
+    renderArrowLayer();
+    return;
+  }
+  if(!arrowDrawState) return;
+  const dx = arrowDrawState.x2-arrowDrawState.x1, dy = arrowDrawState.y2-arrowDrawState.y1;
+  if(Math.sqrt(dx*dx+dy*dy) > 15 && currentEntryMonth && arrows[currentEntryMonth]){
+    pushUndo();
+    arrows[currentEntryMonth].push({x1:arrowDrawState.x1,y1:arrowDrawState.y1,x2:arrowDrawState.x2,y2:arrowDrawState.y2});
+    saveArrows();
+  }
+  arrowDrawState = null;
+  if(arrowPreviewLine){ arrowPreviewLine.remove(); arrowPreviewLine=null; }
+  renderArrowLayer();
+});
+function setArrowMode(on){
+  arrowDrawMode = on;
+  selectedArrowIdxs = new Set();
+  const modeBtn = document.getElementById('btnArrowMode');
+  if(modeBtn) modeBtn.classList.toggle('active-mode', arrowDrawMode);
+  const svg = document.getElementById('entryArrowLayer');
+  if(svg) svg.classList.toggle('drawing', arrowDrawMode);
+  const banner = document.getElementById('arrowModeBanner');
+  if(banner) banner.classList.toggle('hidden', !arrowDrawMode);
+  renderArrowLayer();
+}
+document.getElementById('btnArrowMode').addEventListener('mousedown', e=>e.preventDefault());
+document.getElementById('btnArrowMode').addEventListener('click', ()=>{ setArrowMode(!arrowDrawMode); });
+document.getElementById('btnArrowModeOffInBanner').addEventListener('mousedown', e=>e.preventDefault());
+document.getElementById('btnArrowModeOffInBanner').addEventListener('click', ()=>{ setArrowMode(false); });
+document.getElementById('btnClearArrows').addEventListener('mousedown', e=>e.preventDefault());
+document.getElementById('btnClearArrows').addEventListener('click', ()=>{
+  if(!arrows[currentEntryMonth] || arrows[currentEntryMonth].length===0) return;
+  if(!confirm(currentEntryMonth+'月に引いた矢印をすべて消します。よろしいですか？')) return;
+  pushUndo();
+  arrows[currentEntryMonth] = [];
+  selectedArrowIdxs = new Set();
+  saveArrows();
+  renderArrowLayer();
+});
+document.getElementById('btnDeleteSelectedArrows').addEventListener('mousedown', e=>e.preventDefault());
+document.getElementById('btnDeleteSelectedArrows').addEventListener('click', ()=>{
+  if(selectedArrowIdxs.size===0){
+    alert('先に消したい矢印をクリックして選択してください（複数選べます）。');
+    return;
+  }
+  pushUndo();
+  arrows[currentEntryMonth] = arrows[currentEntryMonth].filter((_,i)=>!selectedArrowIdxs.has(i));
+  selectedArrowIdxs = new Set();
+  saveArrows();
+  renderArrowLayer();
+});
+function applyRowHighlight(tr, idx){
+  if(!tr) return;
+  const monthDef = MONTHS.find(m=>m.key===currentEntryMonth);
+  const d = schedule[currentEntryMonth][idx];
+  const wd = weekdayOf(monthDef.year, parseInt(currentEntryMonth), d.day);
+  tr.classList.remove('sat','sun','holiday');
+  if(wd==='土') tr.classList.add('sat');
+  else if(wd==='日') tr.classList.add('sun');
+  else if(holidayNameOf(monthDef.year, parseInt(currentEntryMonth), d.day)) tr.classList.add('holiday');
+}
+
+/* ---------- entry tab ---------- */
+function renderEntryMonthSwitch(){
+  const wrap = document.getElementById('entryMonthSwitch');
+  wrap.innerHTML = '';
+  MONTHS.forEach(m=>{
+    const b = document.createElement('button');
+    b.textContent = m.label;
+    if(m.key===currentEntryMonth) b.classList.add('active');
+    b.addEventListener('click', ()=>{ currentEntryMonth = m.key; selectedArrowIdxs = new Set(); renderEntryMonthSwitch(); renderEntryTable(); });
+    wrap.appendChild(b);
+  });
+}
+function rowClassOf(monthDef, monthNum, day, evHtml){
+  const wd = weekdayOf(monthDef.year, monthNum, day);
+  if(wd==='土') return {cls:'sat', wd};
+  if(wd==='日') return {cls:'sun', wd};
+  if(holidayNameOf(monthDef.year, monthNum, day)) return {cls:'holiday', wd};
+  return {cls:'', wd};
+}
+function renderEntryTable(){
+  const monthDef = MONTHS.find(m=>m.key===currentEntryMonth);
+  const monthNum = parseInt(currentEntryMonth);
+  const rows = schedule[currentEntryMonth];
+  let html = '<table class="entry">'+colgroupHtml(getColWidths('entry', currentEntryMonth))+'<thead><tr>'+
+    '<th>日</th><th>曜</th><th>学校行事</th><th>進路関係の予定</th><th>高校別出願日</th><th>給食</th><th>校時</th>'+
+    '</tr></thead><tbody>';
+  rows.forEach((d,i)=>{
+    const {cls, wd} = rowClassOf(monthDef, monthNum, d.day, d.ev);
+    html += `<tr class="${cls}">`+
+      `<td class="daycell">${d.day}</td><td class="wdcell">${wd}</td>`+
+      `<td><div class="rte" contenteditable="true" data-field="ev" data-idx="${i}">${d.ev}</div></td>`+
+      `<td><div class="rte" contenteditable="true" data-field="career" data-idx="${i}">${d.career}</div></td>`+
+      `<td><div class="rte" contenteditable="true" data-field="school" data-idx="${i}">${d.school||''}</div></td>`+
+      `<td class="lunchcell"><select data-field="lunch" data-idx="${i}">`+
+        `<option value="" ${d.lunch===''?'selected':''}></option>`+
+        `<option value="○" ${d.lunch==='○'?'selected':''}>○</option>`+
+        `<option value="×" ${d.lunch==='×'?'selected':''}>×</option>`+
+      `</select></td>`+
+      `<td class="pdcell${timeOff(wd,d.time)?' off':''}"><input type="text" data-field="time" data-idx="${i}" value="${escapeHtml(String(d.time))}"></td>`+
+      `</tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('entryTableWrap').innerHTML =
+    `<div class="arrow-layer-wrap" id="entryArrowWrap">${html}<svg class="arrow-layer" id="entryArrowLayer" viewBox="0 0 1000 1000" preserveAspectRatio="none"></svg></div>`;
+
+  document.querySelectorAll('#entryTableWrap select[data-field], #entryTableWrap input[type=text][data-field]').forEach(el=>{
+    el.addEventListener('focus', ()=>{ pushUndo(); });
+    el.addEventListener('input', ()=>{
+      const idx = parseInt(el.dataset.idx);
+      schedule[currentEntryMonth][idx][el.dataset.field] = el.value;
+      saveSchedule();
+    });
+  });
+  document.querySelectorAll('#entryTableWrap .rte').forEach(div=>{
+    div.addEventListener('focus', ()=>{ pushUndo(); });
+    div.addEventListener('input', ()=>{ commitRte(div); });
+    div.addEventListener('paste', (e)=>{
+      e.preventDefault();
+      const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+      document.execCommand('insertText', false, text);
+    });
+    div.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter'){ e.preventDefault(); document.execCommand('insertLineBreak'); }
+    });
+    div.addEventListener('blur', ()=>{ commitRte(div); });
+  });
+  setupArrowLayer();
+  renderArrowLayer();
+  makeColumnsResizable(document.querySelectorAll('#entryTableWrap table.entry'), getColWidths('entry', currentEntryMonth));
+  const entryTableEl = document.querySelector('#entryTableWrap table.entry');
+  if(entryTableEl && rowHeights.entry[currentEntryMonth]) applyRowHeightToTable(entryTableEl, rowHeights.entry[currentEntryMonth]);
+  updateEntryRowHLabel();
+}
+
+document.getElementById('btnReset').addEventListener('click', ()=>{
+  if(!confirm(currentEntryMonth+'月のデータを初期データに戻します。よろしいですか？')) return;
+  pushUndo();
+  const fresh = freshScheduleFromEmbedded();
+  if(fresh[currentEntryMonth]){
+    schedule[currentEntryMonth] = fresh[currentEntryMonth];
+  } else {
+    schedule[currentEntryMonth] = schedule[currentEntryMonth].map(d=>({...d, ev:'', career:'', school:'', lunch:'', time:''}));
+  }
+  try{ BS.sync(); }catch(e){}
+  renderEntryTable();
+  saveSchedule();
+});
+
+/* ---------- preview rendering ---------- */
+function buildMonthTable(m, forStaff){
+  const rows = schedule[m.key];
+  const monthNum = parseInt(m.key);
+  const rhType = forStaff ? 'staff' : 'student';
+  const cols = colgroupHtml(getColWidths(rhType, m.key));
+  let head = forStaff
+    ? '<th>日</th><th>曜</th><th>学校行事</th><th>進路関係</th><th>高校別出願日</th><th>給食</th><th>校時</th>'
+    : '<th>日</th><th>曜</th><th>学校行事</th><th>進路関係</th><th>高校別出願日</th>';
+  let html = `<div><div class="month-head">${m.label}`+
+    `<span class="rowh-inline" data-type="${rhType}" data-month="${m.key}">`+
+      `行高<button type="button" class="rowh-btn" data-dir="-1">－</button>`+
+      `<span class="rowh-val">自動</span>`+
+      `<button type="button" class="rowh-btn" data-dir="1">＋</button>`+
+    `</span>`+
+    `</div><div class="arrow-layer-wrap"><table class="grid" data-month="${m.key}">${cols}<thead><tr>${head}</tr></thead><tbody>`;
+  rows.forEach((d,i)=>{
+    const {cls, wd} = rowClassOf(m, monthNum, d.day, d.ev);
+    if(forStaff){
+      html += `<tr class="${cls}">`+
+        `<td class="daycell">${d.day}</td><td class="wdcell">${wd}</td>`+
+        `<td>${d.ev}</td><td>${d.career}</td><td>${d.school||''}</td>`+
+        `<td class="lunchcell">${escapeHtml(d.lunch)}</td><td class="pdcell${timeOff(wd,d.time)?' off':''}">${escapeHtml(d.time)}</td>`+
+        `</tr>`;
+    } else {
+      const ovCell=(field, base)=>{
+        const auto = stripStaffOnly(base);
+        const has = (d[field]!==undefined && d[field]!==null);
+        const out = has ? d[field] : auto;
+        return `<td><div class="rte-mini" contenteditable="true" data-month="${m.key}" data-idx="${i}" data-field="${field}">${out}</div>`+
+          `<span class="override-actions${has?'':' hidden'}">`+
+            `<button type="button" class="reset-override merge-override" data-month="${m.key}" data-idx="${i}" data-field="${field}">①の新しい内容を追加</button>`+
+            `<button type="button" class="reset-override full-revert" data-month="${m.key}" data-idx="${i}" data-field="${field}">すべて①に戻す</button>`+
+          `</span></td>`;
+      };
+      html += `<tr class="${cls}">`+
+        `<td class="daycell">${d.day}</td><td class="wdcell">${wd}</td>`+
+        ovCell('evOverride', d.ev)+ovCell('careerOverride', d.career)+ovCell('schoolOverride', d.school||'')+
+        `</tr>`;
+    }
+  });
+  html += '</tbody></table>';
+  if(forStaff && arrows[m.key] && arrows[m.key].length){
+    html += `<svg class="arrow-layer" viewBox="0 0 1000 1000" preserveAspectRatio="none">${arrowGroupMarkup(arrows[m.key], 'arrowhead-'+m.key, '#233a5e', false)}</svg>`;
+  }
+  html += '</div></div>';
+  return html;
+}
+function buildGridTable(forStaff, titleHtml, subHtml, rangeSuffix){
+  let html = '';
+  if(printLayout==='single'){
+    // 1か月 = B4縦1枚（12・1・2・3月で計4枚）
+    MONTHS.forEach(m=>{
+      html += `<div class="print-page"><div class="sheet-title">${titleHtml}　${m.label}</div>`+
+        `<div class="month-pair-row single">${buildMonthTable(m, forStaff)}</div></div>`;
+    });
+    return html;
+  }
+  const pairs = [[MONTHS[0],MONTHS[1]],[MONTHS[2],MONTHS[3]]];
+  pairs.forEach((pair,pageIdx)=>{
+    html += '<div class="print-page">';
+    if(pageIdx===0){
+      html += `<div class="sheet-title">${titleHtml}${rangeSuffix||''}</div><div class="sheet-sub">${subHtml}</div>`;
+    }
+    html += '<div class="month-pair-row">';
+    pair.forEach(m=>{ html += buildMonthTable(m, forStaff); });
+    html += '</div></div>';
+  });
+  return html;
+}
+function wirePerMonthColumnResize(sheetEl, type){
+  sheetEl.querySelectorAll('table.grid[data-month]').forEach(t=>{
+    makeColumnsResizable([t], getColWidths(type, t.dataset.month));
+  });
+}
+function renderStaffPreview(){
+  const sheetEl = document.getElementById('staffSheet');
+  sheetEl.innerHTML =
+    buildGridTable(true, `${schoolYear}年度　進路関係予定（職員用）`, 'B4横で印刷してください', '　12月〜3月');
+  wirePerMonthColumnResize(sheetEl, 'staff');
+  wireMonthRowHeightControls(sheetEl);
+  if(sheetEl.classList.contains('b4-preview')){ fitPrintPages(sheetEl); syncTopScroll(sheetEl); }
+}
+function renderStudentPreview(){
+  const sheetEl = document.getElementById('studentSheet');
+  sheetEl.innerHTML =
+    buildGridTable(false, `${schoolYear}年度　進路日程（予定）`, 'B4横で印刷してください　※このプレビューは直接クリックして編集できます', '');
+  wireStudentPreviewEditing();
+  wirePerMonthColumnResize(sheetEl, 'student');
+  wireMonthRowHeightControls(sheetEl);
+  if(sheetEl.classList.contains('b4-preview')){ fitPrintPages(sheetEl); syncTopScroll(sheetEl); }
+}
+function wireStudentPreviewEditing(){
+  const sheet = document.getElementById('studentSheet');
+  sheet.querySelectorAll('.rte-mini').forEach(div=>{
+    div.addEventListener('input', ()=>{ commitStudentOverride(div); });
+    div.addEventListener('paste', (e)=>{
+      e.preventDefault();
+      const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+      document.execCommand('insertText', false, text);
+    });
+    div.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter'){ e.preventDefault(); document.execCommand('insertLineBreak'); }
+    });
+    div.addEventListener('blur', ()=>{ commitStudentOverride(div); });
+  });
+  sheet.querySelectorAll('.reset-override.full-revert').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const month = btn.dataset.month, idx = parseInt(btn.dataset.idx), field = btn.dataset.field;
+      pushUndo();
+      schedule[month][idx][field] = null;
+      saveSchedule();
+      renderStudentPreview();
+    });
+  });
+  sheet.querySelectorAll('.reset-override.merge-override').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const month = btn.dataset.month, idx = parseInt(btn.dataset.idx), field = btn.dataset.field;
+      pushUndo();
+      const added = mergeAutoIntoOverride(month, idx, field);
+      if(!added){
+        alert('追加するものはありません（①の内容はすでにすべて反映されています）。');
+        return; // nothing changed - no need to re-render or keep the undo step
+      }
+      renderStudentPreview();
+    });
+  });
+}
+function splitIntoLinesHtml(html){
+  const div = document.createElement('div');
+  div.innerHTML = html || '';
+  return (div.innerHTML || '')
+    .split(/<br\s*\/?>/i)
+    .map(s=>s.trim())
+    .filter(s=>s.length>0);
+}
+function lineTextOf(lineHtml){
+  const d = document.createElement('div');
+  d.innerHTML = lineHtml;
+  let t = d.textContent || '';
+  if(t.normalize) t = t.normalize('NFKC');
+  t = t.replace(/[\u200B-\u200D\uFEFF\u00A0]/g, ''); // zero-width chars & nbsp
+  t = t.replace(/\s+/g, ''); // ignore all spacing differences entirely
+  return t;
+}
+function toCleanTextLines(html){
+  const div = document.createElement('div');
+  div.innerHTML = html || '';
+  // innerText only computes correctly on an element that's actually rendered -
+  // a detached div (never attached to the document) makes innerText behave
+  // unreliably (it can silently drop line breaks). So render it off-screen,
+  // read innerText, then remove it immediately.
+  div.style.position = 'absolute';
+  div.style.left = '-99999px';
+  div.style.whiteSpace = 'pre-wrap';
+  document.body.appendChild(div);
+  let text = (div.innerText !== undefined ? div.innerText : div.textContent) || '';
+  document.body.removeChild(div);
+  return text.split(/\r?\n/).map(s=>s.trim()).filter(s=>s.length>0);
+}
+function normalizeForCompare(s){
+  let t = s || '';
+  if(t.normalize) t = t.normalize('NFKC');
+  return t.replace(/[\u200B-\u200D\uFEFF\u00A0\s]/g, '');
+}
+const OVERRIDE_BASE = {evOverride:'ev', careerOverride:'career', schoolOverride:'school'};
+function mergeAutoIntoOverride(month, idx, field){
+  const baseField = OVERRIDE_BASE[field];
+  const autoVal = stripStaffOnly(schedule[month][idx][baseField]);
+  const currentOverride = schedule[month][idx][field];
+  if(currentOverride===null || currentOverride===undefined){
+    schedule[month][idx][field] = autoVal;
+    saveSchedule();
+    return true;
+  }
+  // Line-by-line, using cleaned plain-text lines on both sides (so div/br
+  // structural differences and formatting can't throw off the comparison):
+  // a line already present is skipped, only genuinely new lines are added.
+  // Note: this rebuilds the merged cell as plain text lines, so bold/colour
+  // formatting inside it is not preserved by this particular action - it can
+  // be re-applied afterward with the toolbar if needed.
+  const overrideLines = toCleanTextLines(currentOverride);
+  const existingTexts = overrideLines.map(normalizeForCompare);
+  const autoLines = toCleanTextLines(autoVal);
+  const newLines = autoLines.filter(line => !existingTexts.includes(normalizeForCompare(line)));
+  if(newLines.length===0) return false; // every line is already there
+  schedule[month][idx][field] = overrideLines.concat(newLines).map(escapeHtml).join('<br>');
+  saveSchedule();
+  return true;
+}
+function commitStudentOverride(div){
+  const month = div.dataset.month, idx = parseInt(div.dataset.idx), field = div.dataset.field;
+  const baseField = OVERRIDE_BASE[field];
+  const autoVal = stripStaffOnly(schedule[month][idx][baseField]);
+  const newVal = div.innerHTML;
+  if(newVal === autoVal){
+    // matches what ① would show anyway - stay in sync instead of freezing an override
+    schedule[month][idx][field] = null;
+  } else {
+    schedule[month][idx][field] = newVal;
+  }
+  saveSchedule();
+  const actions = div.parentElement.querySelector('.override-actions');
+  const hasOverride = schedule[month][idx][field] !== null && schedule[month][idx][field] !== undefined;
+  if(actions) actions.classList.toggle('hidden', !hasOverride);
+}
+
+/* ---------- print: shrink each print-page's real font-size/padding to fit one page ---------- */
+// IMPORTANT: CSS `transform: scale()` only changes how something is painted,
+// not its layout box size - browsers still paginate print output using the
+// PRE-transform height, so a transform-based approach silently fails to
+// prevent page-break overflow. To actually change the printed height we must
+// shrink genuine layout properties (font-size, padding) instead.
+const GRID_BASE_FONT_PX = 11;
+const GRID_BASE_PAD_V_PX = 4;
+const GRID_BASE_PAD_H_PX = 5;
+function applyGridScale(row, scale){
+  const single = row.classList.contains('single');
+  const font = Math.max(7.5, (single?13:GRID_BASE_FONT_PX)*scale);
+  const padV = Math.max(1, (single?5:GRID_BASE_PAD_V_PX)*scale);
+  const padH = Math.max(1.5, (single?6:GRID_BASE_PAD_H_PX)*scale);
+  row.querySelectorAll('td,th').forEach(c=>{
+    c.style.fontSize = font+'px';
+    c.style.padding = padV+'px '+padH+'px';
+  });
+}
+function fitPrintPages(sheetEl){
+  const single = (printLayout==='single');
+  // 横: B4横の有効高さ(241mm)から余裕を引いた値 / 縦: B4縦(ISO/JIS どちらでも収まる安全値)
+  const usableHeightMM = single ? 316 : 230;
+  const pxPerMM = 96/25.4;
+  const targetHeightPx = usableHeightMM * pxPerMM;
+  sheetEl.querySelectorAll('.print-page').forEach(page=>{
+    const row = page.querySelector('.month-pair-row');
+    if(!row) return;
+    if(single){ page.style.boxSizing='content-box'; page.style.width='234mm'; } else { page.style.width=''; page.style.boxSizing=''; }
+    // Print always starts from natural sizing - the on-screen "comfortable
+    // row height" preference is a screen-only convenience and must not
+    // affect what gets fitted onto a physical page, or it silently causes
+    // overflow onto extra pages.
+    row.querySelectorAll('td,th').forEach(c=>{ c.style.fontSize=''; c.style.padding=''; c.style.height=''; });
+    let fixedHeight = 0;
+    Array.from(page.children).forEach(child=>{
+      if(!child.classList.contains('month-pair-row')) fixedHeight += child.offsetHeight;
+    });
+    const available = targetHeightPx - fixedHeight;
+    if(available <= 0) return;
+    let h = row.scrollHeight;
+    if(h > available){
+      let scale = Math.max(0.65, available/h);
+      applyGridScale(row, scale);
+      // one corrective pass in case the estimate under-shrank (padding/line-height floors etc.)
+      h = row.scrollHeight;
+      if(h > available){
+        scale = Math.max(0.65, scale * (available/h));
+        applyGridScale(row, scale);
+      }
+    }
+    if(single){
+      // 縦1か月は余白が出るので、行の高さを均等に広げて用紙いっぱいに使う
+      h = row.scrollHeight;
+      if(h < available){
+        const trs = Array.from(row.querySelectorAll('tbody tr'));
+        const hs = trs.map(tr=>tr.getBoundingClientRect().height);
+        const extra = (available - h - 2) / Math.max(1, trs.length);
+        trs.forEach((tr,idx)=>tr.querySelectorAll('td').forEach(td=>{ td.style.height = (hs[idx]+extra)+'px'; }));
+      }
+    }
+  });
+}
+function resetPrintScale(sheetEl){
+  sheetEl.querySelectorAll('.month-pair-row td, .month-pair-row th').forEach(c=>{
+    c.style.fontSize = ''; c.style.padding = ''; c.style.height = '';
+  });
+  sheetEl.querySelectorAll('.print-page').forEach(p=>{ p.style.width=''; p.style.boxSizing=''; });
+  // restore each month table's on-screen custom row height, if the person set one
+  sheetEl.querySelectorAll('table.grid[data-month]').forEach(t=>{
+    const type = sheetEl.id==='staffSheet' ? 'staff' : 'student';
+    const h = rowHeights[type][t.dataset.month];
+    if(h) applyRowHeightToTable(t, h);
+  });
+}
+/* 校時の標準：水曜=5、土日=なし、その他=6。標準と違う入力は赤 */
+function timeOff(wd, val){
+  const v = String(val==null?'':val).normalize('NFKC').replace(/[時間校限\s]/g,'');
+  if(!v) return false;
+  const def = wd==='水' ? '5' : (wd==='土'||wd==='日') ? null : '6';
+  return v !== def;
+}
+document.addEventListener('input', e=>{
+  const el = e.target;
+  if(el && el.matches && el.matches('input[data-field="time"]')){
+    const tr = el.closest('tr'), td = el.closest('td');
+    const wd = ((tr && tr.querySelector('.wdcell'))||{}).textContent||'';
+    if(td) td.classList.toggle('off', timeOff(wd.trim(), el.value));
+  }
+});
+/* B4表示のとき、横スクロールバーを画面上部にも固定表示（下と連動） */
+function syncTopScroll(sheetEl){
+  let bar = sheetEl.previousElementSibling;
+  if(bar && !bar.classList.contains('hscroll-top')) bar = null;
+  if(!sheetEl.classList.contains('b4-preview')){ if(bar) bar.remove(); return; }
+  if(!bar){
+    bar = document.createElement('div'); bar.className = 'hscroll-top'; bar.innerHTML = '<div></div>';
+    sheetEl.parentNode.insertBefore(bar, sheetEl);
+    bar.addEventListener('scroll', ()=>{ if(sheetEl.scrollLeft!==bar.scrollLeft) sheetEl.scrollLeft = bar.scrollLeft; });
+  }
+  if(!sheetEl.dataset.hs){ sheetEl.dataset.hs = '1';
+    sheetEl.addEventListener('scroll', ()=>{ const b = sheetEl.previousElementSibling; if(b && b.classList.contains('hscroll-top') && b.scrollLeft!==sheetEl.scrollLeft) b.scrollLeft = sheetEl.scrollLeft; }); }
+  bar.firstChild.style.width = sheetEl.scrollWidth + 'px';
+  bar.scrollLeft = sheetEl.scrollLeft;
+}
+function toggleB4Preview(which){
+  const sheetEl = which==='staff' ? document.getElementById('staffSheet') : document.getElementById('studentSheet');
+  const btn = document.getElementById(which==='staff' ? 'btnB4Staff' : 'btnB4Student');
+  const turningOn = !sheetEl.classList.contains('b4-preview');
+  if(turningOn){
+    fitPrintPages(sheetEl);
+    sheetEl.classList.add('b4-preview');
+    syncTopScroll(sheetEl);
+    btn.textContent = '↩ 通常表示に戻す';
+  } else {
+    resetPrintScale(sheetEl);
+    sheetEl.classList.remove('b4-preview');
+    syncTopScroll(sheetEl);
+    btn.textContent = '🔍 B4 100%表示で確認';
+  }
+}
+function printPanel(which){
+  const staffP = document.getElementById('panel-staff');
+  const studentP = document.getElementById('panel-student');
+  staffP.classList.remove('printing'); studentP.classList.remove('printing');
+  const target = which==='staff' ? staffP : studentP;
+  const sheetEl = which==='staff' ? document.getElementById('staffSheet') : document.getElementById('studentSheet');
+  target.classList.add('printing');
+  fitPrintPages(sheetEl);
+  const old = document.getElementById('dynPageStyle'); if(old) old.remove();
+  const pg = document.createElement('style'); pg.id = 'dynPageStyle';
+  pg.textContent = '@media print{@page{size:B4 '+(printLayout==='single'?'portrait':'landscape')+';margin:8mm;}}';
+  document.head.appendChild(pg);
+  requestAnimationFrame(()=>{
+    setTimeout(()=>{
+      window.print();
+      setTimeout(()=>{ target.classList.remove('printing'); resetPrintScale(sheetEl); pg.remove(); }, 300);
+    }, 60);
+  });
+}
+
+/* ---------- interview tab ---------- */
+document.querySelectorAll('input[name=role]').forEach(r=>{
+  r.addEventListener('change', ()=>{ currentRole = r.value; renderInterviewTable(); });
+});
+function renderInterviewMonthSwitch(){
+  const wrap = document.getElementById('interviewMonthSwitch');
+  wrap.innerHTML = '';
+  ['12','1','2'].forEach(k=>{
+    const m = MONTHS.find(x=>x.key===k);
+    const b = document.createElement('button');
+    b.textContent = m.label;
+    if(k===currentInterviewMonth) b.classList.add('active');
+    b.addEventListener('click', ()=>{ currentInterviewMonth = k; renderInterviewMonthSwitch(); renderInterviewTable(); });
+    wrap.appendChild(b);
+  });
+}
+function periodIsShort(timeVal){
+  if(timeVal===''||timeVal===null||timeVal===undefined) return false;
+  const normalized = toHalfWidthDigits(String(timeVal));
+  const n = parseInt(normalized.replace(/[^0-9-]/g,''), 10);
+  if(isNaN(n)) return false;
+  return n>=0 && n<=4;
+}
+function renderInterviewTable(){
+  const monthDef = MONTHS.find(m=>m.key===currentInterviewMonth);
+  const monthNum = parseInt(currentInterviewMonth);
+  const rows = interview[currentInterviewMonth];
+  const schedRows = schedule[currentInterviewMonth];
+  const canEditPrincipal = (currentRole==='staff' || currentRole==='principal');
+  const canEditVp = (currentRole==='staff' || currentRole==='vp');
+
+  let html = '<table class="interview">'+colgroupHtml(getColWidths('interview', currentInterviewMonth))+'<thead><tr>'+
+    '<th>日</th><th>曜</th><th>学校行事（参考）</th><th>校長先生</th><th>教頭先生</th><th>メモ</th>'+
+    '</tr></thead><tbody>';
+  rows.forEach((d,i)=>{
+    const {cls, wd} = rowClassOf(monthDef, monthNum, d.day, '');
+    const sched = schedRows[i];
+    const evRef = sched ? sched.ev : '';
+    const autoSlash = (wd==='土' || wd==='日') || !!(sched && periodIsShort(sched.time));
+
+    function cellHtml(field, canEdit){
+      const val = d[field];
+      const selClass = val==='○' ? 'avail-o' : (val==='×' ? 'avail-x' : (val==='／' || (val===''&&autoSlash) ? 'avail-slash' : ''));
+      return `<td class="${canEdit?'':'disabled-cell'}"><select data-field="${field}" data-idx="${i}" ${canEdit?'':'disabled'} class="${selClass}">`+
+        `<option value="" ${val===''?'selected':''}>${val===''&&autoSlash?'（自動／）':''}</option>`+
+        `<option value="○" ${val==='○'?'selected':''}>○ 面接可</option>`+
+        `<option value="×" ${val==='×'?'selected':''}>× 不可</option>`+
+        `<option value="／" ${val==='／'?'selected':''}>／ 対象外</option>`+
+      `</select></td>`;
+    }
+
+    html += `<tr class="${cls}">`+
+      `<td class="daycell">${d.day}</td><td>${wd}</td>`+
+      `<td style="font-size:12px;color:#4b5a6b;">${evRef}</td>`+
+      cellHtml('principal', canEditPrincipal)+
+      cellHtml('vp', canEditVp)+
+      `<td><input type="text" data-field="note" data-idx="${i}" value="${escapeHtml(d.note)}" placeholder="備考"></td>`+
+      `</tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('interviewTableWrap').innerHTML = html;
+
+  document.querySelectorAll('#interviewTableWrap [data-field]').forEach(el=>{
+    const evt = el.tagName==='SELECT' ? 'change' : 'input';
+    el.addEventListener(evt, ()=>{
+      const idx = parseInt(el.dataset.idx);
+      interview[currentInterviewMonth][idx][el.dataset.field] = el.value;
+      saveInterview();
+      renderInterviewTable();
+    });
+  });
+  makeColumnsResizable(document.querySelectorAll('#interviewTableWrap table.interview'), getColWidths('interview', currentInterviewMonth));
+  const interviewTableEl = document.querySelector('#interviewTableWrap table.interview');
+  if(interviewTableEl && rowHeights.interview[currentInterviewMonth]) applyRowHeightToTable(interviewTableEl, rowHeights.interview[currentInterviewMonth]);
+  updateInterviewRowHLabel();
+}
+function printInterview(){
+  const panel = document.getElementById('panel-interview');
+  panel.classList.add('printing');
+  window.print();
+  setTimeout(()=>{ panel.classList.remove('printing'); }, 300);
+}
+
+document.getElementById('btnUndo').addEventListener('mousedown', e=>e.preventDefault());
+document.getElementById('btnUndo').addEventListener('click', doUndo);
+document.getElementById('btnFontDown').addEventListener('mousedown', e=>e.preventDefault());
+document.getElementById('btnFontDown').addEventListener('click', ()=>{
+  entryFontSize = Math.max(ENTRY_FONT_MIN, entryFontSize-1);
+  applyEntryFontSize();
+  saveEntryFontSize();
+});
+document.getElementById('btnFontUp').addEventListener('mousedown', e=>e.preventDefault());
+document.getElementById('btnFontUp').addEventListener('click', ()=>{
+  entryFontSize = Math.min(ENTRY_FONT_MAX, entryFontSize+1);
+  applyEntryFontSize();
+  saveEntryFontSize();
+});
+function updateEntryRowHLabel(){
+  const label = document.getElementById('entryRowHLabel');
+  if(!label) return;
+  const v = rowHeights.entry[currentEntryMonth];
+  label.textContent = v ? Math.round(v)+'px' : '自動';
+}
+document.getElementById('btnRowHDown').addEventListener('mousedown', e=>e.preventDefault());
+document.getElementById('btnRowHDown').addEventListener('click', ()=>{
+  const table = document.querySelector('#entryTableWrap table.entry');
+  bumpRowHeight('entry', currentEntryMonth, -ROW_HEIGHT_STEP, table?[table]:[]);
+  updateEntryRowHLabel();
+});
+document.getElementById('btnRowHUp').addEventListener('mousedown', e=>e.preventDefault());
+document.getElementById('btnRowHUp').addEventListener('click', ()=>{
+  const table = document.querySelector('#entryTableWrap table.entry');
+  bumpRowHeight('entry', currentEntryMonth, ROW_HEIGHT_STEP, table?[table]:[]);
+  updateEntryRowHLabel();
+});
+function updateInterviewRowHLabel(){
+  const label = document.getElementById('interviewRowHLabel');
+  if(!label) return;
+  const v = rowHeights.interview[currentInterviewMonth];
+  label.textContent = v ? Math.round(v)+'px' : '自動';
+}
+document.getElementById('btnIntRowHDown').addEventListener('mousedown', e=>e.preventDefault());
+document.getElementById('btnIntRowHDown').addEventListener('click', ()=>{
+  const table = document.querySelector('#interviewTableWrap table.interview');
+  bumpRowHeight('interview', currentInterviewMonth, -ROW_HEIGHT_STEP, table?[table]:[]);
+  updateInterviewRowHLabel();
+});
+document.getElementById('btnIntRowHUp').addEventListener('mousedown', e=>e.preventDefault());
+document.getElementById('btnIntRowHUp').addEventListener('click', ()=>{
+  const table = document.querySelector('#interviewTableWrap table.interview');
+  bumpRowHeight('interview', currentInterviewMonth, ROW_HEIGHT_STEP, table?[table]:[]);
+  updateInterviewRowHLabel();
+});
+document.addEventListener('keydown', (e)=>{
+  if((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key==='z' || e.key==='Z')){
+    const active = document.activeElement;
+    const inEditableField = active && (active.classList.contains('rte') || active.tagName==='INPUT' || active.tagName==='TEXTAREA');
+    if(!inEditableField){
+      e.preventDefault();
+      doUndo();
+    }
+  }
+});
+
+/* ===== ⑤ 募集要項（高校ごとの日程）と、進路欄への自動反映 ===== */
+const BS=(()=>{
+const F=[
+['name','学校名','text','','学校名'],
+['year','年度','text','','例: 2027年度'],
+['preRegStart','事前登録 開始日','date','出願まで','WEB出願のユーザー登録など事前登録の開始日'],
+['preRegEnd','事前登録 締切日','date','出願まで','事前登録の締切日。なければ空'],
+['applyStart','出願受付 開始日','date','出願まで','出願受付(持参・WEB入力)の開始日'],
+['applyEnd','出願受付 締切日','date','出願まで','出願受付の締切日(郵送は消印有効日)'],
+['applyNote','出願方法・受付時間','long','出願まで','WEB/郵送/持参の別、受付時間、締切時刻、事前登録の補足'],
+['docs','出願書類','long','出願まで','必須・任意を分けて全て列挙'],
+['feeAmount','考査料','text','出願まで','金額と支払方法の要点。ない学校は空'],
+['feeStart','考査料納付 開始日','date','出願まで','納付期間がある場合のみ'],
+['feeEnd','考査料納付 締切日','date','出願まで','納付期間がある場合のみ。締切時刻は考査料欄に'],
+['examDate','試験日','date','試験',''],
+['meetTime','集合時間','text','試験',''],
+['examStart','試験開始時間','text','試験','最初の教科の開始時刻'],
+['subjects','試験教科・時程','long','試験','教科ごとの時間・配点、面接の有無'],
+['bento','弁当','tri','試験','昼食持参が必要なら あり、不要なら なし、記載なしは 不明'],
+['bonus','資格による加点','long','加点・回し合格','英検・漢検・数検などの加点の有無と、級ごとの点数・扱い。なければ「記載なし」'],
+['bonusDocs','加点に必要な書類・条件','long','加点・回し合格','証明書の種類、提出期限、取得期限'],
+['mawashi','回し合格','tri','加点・回し合格','回し合格(第1志望コースで不合格の場合に別コースで判定)があれば あり、なければ なし、不明は 不明'],
+['mawashiDetail','回し合格の仕組み','long','加点・回し合格','専願・併願ごとの回る順序を全て'],
+['resultDate','合格発表日','date','発表・手続',''],
+['resultTime','発表時刻・方法','text','発表・手続','時刻と方法(WEB/郵送/掲示)'],
+['enrollSengan','専願 入学手続 締切日','date','発表・手続','専願合格者の手続日・締切日'],
+['enrollHeigan','併願 入学手続 締切日','date','発表・手続','併願合格者の手続日・締切日'],
+['enrollNote','手続金・手続の補足','long','発表・手続','手続金の額、返金の可否など'],
+['infDocs','感染症で欠席する場合の必要書類','long','感染症で欠席したとき','必要な書類、提出先、提出期限'],
+['infMakeupDate','追試験日','date','感染症で欠席したとき',''],
+['infMakeupTime','追試験の時間','text','感染症で欠席したとき','集合時刻など'],
+['infNote','欠席連絡・追試の補足','long','感染症で欠席したとき','当日の連絡方法と期限、追試の考査料など'],
+['note','その他メモ','long','その他','特待生、募集人員など要点']
+];
+const SK='boshu-schools-v1', KS='adm_gemini_key', MS='adm_gemini_model';
+const AUTO=[['preRegStart','事前登録 開始'],['preRegEnd','事前登録 〆切'],['applyStart','出願開始'],['applyEnd','出願〆切'],['infMakeupDate','追試験'],['examDate','入試'],['resultDate','合格発表'],['enrollSengan','専願 入学手続〆切'],['enrollHeigan','併願 入学手続〆切']];
+const CATS=['県内私立','県外私立','国立','通信制'];
+let curTab='all', curId=null, view='one';
+try{ view=localStorage.getItem('bs_view')==='table'?'table':'one'; }catch(e){}
+const catOf=s=>CATS.includes(s.cat)?s.cat:'未分類';
+let schools=[], auto=['preRegStart','preRegEnd','applyStart','applyEnd','infMakeupDate'], cur=null;
+const g=id=>document.getElementById(id);
+const uid=()=>'s'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+const say=(t,e)=>{const el=g('bsSt'); el.textContent=t; el.style.color=e?'#a12a1a':'';};
+const short=n=>String(n||'').replace(/高等学校|高校/g,'').replace(/\s/g,'');
+
+async function load(){
+  try{ const r=await storageAdapter.get(SK,true); if(r){ const o=JSON.parse(r.value); schools=o.schools||[]; auto=o.auto||auto; } }catch(e){}
+}
+async function persist(){
+  const r=await storageAdapter.set(SK,JSON.stringify({schools,auto}),true);
+  if(!r) say('保存に失敗しました。もう一度お試しください。',true);
+}
+
+/* この高校の、この項目を日程表に載せるか（個別設定 s.items があればそれを優先、なければ全体設定 auto） */
+const isOn=(s,k)=> s.reflect!==false && (Array.isArray(s.items)? s.items.includes(k) : auto.includes(k));
+/* 「高校別出願日」欄の「自動で入った行」を作り直す（<span data-bs="1"> が目印） */
+function sync(){
+  const snap=JSON.stringify(schedule), RE=/(<br>)?<span data-bs="1">.*?<\/span>/g;
+  MONTHS.forEach(m=>(schedule[m.key]||[]).forEach(r=>{ r.career=String(r.career||'').replace(RE,''); r.school=String(r.school||'').replace(RE,''); }));
+  schools.filter(s=>s.reflect!==false).forEach(s=>AUTO.forEach(([k,label])=>{
+    if(!isOn(s,k)) return;
+    const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s[k]||''); if(!m) return;
+    const md=MONTHS.find(x=>x.key===String(+m[2]) && x.year===+m[1] && +m[3]<=x.days); if(!md) return;
+    const row=(schedule[md.key]||[]).find(r=>r.day===+m[3]); if(!row) return;
+    let t=short(s.name)+' '+label; if(k==='infMakeupDate' && s.infMakeupTime) t+='（'+s.infMakeupTime+'）';
+    const empty=!String(row.school||'').replace(/<[^>]*>|&nbsp;/g,'').trim();
+    row.school=(empty?'':row.school+'<br>')+'<span data-bs="1">'+escapeHtml(t)+'</span>';
+  }));
+  return JSON.stringify(schedule)!==snap;
+}
+function refresh(){
+  if(sync()){ renderEntryTable(); renderStaffPreview(); renderStudentPreview(); saveSchedule(); }
+}
+
+/* 表示 */
+function fmtD(s){ const d=new Date(s+'T00:00:00'); if(isNaN(d)) return escapeHtml(s); return `<b>${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}</b>（${WEEKDAY_JP[d.getDay()]}）`; }
+function cell(f,v){
+  if(!v) return '<span style="color:#b3bac3">—</span>';
+  if(f[2]==='date') return fmtD(v);
+  if(f[2]==='tri') return `<b style="color:${v==='あり'?'#17663f':v==='なし'?'#8a4b0a':'#666'}">${escapeHtml(v)}</b>`;
+  return escapeHtml(v).replace(/\n/g,'<br>');
+}
+function render(){
+  g('bsAuto').innerHTML='<b>全体設定（一括）：</b>'+AUTO.map(([k,l])=>`<label style="margin-right:12px;white-space:nowrap"><input type="checkbox" ${auto.includes(k)?'checked':''} onchange="BS.setAuto('${k}',this.checked)"> ${l}</label>`).join('')+
+    `<div style="font-size:12px;color:var(--ink-soft);margin-top:4px">※ 各高校の列で個別に選んだ場合は、その高校だけ個別設定が優先されます。`+
+    (schools.some(s=>Array.isArray(s.items))?` <button class="bs-link" onclick="BS.resetAll()">すべての高校を全体設定に戻す</button>`:'')+`</div>`;
+  const tabs=['all',...CATS]; if(schools.some(s=>catOf(s)==='未分類')) tabs.push('未分類');
+  if(!tabs.includes(curTab)) curTab='all';
+  g('bsTabs').innerHTML=tabs.map(k=>{ const n=k==='all'?schools.length:schools.filter(s=>catOf(s)===k).length;
+    return `<button type="button" class="${k===curTab?'active':''}" onclick="BS.tab('${k}')">${k==='all'?'すべて':k}（${n}）</button>`; }).join('')+`<span style="flex:1"></span><button type="button" class="${view==='one'?'active':''}" onclick="BS.setView('one')">1校ずつ見る</button><button type="button" class="${view==='table'?'active':''}" onclick="BS.setView('table')">一覧で比べる</button>`;
+  if(!schools.length){ g('bsMain').innerHTML='<div class="hint">まだ学校がありません。「募集要項を読み取る」か「手入力で追加」から登録してください。</div>'; return; }
+  const list=curTab==='all'?schools:schools.filter(s=>catOf(s)===curTab);
+  if(!list.length){ g('bsMain').innerHTML=`<div class="hint">「${curTab}」の学校はまだありません。「募集要項を読み取る」や「手入力で追加」で登録すると、このタブに入ります。</div>`; return; }
+  if(view==='one'){ renderOne(list); return; }
+  const autoKeys=AUTO.map(a=>a[0]);
+  let h='<div class="bs-wrap"><table class="bs-t"><thead><tr><th class="k"></th>'+list.map(s=>{
+    const own=Array.isArray(s.items);
+    return `<th><div style="font-size:16px">${escapeHtml(s.name)}</div><div style="font-weight:400;font-size:12px">${escapeHtml(s.year)}</div>`+
+    `<select class="bs-cat" onchange="BS.setCat('${s.id}',this.value)">${['',...CATS].map(c=>`<option value="${c}" ${c===(CATS.includes(s.cat)?s.cat:'')?'selected':''}>${c||'（区分を選ぶ）'}</option>`).join('')}</select>`+
+    `<label style="font-weight:400;font-size:12px;display:block;margin:4px 0"><input type="checkbox" ${s.reflect!==false?'checked':''} onchange="BS.setReflect('${s.id}',this.checked)"> 日程表に載せる</label>`+
+    `<div style="font-weight:400;font-size:11.5px;color:${own?'var(--rust)':'var(--ink-soft)'};margin-bottom:4px">${own?'この高校だけ個別設定':'全体設定に従う'}${own?` <button class="bs-link" onclick="BS.resetItems('${s.id}')">全体設定に戻す</button>`:''}</div>`+
+    `<button class="btn secondary" style="padding:3px 10px" onclick="BS.edit('${s.id}')">確認・編集</button></th>`;}).join('')+'</tr></thead><tbody>';
+  let grp=null;
+  F.filter(f=>f[3]).forEach(f=>{
+    if(f[3]!==grp){ grp=f[3]; h+=`<tr class="g"><td colspan="${list.length+1}">${escapeHtml(grp)}</td></tr>`; }
+    const isAuto=autoKeys.includes(f[0]);
+    h+=`<tr><td class="k">${escapeHtml(f[1])}</td>`+list.map(s=>{
+      let c=cell(f,s[f[0]]);
+      if(isAuto && s[f[0]]){
+        const on=isOn(s,f[0]);
+        c+=`<label class="bs-inc${on?' on':''}"><input type="checkbox" ${on?'checked':''} ${s.reflect===false?'disabled':''} onchange="BS.setItem('${s.id}','${f[0]}',this.checked)"> 日程表に載せる</label>`;
+      }
+      return `<td>${c}</td>`;
+    }).join('')+'</tr>';
+  });
+  g('bsMain').innerHTML=h+'</tbody></table></div>';
+}
+
+/* 操作 */
+async function setAuto(k,on){ auto=on?[...new Set([...auto,k])]:auto.filter(x=>x!==k); await persist(); refresh(); }
+function fmtS(v){ const d=new Date(v+'T00:00:00'); return isNaN(d)?escapeHtml(v):`${d.getMonth()+1}/${d.getDate()}（${WEEKDAY_JP[d.getDay()]}）`; }
+function renderOne(list){
+  if(!list.some(x=>x.id===curId)) curId=list[0].id;
+  const s=list.find(x=>x.id===curId);
+  const pick=list.map(x=>`<button type="button" class="${x.id===curId?'active':''}" onclick="BS.pick('${x.id}')">${escapeHtml(short(x.name))}</button>`).join('');
+  const KEY=[['事前登録','preRegStart','preRegEnd'],['出願','applyStart','applyEnd'],['試験日','examDate'],['合格発表','resultDate'],['入学手続（専願）','enrollSengan'],['入学手続（併願）','enrollHeigan']];
+  const keys=KEY.map(([l,a,b])=>{ const x=s[a],y=b&&s[b]; if(!x&&!y) return ''; const v=(x?fmtS(x):'')+(y?(x?' 〜 ':'〜 ')+fmtS(y):''); return `<div class="bs1-key"><div class="l">${l}</div><div class="v">${v}</div></div>`; }).join('');
+  let body='', grp=null, open=false;
+  F.filter(f=>f[3]&&s[f[0]]).forEach(f=>{
+    if(f[3]!==grp){ if(open) body+='</div>'; grp=f[3]; open=true; body+=`<h3 class="bs1-g">${escapeHtml(grp)}</h3><div>`; }
+    body+=`<div class="bs1-row"><div class="k">${escapeHtml(f[1])}</div><div class="v">${cell(f,s[f[0]])}</div></div>`;
+  });
+  if(open) body+='</div>';
+  g('bsMain').innerHTML=`<div class="month-switch" style="flex-wrap:wrap;margin:0 0 12px">${pick}</div>`+
+   `<div class="bs1-card"><div class="bs1-head"><div><div class="bs1-name">${escapeHtml(s.name)}</div><div class="bs1-sub">${escapeHtml(s.year)}　${escapeHtml(catOf(s))}</div></div>`+
+   `<button class="btn secondary" onclick="BS.edit('${s.id}')">確認・編集</button></div>`+
+   (keys?`<div class="bs1-keys">${keys}</div>`:'')+(body||'<div class="hint" style="margin-top:14px">この学校には、まだ入力された項目がありません。</div>')+
+   `<div class="bs1-foot">※ 記載のない項目は省略しています。日程表に載せる項目の設定は「一覧で比べる」で行います。</div></div>`;
+}
+function setView(v){ view=v; try{ localStorage.setItem('bs_view',v); }catch(e){} render(); }
+function pick(id){ curId=id; render(); }
+function tab(k){ curTab=k; render(); }
+async function setCat(id,v){ const s=schools.find(x=>x.id===id); if(s){ s.cat=v; await persist(); render(); } }
+async function setItem(id,k,on){
+  const s=schools.find(x=>x.id===id); if(!s) return;
+  const base=Array.isArray(s.items)?s.items:[...auto];
+  s.items=on?[...new Set([...base,k])]:base.filter(x=>x!==k);
+  await persist(); render(); refresh();
+}
+async function resetItems(id){ const s=schools.find(x=>x.id===id); if(s){ delete s.items; await persist(); render(); refresh(); } }
+async function resetAll(){ if(!confirm('個別に選んだ設定をすべて解除して、全体設定に合わせます。よろしいですか？')) return; schools.forEach(s=>{ delete s.items; }); await persist(); render(); refresh(); }
+async function setReflect(id,on){ const s=schools.find(x=>x.id===id); if(s){ s.reflect=on; await persist(); refresh(); } }
+function edit(id,ai){
+  cur=id?{...schools.find(s=>s.id===id)}:(ai||{id:uid()});
+  g('bsEdT').textContent=id?'確認・編集':'学校を追加';
+  g('bsDel').style.display=schools.some(s=>s.id===cur.id)?'':'none';
+  let h=ai?'<div class="hint">AIが読み取った結果です。保存する前に、必ず原本の募集要項と見比べて日付・点数を確認してください。</div>':'', grp='';
+  if(!schools.some(s=>s.id===cur.id) && !cur.cat && CATS.includes(curTab)) cur.cat=curTab;
+  h+=`<label for="bsf_cat" style="display:block;font-size:12px;margin:8px 0 2px">学校の区分（タブ）</label><select id="bsf_cat" style="width:100%;box-sizing:border-box;padding:5px 7px;font:inherit;border:1px solid var(--paper-line)">${['',...CATS].map(c=>`<option value="${c}" ${c===(cur.cat||'')?'selected':''}>${c||'（未分類）'}</option>`).join('')}</select>`;
+  F.forEach(f=>{
+    if(f[3]!==grp){ grp=f[3]; if(grp) h+=`<h4 style="margin:14px 0 0;color:var(--navy)">${escapeHtml(grp)}</h4>`; }
+    const v=escapeHtml(cur[f[0]]||''), k='bsf_'+f[0], st='width:100%;box-sizing:border-box;padding:5px 7px;font:inherit;border:1px solid var(--paper-line)';
+    h+=`<label for="${k}" style="display:block;font-size:12px;margin:8px 0 2px">${escapeHtml(f[1])}</label>`;
+    if(f[2]==='long') h+=`<textarea id="${k}" style="${st};min-height:60px">${v}</textarea>`;
+    else if(f[2]==='date') h+=`<input id="${k}" type="date" value="${v}" style="${st}">`;
+    else if(f[2]==='tri') h+=`<select id="${k}" style="${st}">${['','あり','なし','不明'].map(o=>`<option ${o===(cur[f[0]]||'')?'selected':''}>${o}</option>`).join('')}</select>`;
+    else h+=`<input id="${k}" value="${v}" style="${st}">`;
+  });
+  g('bsEdB').innerHTML=h; g('bsEd').showModal(); g('bsEdB').scrollTop=0;
+}
+async function saveS(){
+  F.forEach(f=>{ cur[f[0]]=g('bsf_'+f[0]).value.trim(); });
+  cur.cat=g('bsf_cat').value; if(curTab!=='all') curTab=catOf(cur);
+  if(!cur.name){ alert('学校名を入れてください'); return; }
+  const i=schools.findIndex(s=>s.id===cur.id); if(i>=0) schools[i]=cur; else schools.push(cur);
+  g('bsEd').close(); render(); await persist(); refresh(); say('保存しました。');
+}
+async function delS(){
+  if(!confirm(`「${cur.name||'この学校'}」を削除しますか？（高校別出願日欄に自動で入っていた行も消えます）`)) return;
+  schools=schools.filter(s=>s.id!==cur.id); g('bsEd').close(); render(); await persist(); refresh();
+}
+
+/* 募集要項の読み取り（Gemini） */
+const b64=f=>new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result.split(',')[1]); r.onerror=()=>rej(new Error('ファイルを読み込めませんでした')); r.readAsDataURL(f); });
+async function ask(getParts,label){
+  const key=localStorage.getItem(KS);
+  if(!key){ say('先に「Gemini設定」でAPIキーを入れてください',true); g('bsSet').showModal(); return; }
+  const model=localStorage.getItem(MS)||'gemini-2.5-flash';
+  say(`「${label}」を読み取り中…（30秒ほどかかります）`);
+  try{
+    const keys=F.map(f=>`- ${f[0]}（${f[1]}／${f[2]}）：${f[4]}`).join('\n');
+    const prompt=`これは高校入学試験の募集要項です。内容を読み取り、次のキーだけを持つJSONオブジェクトを1つ返してください。\nルール:\n・date型は必ず YYYY-MM-DD。時刻は日付に入れず、該当するtext/long欄に書く。\n・原文に書かれていない項目は空文字""。推測や補完は絶対にしない。\n・tri型は "あり" "なし" "不明" のいずれか。\n・専願と併願で日付が違うものは別キーに入れる。\n・text/long型は原文の要点を簡潔に。改行は\\n。\nキー:\n${keys}`;
+    const body={contents:[{parts:[...await getParts(),{text:prompt}]}],generationConfig:{responseMimeType:'application/json',temperature:0}};
+    const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify(body)});
+    if(!r.ok) throw new Error(`Geminiがエラーを返しました（${r.status}）。キーとモデル名を確認してください`);
+    const j=await r.json();
+    const o=JSON.parse((j.candidates?.[0]?.content?.parts||[]).map(p=>p.text||'').join('').replace(/```json|```/g,'').trim());
+    o.id=uid(); say('読み取り完了。内容を確認して保存してください'); edit(null,o);
+  }catch(err){ say('読み取りに失敗しました：'+err.message,true); }
+}
+g('bsPick').onchange=e=>{
+  const file=e.target.files[0]; e.target.value=''; if(!file) return;
+  ask(async()=>[{inline_data:{mime_type:file.type||'application/pdf',data:await b64(file)}}],file.name);
+};
+g('bsTxGo').onclick=()=>{
+  const t=g('bsTxA').value.trim();
+  if(t.length<200){ alert('文章が短すぎます。PDFの全文をコピーして貼り付けてください。'); return; }
+  g('bsTx').close(); g('bsTxA').value='';
+  ask(async()=>[{text:'以下は募集要項の本文です。\n\n'+t}],'貼り付けた文章');
+};
+g('bsTxBtn').onclick=()=>g('bsTx').showModal();
+g('bsAdd').onclick=()=>edit(null);
+g('bsSetBtn').onclick=()=>{ g('bsK').value=localStorage.getItem(KS)||''; g('bsM').value=localStorage.getItem(MS)||'gemini-2.5-flash'; g('bsSet').showModal(); };
+function saveSet(){ localStorage.setItem(KS,g('bsK').value.trim()); localStorage.setItem(MS,g('bsM').value.trim()||'gemini-2.5-flash'); g('bsSet').close(); say('設定を保存しました'); }
+
+async function init(){ await load(); render(); if(sync()) saveSchedule(); }
+return {init,sync,setView,pick,tab,setCat,setAuto,setReflect,setItem,resetItems,resetAll,edit,saveS,delS,saveSet};
+})();
+
+/* ---------- init ---------- */
+async function init(){
+  HOLIDAYS = computeHolidays(schoolYear);
+  await loadAll();
+  await BS.init();
+  await loadColumnWidths();
+  await loadEntryFontSize();
+  await loadRowHeights();
+  await loadPrintLayout();
+  syncLayoutUI();
+  renderEntryMonthSwitch(); renderEntryTable();
+  renderInterviewMonthSwitch();
+  renderStaffPreview(); renderStudentPreview();
+  renderInterviewTable();
+}
+init();
+</script>
+</body>
+</html>
