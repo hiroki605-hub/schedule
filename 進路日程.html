@@ -436,7 +436,7 @@ window.__INITIAL_SCHEDULE__ = {"12": [{"day": 1, "ev": "全校朝会\nいのち�
 /* ---------- Firebase 同期（Realtime Database / REST） ----------
    FB_DB_URL に databaseURL を入れると、日程・募集要項などがクラウドに保存され、パソコンと携帯で共有されます。
    空のままなら、これまで通りこの端末のブラウザ内だけに保存します。Geminiのキーは同期しません。 */
-const FB_DB_URL = '';   // ★ここに databaseURL を貼る 例: 'https://xxxx-default-rtdb.asia-southeast1.firebasedatabase.app'
+const FB_DB_URL = 'https://schedule-7db64-default-rtdb.asia-southeast1.firebasedatabase.app';
 const FB_NODE = 'shinro';
 const FB_PREFIX = ['route-','interview-','boshu-'];
 const fbOn = () => !!FB_DB_URL;
