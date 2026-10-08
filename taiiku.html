@@ -356,6 +356,48 @@
 ・より上手く（美しく／正確に／安全に）行うための工夫や、判断ができているか。
 ・規律を守り、意欲的に取り組もうとする姿勢が文章から伝わるか。`;
 
+  // ===== 採点の厳しさ（種目ごとに設定） =====
+  const GRADING_LEVELS = {
+    lenient: {
+      label: '😊 やさしい',
+      desc: '頑張りや意欲を積極的に評価。迷ったら高い方の点をつける',
+      rules: `【採点の厳しさ：やさしい】子どもの意欲や取り組みを積極的に評価し、迷ったら高い方の点をつけてください。
+1点：ほとんど書けていない、または意味が読み取れない。
+2点：短い、または抽象的だが、自分なりに取り組んだ様子は伝わる。
+3点：一般的な内容でも、自分の言葉で書けている。
+4点：具体的な気づきや工夫が少しでも書けている。
+5点：具体的な内容が書けている（深い分析までは求めない）。`
+    },
+    normal: {
+      label: '🙂 ふつう',
+      desc: '標準的な基準で採点',
+      rules: `【採点の厳しさ：ふつう】
+1〜2点：記述が非常に短い、または内容が抽象的。
+3点：一般的な内容。
+4点：具体的に分析し、工夫した点が書けている。
+5点：ポイントを深く理解し、高い意欲と深い分析が両立している。`
+    },
+    strict: {
+      label: '🧐 きびしい',
+      desc: '根拠・改善策まで求める。5点はめったにつけない',
+      rules: `【採点の厳しさ：きびしい】根拠や具体性を厳しく見て、迷ったら低い方の点をつけてください。5点は特に優れた記述に限ります。
+1点：抽象的、または内容が乏しい。
+2点：一般的な感想にとどまり、具体性に欠ける。
+3点：具体的な記述はあるが、理由や根拠が弱い。
+4点：具体的な分析に加え、改善のための工夫が根拠とともに書けている。
+5点：動きの原因・理由を深く分析し、次に向けた具体的で実行可能な改善策まで書けている。`
+    }
+  };
+  function getGradingLevel(t){
+    return (t && GRADING_LEVELS[t.gradingLevel]) ? t.gradingLevel : 'normal';
+  }
+  function renderLevelButtons(current, act){
+    return `<div class="row btn-row" style="gap:8px;">
+      ${Object.keys(GRADING_LEVELS).map(k=>`<button class="btn ${k===current?'yellow':'ghost'} sm" data-act="${act}" data-val="${k}">${GRADING_LEVELS[k].label}</button>`).join('')}
+    </div>
+    <p class="hint" style="margin-top:6px;">${esc(GRADING_LEVELS[current].desc)}</p>`;
+  }
+
   function defaultConfig(){
     const grades = ['1年','2年','3年'];
     const classesByGrade = {};
@@ -1003,6 +1045,7 @@
       ],
       reflections:[{id:uid(),label:'',hint:''}],
       aiRubric: DEFAULT_AI_RUBRIC,
+      gradingLevel: 'normal',
       hasAdviceField: false
     };
   }
@@ -1065,6 +1108,10 @@
           </label>
         </div>
         <p class="hint" style="margin:6px 0 20px;">生徒が自分のクラス名簿からアドバイスをくれた人を選んで内容を記入できるようになります。先生の「回答・AI採点」画面で、アドバイスを送った生徒への加点集計が見られます。</p>
+
+        <label class="field-label">AI採点の厳しさ</label>
+        ${renderLevelButtons(getGradingLevel(t), 'set_level_edit')}
+        <div style="height:18px;"></div>
 
         <label class="field-label">AI採点基準（この種目の「思考・判断」「主体的な態度」の観点）</label>
         <div class="row" style="margin-bottom:8px;">
@@ -1220,6 +1267,13 @@
       return s.length > 8 ? esc(s.slice(0,8)) + '…' : esc(s);
     }
 
+    const curLevel = getGradingLevel(tpl);
+    body += `<div class="card">
+      <h2>採点の厳しさ（${esc(tpl.name)}）</h2>
+      <p class="sub">この種目のAI採点の厳しさを切り替えられます。変更後は「再採点」で反映されます（採点済みの点数は自動では変わりません）。</p>
+      ${renderLevelButtons(curLevel, 'set_level_resp')}
+    </div>`;
+
     body += `<div class="card">
       <div class="row btn-row" style="margin-bottom:12px; align-items:center;">
         <div><strong>${rows.length}</strong> 件の回答（未採点 ${ungraded} 件・選択中 ${selectedCount} 件）</div>
@@ -1251,7 +1305,7 @@
             <td data-label="出席番号">${esc(r.entry)}番</td>
             ${allRatingItems.map(rt=>`<td class="mono" data-label="${esc(rt.label)}" title="${esc(rt.label)}">${r.ratings[rt.id]||'-'}</td>`).join('')}
             <td data-label="感想（抜粋）" style="max-width:140px;" title="${esc(Object.values(r.reflections)[0]||'')}">${esc(Object.values(r.reflections)[0]||'').slice(0,15)}…</td>
-            <td data-label="AI採点（${maxAi}点満点）">${r.aiScore ? `<span class="mono">${r.aiScore.ai} / ${maxAi}</span>` : '<span class="pending">未採点</span>'}</td>
+            <td data-label="AI採点（${maxAi}点満点）">${r.aiScore ? `<span class="mono">${r.aiScore.ai} / ${maxAi}</span>${(r.aiScore.level||'normal')!==curLevel ? `<div class="hint">※「${esc(GRADING_LEVELS[r.aiScore.level||'normal'].label.replace(/^\S+\s/,''))}」で採点</div>` : ''}` : '<span class="pending">未採点</span>'}</td>
             <td class="mono" data-label="文字数B（${maxBonus}点満点）">${r.aiScore ? `${r.aiScore.bonus} / ${maxBonus}` : '-'}</td>
             <td data-label="合計（${maxTotal}点満点）">${renderScoreCell(r, maxTotal)}</td>
             <td class="mcell-actions" data-label="操作" style="white-space:nowrap;">
@@ -1457,10 +1511,7 @@ ${totalCount}個の整数（各0〜5点）を半角カンマ区切りで返し�
 ${rubric}
 
 ■ルール（各感想・各アドバイスごとの目安）
-1〜2点：記述が非常に短い、または内容が抽象的。
-3点：一般的な内容。
-4点：具体的に分析し、工夫した点が書けている。
-5点：ポイントを深く理解し、高い意欲と深い分析が両立している。
+${GRADING_LEVELS[getGradingLevel(tpl)].rules}
 
 出力例（感想が2個${hasAdvice ? '＋アドバイス採点'+advices.length+'個' : ''}の場合）："${hasAdvice ? '4,3,' + advices.map(()=> '4').join(',') : '4,3'}"`;
 
@@ -1501,6 +1552,7 @@ ${rubric}
       bonus: totalBonus,
       total: totalAi + totalBonus,
       adviceResults: advices.map((a,i)=>({ fromEntry: a.fromEntry, score: adviceScoresArr[i] || 0 })),
+      level: getGradingLevel(tpl),
       comment: ''
     };
   }
@@ -1712,6 +1764,16 @@ ${rubric}
       }
       case 'edit_target_grade':
         state.editingTemplate.targetGrade = el.value; render(); break;
+      case 'set_level_edit':
+        state.editingTemplate.gradingLevel = el.dataset.val; render(); break;
+      case 'set_level_resp': {
+        const t = state.config.templates.find(x=>x.id===state.r_templateId);
+        if(!t) return;
+        t.gradingLevel = el.dataset.val;
+        try{ await saveConfig(); toast('採点の厳しさを「'+GRADING_LEVELS[t.gradingLevel].label.replace(/^\S+\s/,'')+'」にしました'); }
+        catch(e){ toast('保存に失敗しました'); }
+        render(); break;
+      }
       case 'toggle_advice_field':
         state.editingTemplate.hasAdviceField = el.checked; render(); break;
       case 'pick_tpl_grade_filter':
