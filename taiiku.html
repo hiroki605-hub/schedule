@@ -343,6 +343,7 @@
     r_responses: [],
     r_loading: false,
     r_grading: {}, // responseId -> true while grading
+    r_batchRunning: false, // 一括採点の実行中フラグ
     r_selected: {}, // responseId -> true (削除用チェック状態)
     rubricGenerating: false,
     r_adviceBoard: [],
@@ -715,6 +716,20 @@
             <button class="btn ghost" data-act="modal_cancel">キャンセル</button>
             ${current ? `<button class="btn danger" data-act="modal_clear_api_key">共通キーに戻す</button>` : ''}
             <button class="btn yellow" id="modalSubmitBtn" data-act="modal_submit_api_key">保存する</button>
+          </div>
+        </div>
+      </div>`;
+    }
+    if(m.kind === 'confirmRegrade'){
+      const sec = Math.round(m.ids.length*5.5);
+      const t = sec<60 ? sec+'秒' : Math.ceil(sec/60)+'分';
+      return `<div class="modal-overlay">
+        <div class="modal-card">
+          <h3>再採点しますか？</h3>
+          <p class="sub">${esc(m.message)}<br>所要時間の目安：約${t}（無料枠の制限のため1件ずつ採点します）。採点中はこの画面を閉じないでください。</p>
+          <div class="row" style="margin-top:14px;">
+            <button class="btn ghost" data-act="modal_cancel">あとで</button>
+            <button class="btn yellow" id="modalSubmitBtn" data-act="modal_confirm_regrade">再採点する</button>
           </div>
         </div>
       </div>`;
@@ -1277,7 +1292,8 @@
     body += `<div class="card">
       <div class="row btn-row" style="margin-bottom:12px; align-items:center;">
         <div><strong>${rows.length}</strong> 件の回答（未採点 ${ungraded} 件・選択中 ${selectedCount} 件）</div>
-        <button class="btn yellow sm" data-act="grade_all" ${ungraded===0?'disabled':''}>未採点をまとめてAI採点</button>
+        <button class="btn yellow sm" data-act="grade_all" ${(ungraded===0||state.r_batchRunning)?'disabled':''}>未採点をまとめてAI採点</button>
+        <button class="btn ghost sm" data-act="regrade_visible" ${(rows.every(r=>!r.aiScore)||state.r_batchRunning)?'disabled':''}>表示中をまとめて再採点</button>
         <button class="btn ghost sm" data-act="export_csv">CSVダウンロード</button>
         <button class="btn danger sm" data-act="delete_selected" ${selectedCount===0?'disabled':''}>選択した回答を削除</button>
         <button class="btn danger sm" data-act="delete_all_filtered" ${rows.length===0?'disabled':''}>表示中を全件削除</button>
@@ -1560,7 +1576,7 @@ ${GRADING_LEVELS[getGradingLevel(tpl)].rules}
   async function gradeOne(id){
     const tpl = state.config.templates.find(t=>t.id===state.r_templateId);
     const resp = state.r_responses.find(r=>r.id===id);
-    if(!tpl || !resp) return;
+    if(!tpl || !resp || state.r_batchRunning) return;
     state.r_grading[id] = true; render();
     try{
       const score = await gradeResponse(tpl, resp);
@@ -1573,13 +1589,19 @@ ${GRADING_LEVELS[getGradingLevel(tpl)].rules}
     render();
   }
 
-  async function gradeAll(){
+  // 指定した回答idをまとめてAI採点する（未採点の採点にも、再採点にも使う）
+  async function gradeBatch(ids){
     const tpl = state.config.templates.find(t=>t.id===state.r_templateId);
-    const targets = state.r_responses.filter(r=>!r.aiScore);
+    if(!tpl || state.r_batchRunning) return;
+    const targets = ids.map(id=>state.r_responses.find(r=>r.id===id)).filter(Boolean);
+    if(targets.length===0) return;
+    state.r_batchRunning = true;
     let failCount = 0;
     let lastError = '';
-    for(const resp of targets){
+    for(let i=0; i<targets.length; i++){
+      const resp = targets[i];
       state.r_grading[resp.id] = true; render();
+      toast(`AI採点中… ${i+1} / ${targets.length}`);
       try{
         const score = await gradeResponse(tpl, resp);
         resp.aiScore = score;
@@ -1589,14 +1611,19 @@ ${GRADING_LEVELS[getGradingLevel(tpl)].rules}
         lastError = (e && e.message) ? e.message : '';
       }
       delete state.r_grading[resp.id];
-      await new Promise(r=>setTimeout(r, 4200)); // Gemini無料枠のレート制限対策
+      if(i < targets.length-1) await new Promise(r=>setTimeout(r, 4200)); // Gemini無料枠のレート制限対策
     }
+    state.r_batchRunning = false;
     render();
     if(failCount>0){
       toast(`AI採点が完了しました（${failCount}件失敗：${lastError.slice(0,40)}）`);
     } else {
       toast('AI採点が完了しました');
     }
+  }
+
+  async function gradeAll(){
+    await gradeBatch(state.r_responses.filter(r=>!r.aiScore).map(r=>r.id));
   }
 
   function exportCsv(){
@@ -1769,9 +1796,22 @@ ${GRADING_LEVELS[getGradingLevel(tpl)].rules}
       case 'set_level_resp': {
         const t = state.config.templates.find(x=>x.id===state.r_templateId);
         if(!t) return;
+        if(state.r_batchRunning){ toast('AI採点中は厳しさを変更できません'); return; }
         t.gradingLevel = el.dataset.val;
-        try{ await saveConfig(); toast('採点の厳しさを「'+GRADING_LEVELS[t.gradingLevel].label.replace(/^\S+\s/,'')+'」にしました'); }
-        catch(e){ toast('保存に失敗しました'); }
+        const lvName = GRADING_LEVELS[t.gradingLevel].label.replace(/^\S+\s/,'');
+        try{ await saveConfig(); }
+        catch(e){ toast('保存に失敗しました'); render(); break; }
+        // 表示中の採点済みのうち、今の厳しさと違う基準で採点されたものがあれば、一括再採点を提案する
+        const staleIds = (state.r_visibleIds||[]).filter(id=>{
+          const r = state.r_responses.find(x=>x.id===id);
+          return r && r.aiScore && (r.aiScore.level||'normal') !== t.gradingLevel;
+        });
+        if(staleIds.length>0){
+          state.modal = {kind:'confirmRegrade', ids: staleIds,
+            message:`採点の厳しさを「${lvName}」にしました。表示中の採点済みのうち ${staleIds.length} 件は別の厳しさで採点されています。「${lvName}」で再採点しますか？`};
+        } else {
+          toast('採点の厳しさを「'+lvName+'」にしました');
+        }
         render(); break;
       }
       case 'toggle_advice_field':
@@ -1914,6 +1954,23 @@ ${GRADING_LEVELS[getGradingLevel(tpl)].rules}
         gradeOne(el.dataset.id); break;
       case 'grade_all':
         gradeAll(); break;
+      case 'regrade_visible': {
+        const ids = (state.r_visibleIds||[]).filter(id=>{
+          const r = state.r_responses.find(x=>x.id===id); return r && r.aiScore;
+        });
+        if(ids.length===0){ toast('再採点できる回答がありません'); return; }
+        const t = state.config.templates.find(x=>x.id===state.r_templateId);
+        const lvName = GRADING_LEVELS[getGradingLevel(t)].label.replace(/^\S+\s/,'');
+        state.modal = {kind:'confirmRegrade', ids,
+          message:`表示中の採点済み ${ids.length} 件を、現在の厳しさ「${lvName}」でまとめて再採点します。今ある点数は上書きされます。`};
+        render(); break;
+      }
+      case 'modal_confirm_regrade': {
+        const ids = state.modal.ids;
+        state.modal = null; render();
+        await gradeBatch(ids);
+        break;
+      }
       case 'export_csv':
         exportCsv(); break;
       case 'export_advice_csv':
