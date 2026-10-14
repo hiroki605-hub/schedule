@@ -390,6 +390,11 @@
         <li><b>推薦・学力選抜：</b>募集要項に出願区分ごとの日程があれば、読み取り時に自動でコース別に分かれます（確認・編集で直すこともできます）。</li>
         <li><b>印刷：</b>土日祝の色（青・赤）が白く印刷されないよう、背景色を必ず印刷する設定にし、色も濃くしました。</li>
       </ol>
+      <h3>専願・併願が同じ日程のとき／区分ごとの色</h3>
+      <ol>
+        <li>専願・併願（コース）の日付が同じなら、日程表には1行だけ入ります。違う日付のコースだけ、コース名つきで別の行になります。</li>
+        <li>⑤の「出願関係の色を、学校の区分ごとに変える」で、国立・県内公立（県立）・私立などの区分ごとに、出願開始・〆切の色を変えられます（初期設定：国立＝青、県内公立＝緑、それ以外＝共通の赤）。学校の区分は、各学校の名前の下で選びます。</li>
+      </ol>
       <h3>保存について（重要）</h3>
       <ol>
         <li>Claudeの会話上（アーティファクト）でこのツールを開いている場合は、同じリンクを開いた全員が同じデータを共有します。校長先生・教頭先生に別端末から入力してもらいたい場合は、ダウンロードしたファイルではなく、この会話のリンクを共有してください。</li>
@@ -1919,7 +1924,7 @@ let curTab='all', curId=null, view='one';
 try{ view=localStorage.getItem('bs_view')==='table'?'table':'one'; }catch(e){}
 const catOf=s=>CATS.includes(s.cat)?s.cat:'未分類';
 let schools=[], auto=['preRegStart','preRegEnd','applyStart','applyEnd','infMakeupDate'], cur=null;
-let colors={apply:'#c0392b',exam:'',result:'#7d3c98',enroll:''};   /* 日程表での文字色（出願関係=赤、合格発表=紫が初期設定） */
+let colors={apply:'#c0392b',exam:'',result:'#7d3c98',enroll:'',byCat:{'国立':{apply:'#1f5fae'},'県内公立':{apply:'#2f7d4f'}}};   /* 日程表での文字色（出願関係=赤、合格発表=紫が初期設定） */
 const PUB=[['pubFirst1Start','第一出願期間開始','apply'],['pubFirst1End','第一出願期間最終日','apply'],['pubFirst2Start','第二出願期間開始','apply'],['pubFirst2End','第二出願期間最終日','apply'],['pubExamDate','一次選抜入試','exam'],['pubExamDate2','一次選抜入試','exam'],['pubResult1','一次選抜合格発表','result'],['pubMakeupApplyStart','追検査申請','apply'],['pubMakeupApplyEnd','追検査受付最終日','apply'],['pubMakeupExam','追検査入試','exam'],['pubMakeupResult','追検査合格発表','result'],['pub2Start','二次選抜出願開始','apply'],['pub2End','二次選抜出願締切','apply'],['pub2Result','二次選抜合格発表','result']];
 const PUBK=PUB.map(x=>x[0]);
 const CAT_OF={preRegStart:'apply',preRegEnd:'apply',applyStart:'apply',applyEnd:'apply',infMakeupDate:'exam',examDate:'exam',resultDate:'result',enrollSengan:'enroll',enrollHeigan:'enroll'};
@@ -1942,7 +1947,7 @@ async function persist(){
 /* この高校の、この項目を日程表に載せるか（個別設定 s.items があればそれを優先、なければ全体設定 auto） */
 const isOn=(s,k)=> s.reflect!==false && (Array.isArray(s.items)? s.items.includes(k) : (auto.includes(k)||PUBK.includes(k)));
 /* 「高校別出願日」欄の「自動で入った行」を作り直す（<span data-bs="1"> が目印） */
-function spanFor(cat,tx){ const c=colors[cat]; return '<span data-bs="1"'+(c?` style="color:${c};font-weight:700"`:'')+'>'+escapeHtml(tx)+'</span>'; }
+function spanFor(cat,tx,schoolCat){ const ov=cat==='apply'&&colors.byCat&&colors.byCat[schoolCat]&&colors.byCat[schoolCat].apply; const c=ov||colors[cat]; return '<span data-bs="1"'+(c?` style="color:${c};font-weight:700"`:'')+'>'+escapeHtml(tx)+'</span>'; }
 function addTo(row,field,html){ const empty=!String(row[field]||'').replace(/<[^>]*>|&nbsp;/g,'').trim(); row[field]=(empty?'':row[field]+'<br>')+html; }
 function rowOfDate(v){
   const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(v||''); if(!m) return null;
@@ -1955,18 +1960,17 @@ function sync(){
   schools.filter(s=>s.reflect!==false).forEach(s=>{
     AUTO.forEach(([k,label])=>{
       if(!isOn(s,k)) return;
-      const src=[{v:s[k],tag:''}];
-      if(TRACK_KEYS.includes(k)) trks(s).forEach(tr=>src.push({v:tr[k],tag:tr.label||''}));
+      const src=TRACK_KEYS.includes(k)?dateLines(s,k):[{v:s[k],tag:''}];
       src.forEach(({v,tag})=>{
         const row=rowOfDate(v); if(!row) return;
         let tx=short(s.name)+(tag?' '+tag:'')+' '+label; if(k==='infMakeupDate' && s.infMakeupTime) tx+='（'+s.infMakeupTime+'）';
-        addTo(row,'school',spanFor(CAT_OF[k],tx));
+        addTo(row,'school',spanFor(CAT_OF[k],tx,s.cat));
       });
     });
     /* 奈良県公立の日程は「進路関係」欄に、学校名なしで入れる */
     PUB.forEach(([k,label,cat])=>{
       if(!s[k]||!isOn(s,k)) return;
-      const row=rowOfDate(s[k]); if(row) addTo(row,'career',spanFor(cat,label));
+      const row=rowOfDate(s[k]); if(row) addTo(row,'career',spanFor(cat,label,s.cat));
     });
   });
   return JSON.stringify(schedule)!==snap;
@@ -1988,15 +1992,47 @@ function colorPanel(){
     COLOR_CATS.map(([cat,label])=>`<div style="margin:4px 0;display:flex;align-items:center;gap:5px;flex-wrap:wrap"><span style="display:inline-block;width:23em;font-size:12.5px">${label}</span>`+
       PALETTE.map(([c,n])=>`<button type="button" class="bs-sw${colors[cat]===c?' on':''}" style="background:${c}" title="${n}" onclick="BS.setColor('${cat}','${c}')"></button>`).join('')+
       `<button type="button" class="bs-sw none${!colors[cat]?' on':''}" title="色なし" onclick="BS.setColor('${cat}','')">色なし</button>`+
-      `<span style="font-size:12.5px;margin-left:6px;${colors[cat]?`color:${colors[cat]};font-weight:700`:'color:var(--ink-soft)'}">例：上宮 ${cat==='result'?'合格発表':cat==='exam'?'入試':cat==='enroll'?'入学手続〆切':'出願開始'}</span></div>`).join('')+`</div>`;
+      `<span style="font-size:12.5px;margin-left:6px;${colors[cat]?`color:${colors[cat]};font-weight:700`:'color:var(--ink-soft)'}">例：上宮 ${cat==='result'?'合格発表':cat==='exam'?'入試':cat==='enroll'?'入学手続〆切':'出願開始'}</span></div>`).join('')+`</div>`+catColorPanel();
+}
+function catColorPanel(){
+  return `<div style="margin-top:10px"><b>出願関係の色を、学校の区分ごとに変える（上の色より優先）：</b>`+
+    CATS.map(cat=>{ const cu=(colors.byCat&&colors.byCat[cat]&&colors.byCat[cat].apply)||'';
+      return `<div style="margin:4px 0;display:flex;align-items:center;gap:5px;flex-wrap:wrap"><span style="display:inline-block;width:23em;font-size:12.5px">${cat}</span>`+
+        PALETTE.map(([c,n])=>`<button type="button" class="bs-sw${cu===c?' on':''}" style="background:${c}" title="${n}" onclick="BS.setCatColor('${cat}','${c}')"></button>`).join('')+
+        `<button type="button" class="bs-sw none${!cu?' on':''}" onclick="BS.setCatColor('${cat}','')">共通と同じ</button>`+
+        `<span style="font-size:12.5px;margin-left:6px;color:${cu||colors.apply||'inherit'};font-weight:700">例：${cat} 出願開始</span></div>`; }).join('')+`</div>`;
+}
+async function setCatColor(cat,c){
+  colors.byCat=colors.byCat||{};
+  if(c) colors.byCat[cat]={apply:c}; else delete colors.byCat[cat];
+  await persist(); render(); refresh();
 }
 async function setColor(cat,c){ colors[cat]=c; await persist(); render(); refresh(); }
+/* 項目kの日付を、重複なしで返す：通常の日付と同じコースは出さない／全コースが同じ日付ならコース名なしで1回だけ／同じ日付のコースは名前を「・」でまとめる */
+function dateLines(s,k){
+  const main=s[k]||'', trs=trks(s).filter(tr=>tr[k]), grp={};
+  trs.forEach(tr=>{ (grp[tr[k]]=grp[tr[k]]||[]).push(tr.label||'コース'); });
+  const out=[]; if(main) out.push({v:main,tag:''});
+  const vals=Object.keys(grp).filter(v=>v!==main);
+  const sameAll=!main && vals.length===1 && trs.length>=2 && grp[vals[0]].length===trs.length;
+  vals.forEach(v=>out.push({v,tag:sameAll?'':grp[v].join('・')}));
+  return out;
+}
+/* コースの整理：全コースが同じ日付なら通常の項目に移し、通常の項目と同じ日付はコース側から外す */
+function collapseTracks(o){
+  let tr=normTracks(o.tracks);
+  const sig=x=>TRACK_KEYS.map(k=>x[k]||'').join('|');
+  if(tr.length && tr.every(x=>sig(x)===sig(tr[0])) && TRACK_KEYS.every(k=>!o[k]||!tr[0][k]||o[k]===tr[0][k])){
+    TRACK_KEYS.forEach(k=>{ if(!o[k]&&tr[0][k]) o[k]=tr[0][k]; });
+    tr=[];
+  }
+  tr.forEach(x=>TRACK_KEYS.forEach(k=>{ if(x[k]&&x[k]===o[k]) x[k]=''; }));
+  return tr.filter(x=>TRACK_KEYS.some(k=>x[k]));
+}
 function cellS(f,s){
   const k=f[0];
   if(!TRACK_KEYS.includes(k)||!trks(s).some(tr=>tr[k])) return cell(f,s[k]);
-  let h=s[k]?`<div>${cell(f,s[k])}</div>`:'';
-  trks(s).forEach(tr=>{ if(tr[k]) h+=`<div style="margin-top:2px"><span class="bs-trk">${escapeHtml(tr.label||'コース')}</span> ${fmtD(tr[k])}</div>`; });
-  return h;
+  return dateLines(s,k).map(({v,tag})=>`<div style="margin-top:2px">${tag?`<span class="bs-trk">${escapeHtml(tag)}</span> `:''}${fmtD(v)}</div>`).join('');
 }
 function render(){
   g('bsAuto').innerHTML='<b>全体設定（一括）：</b>'+AUTO.map(([k,l])=>`<label style="margin-right:12px;white-space:nowrap"><input type="checkbox" ${auto.includes(k)?'checked':''} onchange="BS.setAuto('${k}',this.checked)"> ${l}</label>`).join('')+
@@ -2043,11 +2079,12 @@ function renderOne(list){
   const pick=list.map(x=>`<button type="button" class="${x.id===curId?'active':''}" onclick="BS.pick('${x.id}')">${escapeHtml(short(x.name))}</button>`).join('');
   const KEY=[['事前登録','preRegStart','preRegEnd'],['出願','applyStart','applyEnd'],['試験日','examDate'],['合格発表','resultDate'],['入学手続（専願）','enrollSengan'],['入学手続（併願）','enrollHeigan']];
   const keys=KEY.map(([l,a,b])=>{ const x=s[a],y=b&&s[b]; if(!x&&!y) return ''; const v=(x?fmtS(x):'')+(y?(x?' 〜 ':'〜 ')+fmtS(y):''); return `<div class="bs1-key"><div class="l">${l}</div><div class="v">${v}</div></div>`; }).join('');
-  const trkCards=trks(s).map(tr=>{
+  const trkGrp={}; collapseTracks({...s}).forEach(tr=>{ const sg=TRACK_KEYS.map(k=>tr[k]||'').join('|'); (trkGrp[sg]=trkGrp[sg]||{tr,labels:[]}).labels.push(tr.label||'コース'); });
+  const trkCards=Object.values(trkGrp).map(({tr,labels})=>{
     const ln=[['出願','applyStart','applyEnd'],['入試日','examDate'],['合格発表','resultDate']].map(([l,a,b])=>{
       const x=tr[a],y=b&&tr[b]; if(!x&&!y) return '';
       return `<div class="v2"><span>${l}</span>${(x?fmtS(x):'')+(y?(x?' 〜 ':'〜 ')+fmtS(y):'')}</div>`; }).join('');
-    return ln?`<div class="bs1-key bs1-trkcard"><div class="l">${escapeHtml(tr.label||'コース')}</div>${ln}</div>`:'';
+    return ln?`<div class="bs1-key bs1-trkcard"><div class="l">${escapeHtml(labels.join('・'))}</div>${ln}</div>`:'';
   }).join('');
   let body='', grp=null, open=false;
   F.filter(f=>f[3]&&hasKey(s,f[0])).forEach(f=>{
@@ -2098,7 +2135,7 @@ function addTrack(){ cur.tracks=readTracks(); cur.tracks.push({label:['推薦','
 function delTrack(i){ cur.tracks=readTracks(); cur.tracks.splice(i,1); drawTracks(); }
 function edit(id,ai){
   cur=id?{...schools.find(s=>s.id===id)}:(ai||{id:uid()});
-  cur.tracks=normTracks(cur.tracks);
+  cur.tracks=collapseTracks(cur);
   if(!cur.cat && PUBK.some(k=>cur[k])) cur.cat='県内公立';
   g('bsEdT').textContent=id?'確認・編集':'学校を追加';
   g('bsDel').style.display=schools.some(s=>s.id===cur.id)?'':'none';
@@ -2146,7 +2183,7 @@ async function ask(getParts,label){
   say(`「${label}」を読み取り中…（30秒ほどかかります）`);
   try{
     const keys=F.map(f=>`- ${f[0]}（${f[1]}／${f[2]}）：${f[4]}`).join('\n');
-    const prompt=`これは高校入学試験の募集要項です。内容を読み取り、次のキーだけを持つJSONオブジェクトを1つ返してください。\nルール:\n・date型は必ず YYYY-MM-DD。時刻は日付に入れず、該当するtext/long欄に書く。\n・原文に書かれていない項目は空文字""。推測や補完は絶対にしない。\n・tri型は "あり" "なし" "不明" のいずれか。\n・専願と併願で日付が違うものは別キーに入れる。\n・text/long型は原文の要点を簡潔に。改行は\\n。\nキー:\n${keys}\n- tracks（配列）：推薦・学力選抜など、出願区分ごとに出願日・試験日・合格発表日が別々の場合だけ、区分ごとに {"label":"推薦","applyStart":"YYYY-MM-DD","applyEnd":"","examDate":"","resultDate":""} を入れる（上の通常キーの日付には、区分に共通のものだけを入れる）。区分が1つだけの学校は空配列 [] にする。推薦・学力選抜・一般など出願区分ごとに出願期間・入試日・合格発表日が違う募集要項では、必ず区分ごとに tracks を作り、通常キーのそれらの日付は空にする。\n- pubで始まるキー：奈良県の公立高校入試（県教育委員会の入学者選抜要項）の場合だけ入れる。その場合 name は「奈良県公立高等学校」とし、一次選抜の第一出願期間・第二出願期間・入試日・合格発表、追検査（追試験）の申請日・入試日・合格発表、二次選抜の出願期間・合格発表を、対応するpubキーに入れる。私立・国立の募集要項ではpubキーはすべて空にする。`;
+    const prompt=`これは高校入学試験の募集要項です。内容を読み取り、次のキーだけを持つJSONオブジェクトを1つ返してください。\nルール:\n・date型は必ず YYYY-MM-DD。時刻は日付に入れず、該当するtext/long欄に書く。\n・原文に書かれていない項目は空文字""。推測や補完は絶対にしない。\n・tri型は "あり" "なし" "不明" のいずれか。\n・専願と併願で日付が違うものは別キーに入れる。\n・text/long型は原文の要点を簡潔に。改行は\\n。\nキー:\n${keys}\n- tracks（配列）：推薦・学力選抜など、出願区分ごとに出願日・試験日・合格発表日が別々の場合だけ、区分ごとに {"label":"推薦","applyStart":"YYYY-MM-DD","applyEnd":"","examDate":"","resultDate":""} を入れる（上の通常キーの日付には、区分に共通のものだけを入れる）。区分が1つだけの学校は空配列 [] にする。推薦・学力選抜・一般など出願区分ごとに出願期間・入試日・合格発表日が違う募集要項では、必ず区分ごとに tracks を作り、通常キーのそれらの日付は空にする。ただし専願・併願（一般選抜の専願・併願など）で出願期間・入試日・合格発表日が同じ場合は tracks を作らず、通常キーに1回だけ入れる。\n- pubで始まるキー：奈良県の公立高校入試（県教育委員会の入学者選抜要項）の場合だけ入れる。その場合 name は「奈良県公立高等学校」とし、一次選抜の第一出願期間・第二出願期間・入試日・合格発表、追検査（追試験）の申請日・入試日・合格発表、二次選抜の出願期間・合格発表を、対応するpubキーに入れる。私立・国立の募集要項ではpubキーはすべて空にする。`;
     const body={contents:[{parts:[...await getParts(),{text:prompt}]}],generationConfig:{responseMimeType:'application/json',temperature:0}};
     const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify(body)});
     if(!r.ok) throw new Error(await geminiErrorText(r));
@@ -2171,7 +2208,7 @@ g('bsSetBtn').onclick=()=>{ g('bsK').value=localStorage.getItem(KS)||''; g('bsM'
 function saveSet(){ localStorage.setItem(KS,g('bsK').value.trim()); localStorage.setItem(MS,g('bsM').value.trim()||'gemini-2.5-flash'); g('bsSet').close(); say('設定を保存しました'); }
 
 async function init(){ await load(); render(); if(sync()) saveSchedule(); }
-return {setColor,addTrack,delTrack,init,sync,setView,pick,tab,setCat,setAuto,setReflect,setItem,resetItems,resetAll,edit,saveS,delS,saveSet};
+return {setCatColor,setColor,addTrack,delTrack,init,sync,setView,pick,tab,setCat,setAuto,setReflect,setItem,resetItems,resetAll,edit,saveS,delS,saveSet};
 })();
 
 /* ===== 学校の行事予定表の取り込み（Excel/スプレッドシートをコピー→貼り付け→Geminiで読み取り） ===== */
