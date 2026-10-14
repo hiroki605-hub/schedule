@@ -94,6 +94,7 @@
   .staff-only{background:#fde3e3;border-bottom:2px dashed var(--rust);border-radius:2px;padding:0 2px;}
   .rte-hint{font-size:11px;color:var(--ink-soft);margin-top:3px;}
   .rte-mini{min-height:18px;outline:none;padding:1px 2px;border:1px dashed transparent;border-radius:2px;}
+  .fitting .rte-mini{min-height:0 !important;}
   .rte-mini:hover,.rte-mini:focus{border-color:var(--paper-line);background:#fffef9;}
   .override-actions{display:flex;gap:8px;margin-top:2px;flex-wrap:wrap;}
   .override-actions.hidden{display:none;}
@@ -196,9 +197,16 @@
     .sheet.b4-preview{background:#fff !important;padding:0 !important;overflow:visible !important;}
     .sheet.b4-preview .print-page{width:auto !important;min-height:0 !important;padding:0 !important;margin:0 !important;box-shadow:none !important;}
     .print-page{margin-bottom:0 !important;}
+    .app{padding:0 !important;margin:0 !important;max-width:none !important;}
+    .sheet,.panel.printing{margin:0 !important;}
+    .print-page:last-child{margin-bottom:0 !important;}
     .hscroll-top,#fbBadge{display:none !important;}
+    *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}
+    table.grid tr.sat,table.grid tr.sat td,table.interview tr.sat,table.interview tr.sat td{background:#b8cbe8 !important;}
+    table.grid tr.sun,table.grid tr.holiday,table.grid tr.sun td,table.grid tr.holiday td,
+    table.interview tr.sun,table.interview tr.holiday,table.interview tr.sun td,table.interview tr.holiday td{background:#f2b5ab !important;}
     .reset-override,.override-actions{display:none !important;}
-    .rte-mini{border-color:transparent !important;background:transparent !important;}
+    .rte-mini{border-color:transparent !important;background:transparent !important;min-height:0 !important;}
   }
 </style>
 </head>
@@ -273,6 +281,7 @@
           <button type="button" id="btnRowHUp" style="border:none;background:none;font-size:15px;font-weight:900;cursor:pointer;padding:0 4px;">＋</button>
         </span>
         <span class="status-msg" id="entryStatus"></span>
+        <button class="btn secondary" id="btnEvImp">📥 行事予定表を取り込む</button>
         <button class="btn secondary" id="btnReset">この月のデータを初期データに戻す</button>
       </div>
     </div>
@@ -369,6 +378,18 @@
         <li>校時の欄は、月火木金＝6、水＝5を標準として、<b>標準と違う数字が入ると自動で赤字</b>になります（土日に数字を入れた場合も赤）。</li>
         <li>「② 職員用」「③ 生徒配布用」の右上のボタンで、<b>1か月ずつB4縦（12・1・2・3月を1枚ずつ、計4枚）</b>か、従来の2か月ずつB4横かを選んで印刷できます。縦のときはプリンターの用紙設定もB4・縦にしてください。</li>
       </ol>
+      <h3>来年度の作り直しと、推薦・学力選抜など</h3>
+      <ol>
+        <li><b>学校の行事予定表の取り込み：</b>右上の「年度」を新年度にしてから、「① 日程入力」の「📥 行事予定表を取り込む」を押します。Excelやスプレッドシートで行事の範囲をコピーして貼り付けるだけで、12〜3月の「学校行事」欄に入ります（ファイルのアップロードは不要。募集要項と同じGeminiキーを使います）。新年度は「丸ごと置き換える」が便利です。進路関係・給食・校時は、あとから①で入れ直してください。</li>
+        <li><b>推薦・学力選抜など区分がある学校：</b>⑤の「確認・編集」で「＋ コース別の日程を追加」を押すと、区分ごとに出願開始・締切・入試日・合格発表日を入れられます。日程表には「奈良工業高専 推薦 出願開始」のように区分名つきで入ります。</li>
+      </ol>
+      <h3>日程表の色・奈良県公立・印刷の色</h3>
+      <ol>
+        <li><b>色の自動設定：</b>⑤の上にある「日程表での文字の色」で、<b>出願関係は赤・合格発表は紫</b>が初期設定です。色のボタンを押すと、その種類の日付すべてに一括で反映されます（7色＋色なし）。入試日・追検査、入学手続の色も同じ方法で決められます。</li>
+        <li><b>奈良県公立高校：</b>県教育委員会の入学者選抜要項を、他の募集要項と同じ方法で読み取ると、第一・第二出願期間、一次選抜の入試日・合格発表、追検査の申請・入試・合格発表、二次選抜の出願・合格発表が自動で入ります。これらは学校名なしで<b>「進路関係」欄</b>に入ります。</li>
+        <li><b>推薦・学力選抜：</b>募集要項に出願区分ごとの日程があれば、読み取り時に自動でコース別に分かれます（確認・編集で直すこともできます）。</li>
+        <li><b>印刷：</b>土日祝の色（青・赤）が白く印刷されないよう、背景色を必ず印刷する設定にし、色も濃くしました。</li>
+      </ol>
       <h3>保存について（重要）</h3>
       <ol>
         <li>Claudeの会話上（アーティファクト）でこのツールを開いている場合は、同じリンクを開いた全員が同じデータを共有します。校長先生・教頭先生に別端末から入力してもらいたい場合は、ダウンロードしたファイルではなく、この会話のリンクを共有してください。</li>
@@ -399,6 +420,13 @@
 #panel-boshu .bs1-row .k{font-weight:700;color:var(--navy)}
 #panel-boshu .bs1-foot{margin-top:16px;font-size:12.5px;color:var(--ink-soft)}
 @media(max-width:700px){#panel-boshu .bs1-row{grid-template-columns:1fr;gap:2px}}
+#panel-boshu .bs-sw{width:26px;height:26px;border:2px solid #fff;box-shadow:0 0 0 1px var(--paper-line);cursor:pointer;padding:0;border-radius:3px}
+#panel-boshu .bs-sw.on{box-shadow:0 0 0 3px var(--navy)}
+#panel-boshu .bs-sw.none{width:auto;padding:0 9px;background:#fff;font-size:12px;color:var(--ink-soft)}
+#panel-boshu .bs-trk{display:inline-block;background:#e9edf4;color:var(--navy);font-size:11px;font-weight:700;padding:0 7px;border-radius:9px;margin-right:4px}
+#panel-boshu .bs1-trkcard{border-left-color:var(--moss)}
+#panel-boshu .bs1-key .v2{font-size:16px;font-weight:700;margin-top:3px}
+#panel-boshu .bs1-key .v2 span{font-weight:400;font-size:12.5px;color:var(--ink-soft);display:inline-block;min-width:4.6em}
 #panel-boshu .bs-inc{display:block;margin-top:5px;font-size:11.5px;font-weight:400;color:#8a929c}
 #panel-boshu .bs-inc.on{color:var(--moss);font-weight:700}
 #panel-boshu .bs-link{border:none;background:none;color:var(--navy);text-decoration:underline;cursor:pointer;padding:0;font:inherit;font-size:11.5px}
@@ -421,6 +449,31 @@
     <button class="btn secondary" onclick="document.getElementById('bsEd').close()">キャンセル</button><button class="btn" onclick="BS.saveS()">保存</button></div>
 </dialog>
 
+<dialog id="evImp" style="border:1px solid #999;border-radius:6px;padding:0;width:min(780px,94vw);max-height:92vh">
+  <div style="padding:12px 16px;border-bottom:1px solid #ddd;font-weight:700">学校の行事予定表を取り込む（<span id="evImpYear"></span>）</div>
+  <div style="padding:8px 16px;overflow:auto;max-height:68vh">
+    <ol style="margin:4px 0 8px 18px;padding:0;font-size:13px;line-height:1.7">
+      <li>ExcelやGoogleスプレッドシートで、12月〜3月の行事が入っている範囲（1年分でも構いません）を選んで <b>Ctrl+C</b>（コピー）。</li>
+      <li>下の枠に <b>Ctrl+V</b> で貼り付けて「読み取る」を押します。<b>ファイルのアップロードは要りません。</b></li>
+      <li>読み取り結果を確認して「この内容で取り込む」を押します。間違えたときは「↺ 元に戻す」で戻せます。</li>
+    </ol>
+    <p style="font-size:12px;color:#a24632;margin:4px 0">※ 先に右上の「年度」が、取り込む年度（上に表示）と合っているか確認してください。貼り付けた内容はGemini（Google）に送って読み取ります。個人名・生徒の個人情報は含めないでください。</p>
+    <textarea id="evImpA" placeholder="ここに貼り付け" style="width:100%;box-sizing:border-box;min-height:170px;padding:6px;font:inherit"></textarea>
+    <div style="margin:8px 0;font-size:13px">
+      <div style="font-weight:700;margin-bottom:2px">取り込み方</div>
+      <label style="display:block"><input type="radio" name="evMode" value="empty" checked> 空のマスにだけ入れる（すでに書いてある行事は残す）</label>
+      <label style="display:block"><input type="radio" name="evMode" value="append"> すでにある行事の下に追加する（同じ文言は重複しません）</label>
+      <label style="display:block"><input type="radio" name="evMode" value="replace"> 12〜3月の「学校行事」欄を丸ごと置き換える（新年度の作り直し用。取り込みに無い日は空になります。進路関係・給食・校時はそのまま）</label>
+      <label style="display:block;margin-top:6px"><input type="checkbox" id="evImpExtra"> 給食（○×）・校時の列が表にあれば、それも読み取る</label>
+    </div>
+    <div id="evImpSt" class="status-msg"></div>
+    <div id="evImpPrev" style="max-height:260px;overflow:auto;font-size:13px;margin-top:6px"></div>
+  </div>
+  <div style="padding:12px 16px;border-top:1px solid #ddd;display:flex;gap:8px;justify-content:flex-end">
+    <button class="btn secondary" onclick="document.getElementById('evImp').close()">閉じる</button>
+    <button class="btn secondary" id="evImpGo">読み取る</button>
+    <button class="btn" id="evImpApply" style="display:none">この内容で取り込む</button></div>
+</dialog>
 <dialog id="bsTx" style="border:1px solid #999;border-radius:6px;padding:0;width:min(720px,94vw)">
   <div style="padding:12px 16px;border-bottom:1px solid #ddd;font-weight:700">募集要項の文章を貼り付けて読み取り</div>
   <div style="padding:8px 16px"><p style="font-size:13px;margin:4px 0 8px">募集要項のPDFをChromeで開き、<b>Ctrl+A → Ctrl+C</b>で全文をコピーして、下に貼り付けてください。</p>
@@ -1517,6 +1570,7 @@ function applyGridScale(row, scale){
   });
 }
 function fitPrintPages(sheetEl){
+  sheetEl.classList.add('fitting');   // 計測中だけ、編集欄の最低の高さを外す（印刷時と同じ条件にする）
   const single = (printLayout==='single');
   // 横: B4横の有効高さ(241mm)から余裕を引いた値 / 縦: B4縦(ISO/JIS どちらでも収まる安全値)
   const usableHeightMM = single ? 316 : 230;
@@ -1525,7 +1579,7 @@ function fitPrintPages(sheetEl){
   sheetEl.querySelectorAll('.print-page').forEach(page=>{
     const row = page.querySelector('.month-pair-row');
     if(!row) return;
-    if(single){ page.style.boxSizing='content-box'; page.style.width='234mm'; } else { page.style.width=''; page.style.boxSizing=''; }
+    if(single){ page.style.boxSizing='content-box'; page.style.width='234mm'; } else { page.style.boxSizing='content-box'; page.style.width='337mm'; }
     // Print always starts from natural sizing - the on-screen "comfortable
     // row height" preference is a screen-only convenience and must not
     // affect what gets fitted onto a physical page, or it silently causes
@@ -1533,7 +1587,7 @@ function fitPrintPages(sheetEl){
     row.querySelectorAll('td,th').forEach(c=>{ c.style.fontSize=''; c.style.padding=''; c.style.height=''; });
     let fixedHeight = 0;
     Array.from(page.children).forEach(child=>{
-      if(!child.classList.contains('month-pair-row')) fixedHeight += child.offsetHeight;
+      if(!child.classList.contains('month-pair-row')){ const cs=getComputedStyle(child); fixedHeight += child.offsetHeight + (parseFloat(cs.marginTop)||0) + (parseFloat(cs.marginBottom)||0); }
     });
     const available = targetHeightPx - fixedHeight;
     if(available <= 0) return;
@@ -1548,6 +1602,7 @@ function fitPrintPages(sheetEl){
         applyGridScale(row, scale);
       }
     }
+    if(!single){ page.style.width=''; page.style.boxSizing=''; }   // 計測が終わったので幅を元に戻す（縮小した文字サイズはそのまま）
     if(single){
       // 縦1か月は余白が出るので、行の高さを均等に広げて用紙いっぱいに使う
       h = row.scrollHeight;
@@ -1559,6 +1614,7 @@ function fitPrintPages(sheetEl){
       }
     }
   });
+  sheetEl.classList.remove('fitting');
 }
 function resetPrintScale(sheetEl){
   sheetEl.querySelectorAll('.month-pair-row td, .month-pair-row th').forEach(c=>{
@@ -1782,8 +1838,20 @@ document.addEventListener('keydown', (e)=>{
   }
 });
 
+/* Geminiのエラーを、原因と対処が分かる文章にする */
+async function geminiErrorText(r){
+  let msg=''; try{ const j=await r.json(); msg=(j.error&&j.error.message)||''; }catch(e){}
+  const c=r.status;
+  const why = c===429 ? '無料枠の上限（1分あたり／1日あたりの回数や文字数）に達した可能性が高いです。1〜2分待ってからもう一度試してください。それでも続く場合は、日本時間の夕方（16〜17時ごろ）に1日分の上限が戻るので、それまで待つか、Gemini設定でモデル名を変えてみてください。PDFより「文章を貼り付けて読み取る」のほうが軽く済みます。'
+    : c===503 ? 'Gemini側が混み合っています。少し待ってからもう一度試してください。'
+    : (c===400||c===403) ? 'APIキーが違う、またはファイルが大きすぎる可能性があります。Gemini設定のキーを確認してください。'
+    : c===404 ? 'モデル名が違う可能性があります。Gemini設定のモデル名を確認してください。'
+    : 'しばらくしてからもう一度試してください。';
+  return `Geminiがエラーを返しました（${c}）。${why}${msg?'［Google側の説明：'+msg.slice(0,160)+'］':''}`;
+}
 /* ===== ⑤ 募集要項（高校ごとの日程）と、進路欄への自動反映 ===== */
 const BS=(()=>{
+const PUBG='奈良県公立（一次・二次選抜）';
 const F=[
 ['name','学校名','text','','学校名'],
 ['year','年度','text','','例: 2027年度'],
@@ -1814,43 +1882,93 @@ const F=[
 ['infMakeupDate','追試験日','date','感染症で欠席したとき',''],
 ['infMakeupTime','追試験の時間','text','感染症で欠席したとき','集合時刻など'],
 ['infNote','欠席連絡・追試の補足','long','感染症で欠席したとき','当日の連絡方法と期限、追試の考査料など'],
-['note','その他メモ','long','その他','特待生、募集人員など要点']
+['note','その他メモ','long','その他','特待生、募集人員など要点'],
+['pubFirst1Start','第一出願期間 開始日','date',PUBG,'奈良県公立高校入試の要項の場合のみ：一次選抜の第一出願期間の開始日'],
+['pubFirst1End','第一出願期間 最終日','date',PUBG,'第一出願期間の最終日'],
+['pubFirst2Start','第二出願期間 開始日','date',PUBG,'第二出願期間の開始日'],
+['pubFirst2End','第二出願期間 最終日','date',PUBG,'第二出願期間の最終日'],
+['pubExamDate','一次選抜 入試日（1日目）','date',PUBG,'学力検査の1日目'],
+['pubExamDate2','一次選抜 入試日（2日目）','date',PUBG,'学力検査が2日間のときの2日目'],
+['pubResult1','一次選抜 合格発表日','date',PUBG,'一次選抜の合格発表日'],
+['pubMakeupApplyStart','追検査 申請 開始日','date',PUBG,'追検査（追試験）の申請の開始日。1日だけの場合はこちらに入れる'],
+['pubMakeupApplyEnd','追検査 申請 最終日','date',PUBG,'追検査の申請の最終日'],
+['pubMakeupExam','追検査 入試日','date',PUBG,'追検査の検査日'],
+['pubMakeupResult','追検査 合格発表日','date',PUBG,'追検査の合格発表日'],
+['pub2Start','二次選抜 出願開始日','date',PUBG,'二次選抜の出願の開始日'],
+['pub2End','二次選抜 出願締切日','date',PUBG,'二次選抜の出願の締切日'],
+['pub2Result','二次選抜 合格発表日','date',PUBG,'二次選抜の合格発表日']
 ];
 const SK='boshu-schools-v1', KS='adm_gemini_key', MS='adm_gemini_model';
 const AUTO=[['preRegStart','事前登録 開始'],['preRegEnd','事前登録 〆切'],['applyStart','出願開始'],['applyEnd','出願〆切'],['infMakeupDate','追試験'],['examDate','入試'],['resultDate','合格発表'],['enrollSengan','専願 入学手続〆切'],['enrollHeigan','併願 入学手続〆切']];
-const CATS=['県内私立','県外私立','国立','通信制'];
+const CATS=['県内私立','県内公立','県外私立','国立','通信制'];
+/* 推薦・学力選抜など、出願区分ごとに日程が違う学校用（s.tracks = [{label,applyStart,applyEnd,examDate,resultDate}]） */
+const TRACK_KEYS=['applyStart','applyEnd','examDate','resultDate'];
+const TRACK_FIELD={applyStart:'出願 開始日',applyEnd:'出願 締切日',examDate:'入試日',resultDate:'合格発表日'};
+const DRE=/^\d{4}-\d{2}-\d{2}$/;
+function normTracks(a){
+  return (Array.isArray(a)?a:[]).filter(t=>t&&typeof t==='object').map(t=>{
+    const o={label:String(t.label||'').trim()};
+    TRACK_KEYS.forEach(k=>{ const v=String(t[k]||'').trim(); o[k]=DRE.test(v)?v:''; });
+    return o;
+  });
+}
+function trks(s){ return Array.isArray(s.tracks)?s.tracks:[]; }
+function hasKey(s,k){ return !!s[k] || (TRACK_KEYS.includes(k) && trks(s).some(t=>t[k])); }
+const TRACK_UI=`<div style="margin-top:12px"><div style="font-size:12px;color:var(--ink-soft)">推薦・学力選抜など、出願区分ごとに日程が違う学校は、ここに区分別の出願日・入試日を入れます。日程表には「奈良工業高専 推薦 出願開始」のように区分名つきで入ります。</div><div id="bsTrk"></div><button type="button" id="bsTrkAdd" class="btn secondary" style="margin-top:4px" onclick="BS.addTrack()"></button></div>`;
 let curTab='all', curId=null, view='one';
 try{ view=localStorage.getItem('bs_view')==='table'?'table':'one'; }catch(e){}
 const catOf=s=>CATS.includes(s.cat)?s.cat:'未分類';
 let schools=[], auto=['preRegStart','preRegEnd','applyStart','applyEnd','infMakeupDate'], cur=null;
+let colors={apply:'#c0392b',exam:'',result:'#7d3c98',enroll:''};   /* 日程表での文字色（出願関係=赤、合格発表=紫が初期設定） */
+const PUB=[['pubFirst1Start','第一出願期間開始','apply'],['pubFirst1End','第一出願期間最終日','apply'],['pubFirst2Start','第二出願期間開始','apply'],['pubFirst2End','第二出願期間最終日','apply'],['pubExamDate','一次選抜入試','exam'],['pubExamDate2','一次選抜入試','exam'],['pubResult1','一次選抜合格発表','result'],['pubMakeupApplyStart','追検査申請','apply'],['pubMakeupApplyEnd','追検査受付最終日','apply'],['pubMakeupExam','追検査入試','exam'],['pubMakeupResult','追検査合格発表','result'],['pub2Start','二次選抜出願開始','apply'],['pub2End','二次選抜出願締切','apply'],['pub2Result','二次選抜合格発表','result']];
+const PUBK=PUB.map(x=>x[0]);
+const CAT_OF={preRegStart:'apply',preRegEnd:'apply',applyStart:'apply',applyEnd:'apply',infMakeupDate:'exam',examDate:'exam',resultDate:'result',enrollSengan:'enroll',enrollHeigan:'enroll'};
+PUB.forEach(x=>{ CAT_OF[x[0]]=x[2]; });
+const COLOR_CATS=[['apply','出願関係（事前登録・出願・追検査申請など）'],['exam','入試日・追検査'],['result','合格発表'],['enroll','入学手続']];
+const PALETTE=[['#1f2d3d','黒'],['#c0392b','赤'],['#1f5fae','青'],['#2f7d4f','緑'],['#d2691e','橙'],['#7d3c98','紫'],['#c2185b','ピンク']];
 const g=id=>document.getElementById(id);
 const uid=()=>'s'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
 const say=(t,e)=>{const el=g('bsSt'); el.textContent=t; el.style.color=e?'#a12a1a':'';};
-const short=n=>String(n||'').replace(/高等学校|高校/g,'').replace(/\s/g,'');
+const short=n=>String(n||'').replace(/高等専門学校/g,'高専').replace(/高等学校|高校/g,'').replace(/\s/g,'');
 
 async function load(){
-  try{ const r=await storageAdapter.get(SK,true); if(r){ const o=JSON.parse(r.value); schools=o.schools||[]; auto=o.auto||auto; } }catch(e){}
+  try{ const r=await storageAdapter.get(SK,true); if(r){ const o=JSON.parse(r.value); schools=o.schools||[]; auto=o.auto||auto; if(o.colors) colors={...colors,...o.colors}; } }catch(e){}
 }
 async function persist(){
-  const r=await storageAdapter.set(SK,JSON.stringify({schools,auto}),true);
+  const r=await storageAdapter.set(SK,JSON.stringify({schools,auto,colors}),true);
   if(!r) say('保存に失敗しました。もう一度お試しください。',true);
 }
 
 /* この高校の、この項目を日程表に載せるか（個別設定 s.items があればそれを優先、なければ全体設定 auto） */
-const isOn=(s,k)=> s.reflect!==false && (Array.isArray(s.items)? s.items.includes(k) : auto.includes(k));
+const isOn=(s,k)=> s.reflect!==false && (Array.isArray(s.items)? s.items.includes(k) : (auto.includes(k)||PUBK.includes(k)));
 /* 「高校別出願日」欄の「自動で入った行」を作り直す（<span data-bs="1"> が目印） */
+function spanFor(cat,tx){ const c=colors[cat]; return '<span data-bs="1"'+(c?` style="color:${c};font-weight:700"`:'')+'>'+escapeHtml(tx)+'</span>'; }
+function addTo(row,field,html){ const empty=!String(row[field]||'').replace(/<[^>]*>|&nbsp;/g,'').trim(); row[field]=(empty?'':row[field]+'<br>')+html; }
+function rowOfDate(v){
+  const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(v||''); if(!m) return null;
+  const md=MONTHS.find(x=>x.key===String(+m[2]) && x.year===+m[1] && +m[3]<=x.days); if(!md) return null;
+  return (schedule[md.key]||[]).find(r=>r.day===+m[3])||null;
+}
 function sync(){
-  const snap=JSON.stringify(schedule), RE=/(<br>)?<span data-bs="1">.*?<\/span>/g;
+  const snap=JSON.stringify(schedule), RE=/(<br>)?<span data-bs="1"[^>]*>.*?<\/span>/g;
   MONTHS.forEach(m=>(schedule[m.key]||[]).forEach(r=>{ r.career=String(r.career||'').replace(RE,''); r.school=String(r.school||'').replace(RE,''); }));
-  schools.filter(s=>s.reflect!==false).forEach(s=>AUTO.forEach(([k,label])=>{
-    if(!isOn(s,k)) return;
-    const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s[k]||''); if(!m) return;
-    const md=MONTHS.find(x=>x.key===String(+m[2]) && x.year===+m[1] && +m[3]<=x.days); if(!md) return;
-    const row=(schedule[md.key]||[]).find(r=>r.day===+m[3]); if(!row) return;
-    let t=short(s.name)+' '+label; if(k==='infMakeupDate' && s.infMakeupTime) t+='（'+s.infMakeupTime+'）';
-    const empty=!String(row.school||'').replace(/<[^>]*>|&nbsp;/g,'').trim();
-    row.school=(empty?'':row.school+'<br>')+'<span data-bs="1">'+escapeHtml(t)+'</span>';
-  }));
+  schools.filter(s=>s.reflect!==false).forEach(s=>{
+    AUTO.forEach(([k,label])=>{
+      if(!isOn(s,k)) return;
+      const src=[{v:s[k],tag:''}];
+      if(TRACK_KEYS.includes(k)) trks(s).forEach(tr=>src.push({v:tr[k],tag:tr.label||''}));
+      src.forEach(({v,tag})=>{
+        const row=rowOfDate(v); if(!row) return;
+        let tx=short(s.name)+(tag?' '+tag:'')+' '+label; if(k==='infMakeupDate' && s.infMakeupTime) tx+='（'+s.infMakeupTime+'）';
+        addTo(row,'school',spanFor(CAT_OF[k],tx));
+      });
+    });
+    /* 奈良県公立の日程は「進路関係」欄に、学校名なしで入れる */
+    PUB.forEach(([k,label,cat])=>{
+      if(!s[k]||!isOn(s,k)) return;
+      const row=rowOfDate(s[k]); if(row) addTo(row,'career',spanFor(cat,label));
+    });
+  });
   return JSON.stringify(schedule)!==snap;
 }
 function refresh(){
@@ -1865,10 +1983,25 @@ function cell(f,v){
   if(f[2]==='tri') return `<b style="color:${v==='あり'?'#17663f':v==='なし'?'#8a4b0a':'#666'}">${escapeHtml(v)}</b>`;
   return escapeHtml(v).replace(/\n/g,'<br>');
 }
+function colorPanel(){
+  return `<div style="margin-top:10px"><b>日程表での文字の色（ボタンを押すと、その種類の日付すべてに一括で反映）：</b>`+
+    COLOR_CATS.map(([cat,label])=>`<div style="margin:4px 0;display:flex;align-items:center;gap:5px;flex-wrap:wrap"><span style="display:inline-block;width:23em;font-size:12.5px">${label}</span>`+
+      PALETTE.map(([c,n])=>`<button type="button" class="bs-sw${colors[cat]===c?' on':''}" style="background:${c}" title="${n}" onclick="BS.setColor('${cat}','${c}')"></button>`).join('')+
+      `<button type="button" class="bs-sw none${!colors[cat]?' on':''}" title="色なし" onclick="BS.setColor('${cat}','')">色なし</button>`+
+      `<span style="font-size:12.5px;margin-left:6px;${colors[cat]?`color:${colors[cat]};font-weight:700`:'color:var(--ink-soft)'}">例：上宮 ${cat==='result'?'合格発表':cat==='exam'?'入試':cat==='enroll'?'入学手続〆切':'出願開始'}</span></div>`).join('')+`</div>`;
+}
+async function setColor(cat,c){ colors[cat]=c; await persist(); render(); refresh(); }
+function cellS(f,s){
+  const k=f[0];
+  if(!TRACK_KEYS.includes(k)||!trks(s).some(tr=>tr[k])) return cell(f,s[k]);
+  let h=s[k]?`<div>${cell(f,s[k])}</div>`:'';
+  trks(s).forEach(tr=>{ if(tr[k]) h+=`<div style="margin-top:2px"><span class="bs-trk">${escapeHtml(tr.label||'コース')}</span> ${fmtD(tr[k])}</div>`; });
+  return h;
+}
 function render(){
   g('bsAuto').innerHTML='<b>全体設定（一括）：</b>'+AUTO.map(([k,l])=>`<label style="margin-right:12px;white-space:nowrap"><input type="checkbox" ${auto.includes(k)?'checked':''} onchange="BS.setAuto('${k}',this.checked)"> ${l}</label>`).join('')+
     `<div style="font-size:12px;color:var(--ink-soft);margin-top:4px">※ 各高校の列で個別に選んだ場合は、その高校だけ個別設定が優先されます。`+
-    (schools.some(s=>Array.isArray(s.items))?` <button class="bs-link" onclick="BS.resetAll()">すべての高校を全体設定に戻す</button>`:'')+`</div>`;
+    (schools.some(s=>Array.isArray(s.items))?` <button class="bs-link" onclick="BS.resetAll()">すべての高校を全体設定に戻す</button>`:'')+`</div>`+colorPanel();
   const tabs=['all',...CATS]; if(schools.some(s=>catOf(s)==='未分類')) tabs.push('未分類');
   if(!tabs.includes(curTab)) curTab='all';
   g('bsTabs').innerHTML=tabs.map(k=>{ const n=k==='all'?schools.length:schools.filter(s=>catOf(s)===k).length;
@@ -1877,7 +2010,7 @@ function render(){
   const list=curTab==='all'?schools:schools.filter(s=>catOf(s)===curTab);
   if(!list.length){ g('bsMain').innerHTML=`<div class="hint">「${curTab}」の学校はまだありません。「募集要項を読み取る」や「手入力で追加」で登録すると、このタブに入ります。</div>`; return; }
   if(view==='one'){ renderOne(list); return; }
-  const autoKeys=AUTO.map(a=>a[0]);
+  const autoKeys=[...AUTO.map(a=>a[0]),...PUBK];
   let h='<div class="bs-wrap"><table class="bs-t"><thead><tr><th class="k"></th>'+list.map(s=>{
     const own=Array.isArray(s.items);
     return `<th><div style="font-size:16px">${escapeHtml(s.name)}</div><div style="font-weight:400;font-size:12px">${escapeHtml(s.year)}</div>`+
@@ -1886,12 +2019,12 @@ function render(){
     `<div style="font-weight:400;font-size:11.5px;color:${own?'var(--rust)':'var(--ink-soft)'};margin-bottom:4px">${own?'この高校だけ個別設定':'全体設定に従う'}${own?` <button class="bs-link" onclick="BS.resetItems('${s.id}')">全体設定に戻す</button>`:''}</div>`+
     `<button class="btn secondary" style="padding:3px 10px" onclick="BS.edit('${s.id}')">確認・編集</button></th>`;}).join('')+'</tr></thead><tbody>';
   let grp=null;
-  F.filter(f=>f[3]).forEach(f=>{
+  F.filter(f=>f[3]&&(f[3]!==PUBG||list.some(s=>PUBK.some(k=>s[k])))).forEach(f=>{
     if(f[3]!==grp){ grp=f[3]; h+=`<tr class="g"><td colspan="${list.length+1}">${escapeHtml(grp)}</td></tr>`; }
     const isAuto=autoKeys.includes(f[0]);
     h+=`<tr><td class="k">${escapeHtml(f[1])}</td>`+list.map(s=>{
-      let c=cell(f,s[f[0]]);
-      if(isAuto && s[f[0]]){
+      let c=cellS(f,s);
+      if(isAuto && hasKey(s,f[0])){
         const on=isOn(s,f[0]);
         c+=`<label class="bs-inc${on?' on':''}"><input type="checkbox" ${on?'checked':''} ${s.reflect===false?'disabled':''} onchange="BS.setItem('${s.id}','${f[0]}',this.checked)"> 日程表に載せる</label>`;
       }
@@ -1910,16 +2043,22 @@ function renderOne(list){
   const pick=list.map(x=>`<button type="button" class="${x.id===curId?'active':''}" onclick="BS.pick('${x.id}')">${escapeHtml(short(x.name))}</button>`).join('');
   const KEY=[['事前登録','preRegStart','preRegEnd'],['出願','applyStart','applyEnd'],['試験日','examDate'],['合格発表','resultDate'],['入学手続（専願）','enrollSengan'],['入学手続（併願）','enrollHeigan']];
   const keys=KEY.map(([l,a,b])=>{ const x=s[a],y=b&&s[b]; if(!x&&!y) return ''; const v=(x?fmtS(x):'')+(y?(x?' 〜 ':'〜 ')+fmtS(y):''); return `<div class="bs1-key"><div class="l">${l}</div><div class="v">${v}</div></div>`; }).join('');
+  const trkCards=trks(s).map(tr=>{
+    const ln=[['出願','applyStart','applyEnd'],['入試日','examDate'],['合格発表','resultDate']].map(([l,a,b])=>{
+      const x=tr[a],y=b&&tr[b]; if(!x&&!y) return '';
+      return `<div class="v2"><span>${l}</span>${(x?fmtS(x):'')+(y?(x?' 〜 ':'〜 ')+fmtS(y):'')}</div>`; }).join('');
+    return ln?`<div class="bs1-key bs1-trkcard"><div class="l">${escapeHtml(tr.label||'コース')}</div>${ln}</div>`:'';
+  }).join('');
   let body='', grp=null, open=false;
-  F.filter(f=>f[3]&&s[f[0]]).forEach(f=>{
+  F.filter(f=>f[3]&&hasKey(s,f[0])).forEach(f=>{
     if(f[3]!==grp){ if(open) body+='</div>'; grp=f[3]; open=true; body+=`<h3 class="bs1-g">${escapeHtml(grp)}</h3><div>`; }
-    body+=`<div class="bs1-row"><div class="k">${escapeHtml(f[1])}</div><div class="v">${cell(f,s[f[0]])}</div></div>`;
+    body+=`<div class="bs1-row"><div class="k">${escapeHtml(f[1])}</div><div class="v">${cellS(f,s)}</div></div>`;
   });
   if(open) body+='</div>';
   g('bsMain').innerHTML=`<div class="month-switch" style="flex-wrap:wrap;margin:0 0 12px">${pick}</div>`+
    `<div class="bs1-card"><div class="bs1-head"><div><div class="bs1-name">${escapeHtml(s.name)}</div><div class="bs1-sub">${escapeHtml(s.year)}　${escapeHtml(catOf(s))}</div></div>`+
    `<button class="btn secondary" onclick="BS.edit('${s.id}')">確認・編集</button></div>`+
-   (keys?`<div class="bs1-keys">${keys}</div>`:'')+(body||'<div class="hint" style="margin-top:14px">この学校には、まだ入力された項目がありません。</div>')+
+   ((keys||trkCards)?`<div class="bs1-keys">${keys}${trkCards}</div>`:'')+(body||'<div class="hint" style="margin-top:14px">この学校には、まだ入力された項目がありません。</div>')+
    `<div class="bs1-foot">※ 記載のない項目は省略しています。日程表に載せる項目の設定は「一覧で比べる」で行います。</div></div>`;
 }
 function setView(v){ view=v; try{ localStorage.setItem('bs_view',v); }catch(e){} render(); }
@@ -1928,22 +2067,52 @@ function tab(k){ curTab=k; render(); }
 async function setCat(id,v){ const s=schools.find(x=>x.id===id); if(s){ s.cat=v; await persist(); render(); } }
 async function setItem(id,k,on){
   const s=schools.find(x=>x.id===id); if(!s) return;
-  const base=Array.isArray(s.items)?s.items:[...auto];
+  const base=Array.isArray(s.items)?s.items:[...auto,...PUBK];
   s.items=on?[...new Set([...base,k])]:base.filter(x=>x!==k);
   await persist(); render(); refresh();
 }
 async function resetItems(id){ const s=schools.find(x=>x.id===id); if(s){ delete s.items; await persist(); render(); refresh(); } }
 async function resetAll(){ if(!confirm('個別に選んだ設定をすべて解除して、全体設定に合わせます。よろしいですか？')) return; schools.forEach(s=>{ delete s.items; }); await persist(); render(); refresh(); }
 async function setReflect(id,on){ const s=schools.find(x=>x.id===id); if(s){ s.reflect=on; await persist(); refresh(); } }
+function trkHtml(){
+  const st='box-sizing:border-box;padding:4px 6px;font:inherit;border:1px solid var(--paper-line)';
+  return (cur.tracks||[]).map((tr,i)=>`<div class="bs-trkbox" style="border:1px solid var(--paper-line);background:#fbfaf6;padding:8px 10px;margin:8px 0">`+
+    `<div style="display:flex;gap:8px;align-items:center"><input class="tk-label" value="${escapeHtml(tr.label||'')}" placeholder="コース名（例：推薦）" style="${st};flex:1"><button type="button" class="btn secondary" style="padding:3px 10px;color:#a12a1a" onclick="BS.delTrack(${i})">削除</button></div>`+
+    `<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;margin-top:6px">`+
+    TRACK_KEYS.map(k=>`<label style="font-size:12px">${TRACK_FIELD[k]}<input type="date" class="tk-${k}" value="${escapeHtml(tr[k]||'')}" style="${st};width:100%"></label>`).join('')+`</div></div>`).join('');
+}
+function readTracks(){
+  const out=[], box=g('bsTrk'); if(!box) return out;
+  box.querySelectorAll('.bs-trkbox').forEach(b=>{
+    const tr={label:b.querySelector('.tk-label').value.trim()};
+    TRACK_KEYS.forEach(k=>{ tr[k]=b.querySelector('.tk-'+k).value; });
+    out.push(tr);
+  });
+  return out;
+}
+function drawTracks(){
+  g('bsTrk').innerHTML=trkHtml();
+  g('bsTrkAdd').textContent=(cur.tracks&&cur.tracks.length)?'＋ コースをもう1つ追加':'＋ コース別の日程を追加（推薦・学力選抜など）';
+}
+function addTrack(){ cur.tracks=readTracks(); cur.tracks.push({label:['推薦','学力選抜'][cur.tracks.length]||''}); drawTracks(); }
+function delTrack(i){ cur.tracks=readTracks(); cur.tracks.splice(i,1); drawTracks(); }
 function edit(id,ai){
   cur=id?{...schools.find(s=>s.id===id)}:(ai||{id:uid()});
+  cur.tracks=normTracks(cur.tracks);
+  if(!cur.cat && PUBK.some(k=>cur[k])) cur.cat='県内公立';
   g('bsEdT').textContent=id?'確認・編集':'学校を追加';
   g('bsDel').style.display=schools.some(s=>s.id===cur.id)?'':'none';
-  let h=ai?'<div class="hint">AIが読み取った結果です。保存する前に、必ず原本の募集要項と見比べて日付・点数を確認してください。</div>':'', grp='';
+  let h=ai?'<div class="hint">AIが読み取った結果です。保存する前に、必ず原本の募集要項と見比べて日付・点数を確認してください。</div>':'', grp='', inDet=false;
   if(!schools.some(s=>s.id===cur.id) && !cur.cat && CATS.includes(curTab)) cur.cat=curTab;
   h+=`<label for="bsf_cat" style="display:block;font-size:12px;margin:8px 0 2px">学校の区分（タブ）</label><select id="bsf_cat" style="width:100%;box-sizing:border-box;padding:5px 7px;font:inherit;border:1px solid var(--paper-line)">${['',...CATS].map(c=>`<option value="${c}" ${c===(cur.cat||'')?'selected':''}>${c||'（未分類）'}</option>`).join('')}</select>`;
+  h+=TRACK_UI;
   F.forEach(f=>{
-    if(f[3]!==grp){ grp=f[3]; if(grp) h+=`<h4 style="margin:14px 0 0;color:var(--navy)">${escapeHtml(grp)}</h4>`; }
+    if(f[3]!==grp){
+      if(inDet){ h+='</details>'; inDet=false; }
+      grp=f[3];
+      if(grp===PUBG){ inDet=true; h+=`<details ${PUBK.some(k=>cur[k])?'open':''} style="margin-top:14px"><summary style="cursor:pointer;color:var(--navy);font-weight:700">${escapeHtml(grp)}（奈良県の公立高校入試だけ。「進路関係」欄に入ります）</summary>`; }
+      else if(grp) h+=`<h4 style="margin:14px 0 0;color:var(--navy)">${escapeHtml(grp)}</h4>`;
+    }
     const v=escapeHtml(cur[f[0]]||''), k='bsf_'+f[0], st='width:100%;box-sizing:border-box;padding:5px 7px;font:inherit;border:1px solid var(--paper-line)';
     h+=`<label for="${k}" style="display:block;font-size:12px;margin:8px 0 2px">${escapeHtml(f[1])}</label>`;
     if(f[2]==='long') h+=`<textarea id="${k}" style="${st};min-height:60px">${v}</textarea>`;
@@ -1951,11 +2120,14 @@ function edit(id,ai){
     else if(f[2]==='tri') h+=`<select id="${k}" style="${st}">${['','あり','なし','不明'].map(o=>`<option ${o===(cur[f[0]]||'')?'selected':''}>${o}</option>`).join('')}</select>`;
     else h+=`<input id="${k}" value="${v}" style="${st}">`;
   });
-  g('bsEdB').innerHTML=h; g('bsEd').showModal(); g('bsEdB').scrollTop=0;
+  if(inDet) h+='</details>';
+  g('bsEdB').innerHTML=h; drawTracks(); g('bsEd').showModal(); g('bsEdB').scrollTop=0;
 }
 async function saveS(){
   F.forEach(f=>{ cur[f[0]]=g('bsf_'+f[0]).value.trim(); });
   cur.cat=g('bsf_cat').value; if(curTab!=='all') curTab=catOf(cur);
+  cur.tracks=normTracks(readTracks()).filter(tr=>tr.label||TRACK_KEYS.some(k=>tr[k])).map((tr,i)=>({...tr,label:tr.label||'コース'+(i+1)}));
+  if(!cur.tracks.length) delete cur.tracks;
   if(!cur.name){ alert('学校名を入れてください'); return; }
   const i=schools.findIndex(s=>s.id===cur.id); if(i>=0) schools[i]=cur; else schools.push(cur);
   g('bsEd').close(); render(); await persist(); refresh(); say('保存しました。');
@@ -1974,10 +2146,10 @@ async function ask(getParts,label){
   say(`「${label}」を読み取り中…（30秒ほどかかります）`);
   try{
     const keys=F.map(f=>`- ${f[0]}（${f[1]}／${f[2]}）：${f[4]}`).join('\n');
-    const prompt=`これは高校入学試験の募集要項です。内容を読み取り、次のキーだけを持つJSONオブジェクトを1つ返してください。\nルール:\n・date型は必ず YYYY-MM-DD。時刻は日付に入れず、該当するtext/long欄に書く。\n・原文に書かれていない項目は空文字""。推測や補完は絶対にしない。\n・tri型は "あり" "なし" "不明" のいずれか。\n・専願と併願で日付が違うものは別キーに入れる。\n・text/long型は原文の要点を簡潔に。改行は\\n。\nキー:\n${keys}`;
+    const prompt=`これは高校入学試験の募集要項です。内容を読み取り、次のキーだけを持つJSONオブジェクトを1つ返してください。\nルール:\n・date型は必ず YYYY-MM-DD。時刻は日付に入れず、該当するtext/long欄に書く。\n・原文に書かれていない項目は空文字""。推測や補完は絶対にしない。\n・tri型は "あり" "なし" "不明" のいずれか。\n・専願と併願で日付が違うものは別キーに入れる。\n・text/long型は原文の要点を簡潔に。改行は\\n。\nキー:\n${keys}\n- tracks（配列）：推薦・学力選抜など、出願区分ごとに出願日・試験日・合格発表日が別々の場合だけ、区分ごとに {"label":"推薦","applyStart":"YYYY-MM-DD","applyEnd":"","examDate":"","resultDate":""} を入れる（上の通常キーの日付には、区分に共通のものだけを入れる）。区分が1つだけの学校は空配列 [] にする。推薦・学力選抜・一般など出願区分ごとに出願期間・入試日・合格発表日が違う募集要項では、必ず区分ごとに tracks を作り、通常キーのそれらの日付は空にする。\n- pubで始まるキー：奈良県の公立高校入試（県教育委員会の入学者選抜要項）の場合だけ入れる。その場合 name は「奈良県公立高等学校」とし、一次選抜の第一出願期間・第二出願期間・入試日・合格発表、追検査（追試験）の申請日・入試日・合格発表、二次選抜の出願期間・合格発表を、対応するpubキーに入れる。私立・国立の募集要項ではpubキーはすべて空にする。`;
     const body={contents:[{parts:[...await getParts(),{text:prompt}]}],generationConfig:{responseMimeType:'application/json',temperature:0}};
     const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify(body)});
-    if(!r.ok) throw new Error(`Geminiがエラーを返しました（${r.status}）。キーとモデル名を確認してください`);
+    if(!r.ok) throw new Error(await geminiErrorText(r));
     const j=await r.json();
     const o=JSON.parse((j.candidates?.[0]?.content?.parts||[]).map(p=>p.text||'').join('').replace(/```json|```/g,'').trim());
     o.id=uid(); say('読み取り完了。内容を確認して保存してください'); edit(null,o);
@@ -1999,7 +2171,96 @@ g('bsSetBtn').onclick=()=>{ g('bsK').value=localStorage.getItem(KS)||''; g('bsM'
 function saveSet(){ localStorage.setItem(KS,g('bsK').value.trim()); localStorage.setItem(MS,g('bsM').value.trim()||'gemini-2.5-flash'); g('bsSet').close(); say('設定を保存しました'); }
 
 async function init(){ await load(); render(); if(sync()) saveSchedule(); }
-return {init,sync,setView,pick,tab,setCat,setAuto,setReflect,setItem,resetItems,resetAll,edit,saveS,delS,saveSet};
+return {setColor,addTrack,delTrack,init,sync,setView,pick,tab,setCat,setAuto,setReflect,setItem,resetItems,resetAll,edit,saveS,delS,saveSet};
+})();
+
+/* ===== 学校の行事予定表の取り込み（Excel/スプレッドシートをコピー→貼り付け→Geminiで読み取り） ===== */
+const EV={items:[],warn:false};
+(function(){
+  const g=id=>document.getElementById(id);
+  const say=(m,e)=>{ const el=g('evImpSt'); el.textContent=m; el.style.color=e?'#a12a1a':''; };
+  const ORDER=['12','1','2','3'];
+  g('btnEvImp').addEventListener('click',()=>{
+    EV.items=[]; g('evImpPrev').innerHTML=''; g('evImpApply').style.display='none'; say('');
+    g('evImpYear').textContent=`${schoolYear}年12月〜${schoolYear+1}年3月`;
+    g('evImp').showModal();
+  });
+  g('evImpGo').addEventListener('click', async ()=>{
+    const text=g('evImpA').value.trim();
+    if(text.length<10){ say('行事予定表の内容を貼り付けてください。',true); return; }
+    const key=localStorage.getItem('adm_gemini_key');
+    if(!key){ say('先に「⑤ 募集要項」の「⚙ Gemini設定」でAPIキーを入れてください（募集要項の読み取りと同じキーです）。',true); return; }
+    const model=localStorage.getItem('adm_gemini_model')||'gemini-2.5-flash';
+    const extra=g('evImpExtra').checked;
+    say('読み取り中…（30秒〜1分ほどかかります）'); g('evImpPrev').innerHTML=''; g('evImpApply').style.display='none';
+    const prompt=`次は、学校の年間行事予定表をExcel/スプレッドシートからコピーした表（タブ区切り）です。${schoolYear}年12月〜${schoolYear+1}年3月の期間の行事だけを取り出し、次の形のJSONだけを返してください。
+{"items":[{"month":12,"day":1,"weekday":"火","text":"全校朝会\\nいのちの授業","lunch":"","time":""}]}
+ルール:
+・month は 12,1,2,3 のいずれか。それ以外の月（4〜11月）の行事は出力しない。
+・day は日（1〜31の整数）。表に年が書かれている場合は、${schoolYear}年12月〜${schoolYear+1}年3月に当たるものだけを採用する。
+・weekday は、表に曜日が書かれている場合だけ、その1文字（月火水木金土日）。無ければ空文字。
+・text は、その日の行事を表に書かれたとおりに入れる。同じ日に複数あれば改行（\\n）でつなぐ。行事の無い日は出力しない。推測・創作・言い換えは絶対にしない。
+・祝日名（成人の日など）も、表に書かれていればそのまま text に入れる。
+・lunch と time は、${extra?'表に給食（○か×）や校時の列があれば入れる（lunchは"○"か"×"、timeは数字の文字列）。無ければ空文字。':'常に空文字。'}
+表:
+${text}`;
+    try{
+      const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{responseMimeType:'application/json',temperature:0}})});
+      if(!r.ok) throw new Error(await geminiErrorText(r));
+      const j=await r.json();
+      const o=JSON.parse((j.candidates?.[0]?.content?.parts||[]).map(p=>p.text||'').join('').replace(/```json|```/g,'').trim());
+      const map={};
+      (o.items||[]).forEach(it=>{
+        const md=MONTHS.find(m=>m.key===String(parseInt(it.month,10))), d=parseInt(it.day,10);
+        if(!md||!(d>=1&&d<=md.days)) return;
+        const tx=String(it.text||'').trim(), lunch=['○','×'].includes(it.lunch)?it.lunch:'', time=String(it.time||'').trim();
+        if(!tx&&!lunch&&!time) return;
+        const k=md.key+'-'+d;
+        if(!map[k]) map[k]={month:md.key,day:d,wd:String(it.weekday||'').trim(),text:'',lunch:'',time:''};
+        const m=map[k]; if(tx) m.text+=(m.text?'\n':'')+tx; if(lunch) m.lunch=lunch; if(time) m.time=time;
+      });
+      EV.items=Object.values(map).sort((a,b)=>ORDER.indexOf(a.month)-ORDER.indexOf(b.month)||a.day-b.day);
+      if(!EV.items.length){ say('取り込める行事が見つかりませんでした。貼り付けた範囲を確認してください。',true); return; }
+      let chk=0,bad=0;
+      const rows=EV.items.map(it=>{
+        const md=MONTHS.find(m=>m.key===it.month), wd=weekdayOf(md.year,+it.month,it.day);
+        const mis=!!it.wd&&it.wd!==wd; if(it.wd){ chk++; if(mis) bad++; }
+        return `<tr style="${mis?'background:#fde3e3':''}"><td style="white-space:nowrap;padding:3px 8px;border-bottom:1px solid #ddd;vertical-align:top">${it.month}/${it.day}（${wd}）${mis?' ⚠':''}</td><td style="padding:3px 8px;border-bottom:1px solid #ddd">${escapeHtml(it.text).replace(/\n/g,'<br>')}${(it.lunch||it.time)?` <span style="color:#777">［給食${escapeHtml(it.lunch||'−')}・校時${escapeHtml(it.time||'−')}］</span>`:''}</td></tr>`;
+      }).join('');
+      EV.warn=chk>=5&&bad/chk>0.3;
+      g('evImpPrev').innerHTML=(EV.warn?`<div style="background:#fde3e3;border:1px solid #a24632;padding:6px 10px;margin-bottom:6px;color:#a24632;font-weight:700">⚠ 表に書かれた曜日と、年度の設定が合いません（曜日つきの${chk}件中${bad}件）。右上の「年度」が、この表の年度と合っているか確認してください。</div>`:'')+
+        `<table style="border-collapse:collapse;width:100%"><tbody>${rows}</tbody></table>`;
+      say(`${EV.items.length}日分を読み取りました。内容を確認して「この内容で取り込む」を押してください。（AIの読み取りなので、原本と見比べてください）`);
+      g('evImpApply').style.display='';
+    }catch(err){ say('読み取りに失敗しました：'+err.message,true); }
+  });
+  g('evImpApply').addEventListener('click',()=>{
+    const mode=document.querySelector('input[name=evMode]:checked').value;
+    if(EV.warn && !confirm('曜日が合わないものがあります。年度の設定を確認しましたか？このまま取り込みますか？')) return;
+    if(mode==='replace' && !confirm('12〜3月の「学校行事」欄を、取り込んだ内容で置き換えます（取り込みに無い日は空になります）。進路関係・給食・校時は変わりません。よろしいですか？')) return;
+    pushUndo();
+    const by={}; EV.items.forEach(it=>{ (by[it.month]=by[it.month]||{})[it.day]=it; });
+    MONTHS.forEach(m=>(schedule[m.key]||[]).forEach(row=>{
+      const it=(by[m.key]||{})[row.day];
+      if(!it){ if(mode==='replace') row.ev=''; return; }
+      const cur=row.ev||'', blank=!String(cur).replace(/<[^>]*>|&nbsp;/g,'').trim();
+      if(it.text){
+        if(mode==='replace') row.ev=textToHtml(it.text);
+        else if(mode==='empty'){ if(blank) row.ev=textToHtml(it.text); }
+        else if(blank) row.ev=textToHtml(it.text);
+        else{
+          const have=toCleanTextLines(cur).map(normalizeForCompare);
+          const add=it.text.split(/\r?\n/).map(s=>s.trim()).filter(s=>s&&!have.includes(normalizeForCompare(s)));
+          if(add.length) row.ev=cur+'<br>'+add.map(escapeHtml).join('<br>');
+        }
+      }
+      if(it.lunch && (mode==='replace'||!row.lunch)) row.lunch=it.lunch;
+      if(it.time && (mode==='replace'||!String(row.time||'').trim())) row.time=it.time;
+    }));
+    renderEntryTable(); renderStaffPreview(); renderStudentPreview(); renderInterviewTable(); saveSchedule();
+    g('evImp').close();
+    const st=document.getElementById('entryStatus'); if(st){ st.textContent=`行事予定表から${EV.items.length}日分を取り込みました（「↺ 元に戻す」で戻せます）`; st.className='status-msg'; }
+  });
 })();
 
 /* ---------- init ---------- */
