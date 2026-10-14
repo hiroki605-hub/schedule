@@ -1958,8 +1958,9 @@ function sync(){
   const snap=JSON.stringify(schedule), RE=/(<br>)?<span data-bs="1"[^>]*>.*?<\/span>/g;
   MONTHS.forEach(m=>(schedule[m.key]||[]).forEach(r=>{ r.career=String(r.career||'').replace(RE,''); r.school=String(r.school||'').replace(RE,''); }));
   schools.filter(s=>s.reflect!==false).forEach(s=>{
+    const isPubRec=PUBK.some(k=>s[k]);   /* 奈良県公立の記録は「進路関係」欄の行だけ。高校別出願日欄には入れない */
     AUTO.forEach(([k,label])=>{
-      if(!isOn(s,k)) return;
+      if(isPubRec||!isOn(s,k)) return;
       const src=TRACK_KEYS.includes(k)?dateLines(s,k):[{v:s[k],tag:''}];
       src.forEach(({v,tag})=>{
         const row=rowOfDate(v); if(!row) return;
@@ -2136,6 +2137,7 @@ function delTrack(i){ cur.tracks=readTracks(); cur.tracks.splice(i,1); drawTrack
 function edit(id,ai){
   cur=id?{...schools.find(s=>s.id===id)}:(ai||{id:uid()});
   cur.tracks=collapseTracks(cur);
+  if(ai && PUBK.some(k=>cur[k])){ ['preRegStart','preRegEnd','applyStart','applyEnd','examDate','resultDate','infMakeupDate'].forEach(k=>{ cur[k]=''; }); cur.tracks=[]; }
   if(!cur.cat && PUBK.some(k=>cur[k])) cur.cat='県内公立';
   g('bsEdT').textContent=id?'確認・編集':'学校を追加';
   g('bsDel').style.display=schools.some(s=>s.id===cur.id)?'':'none';
@@ -2183,7 +2185,7 @@ async function ask(getParts,label){
   say(`「${label}」を読み取り中…（30秒ほどかかります）`);
   try{
     const keys=F.map(f=>`- ${f[0]}（${f[1]}／${f[2]}）：${f[4]}`).join('\n');
-    const prompt=`これは高校入学試験の募集要項です。内容を読み取り、次のキーだけを持つJSONオブジェクトを1つ返してください。\nルール:\n・date型は必ず YYYY-MM-DD。時刻は日付に入れず、該当するtext/long欄に書く。\n・原文に書かれていない項目は空文字""。推測や補完は絶対にしない。\n・tri型は "あり" "なし" "不明" のいずれか。\n・専願と併願で日付が違うものは別キーに入れる。\n・text/long型は原文の要点を簡潔に。改行は\\n。\nキー:\n${keys}\n- tracks（配列）：推薦・学力選抜など、出願区分ごとに出願日・試験日・合格発表日が別々の場合だけ、区分ごとに {"label":"推薦","applyStart":"YYYY-MM-DD","applyEnd":"","examDate":"","resultDate":""} を入れる（上の通常キーの日付には、区分に共通のものだけを入れる）。区分が1つだけの学校は空配列 [] にする。推薦・学力選抜・一般など出願区分ごとに出願期間・入試日・合格発表日が違う募集要項では、必ず区分ごとに tracks を作り、通常キーのそれらの日付は空にする。ただし専願・併願（一般選抜の専願・併願など）で出願期間・入試日・合格発表日が同じ場合は tracks を作らず、通常キーに1回だけ入れる。\n- pubで始まるキー：奈良県の公立高校入試（県教育委員会の入学者選抜要項）の場合だけ入れる。その場合 name は「奈良県公立高等学校」とし、一次選抜の第一出願期間・第二出願期間・入試日・合格発表、追検査（追試験）の申請日・入試日・合格発表、二次選抜の出願期間・合格発表を、対応するpubキーに入れる。私立・国立の募集要項ではpubキーはすべて空にする。`;
+    const prompt=`これは高校入学試験の募集要項です。内容を読み取り、次のキーだけを持つJSONオブジェクトを1つ返してください。\nルール:\n・date型は必ず YYYY-MM-DD。時刻は日付に入れず、該当するtext/long欄に書く。\n・原文に書かれていない項目は空文字""。推測や補完は絶対にしない。\n・tri型は "あり" "なし" "不明" のいずれか。\n・専願と併願で日付が違うものは別キーに入れる。\n・text/long型は原文の要点を簡潔に。改行は\\n。\nキー:\n${keys}\n- tracks（配列）：推薦・学力選抜など、出願区分ごとに出願日・試験日・合格発表日が別々の場合だけ、区分ごとに {"label":"推薦","applyStart":"YYYY-MM-DD","applyEnd":"","examDate":"","resultDate":""} を入れる（上の通常キーの日付には、区分に共通のものだけを入れる）。区分が1つだけの学校は空配列 [] にする。推薦・学力選抜・一般など出願区分ごとに出願期間・入試日・合格発表日が違う募集要項では、必ず区分ごとに tracks を作り、通常キーのそれらの日付は空にする。ただし専願・併願（一般選抜の専願・併願など）で出願期間・入試日・合格発表日が同じ場合は tracks を作らず、通常キーに1回だけ入れる。\n- pubで始まるキー：奈良県の公立高校入試（県教育委員会の入学者選抜要項）の場合だけ入れる。その場合 name は「奈良県公立高等学校」とし、一次選抜の第一出願期間・第二出願期間・入試日・合格発表、追検査（追試験）の申請日・入試日・合格発表、二次選抜の出願期間・合格発表を、対応するpubキーに入れる。公立の場合、同じ日付を通常の日付キー（事前登録・出願・入試・合格発表・追試験・tracks）には重ねて入れず、それらは空にする。私立・国立の募集要項ではpubキーはすべて空にする。`;
     const body={contents:[{parts:[...await getParts(),{text:prompt}]}],generationConfig:{responseMimeType:'application/json',temperature:0}};
     const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify(body)});
     if(!r.ok) throw new Error(await geminiErrorText(r));
