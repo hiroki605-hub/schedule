@@ -53,7 +53,8 @@ table.summary-table td.share{color:#7A5039}
  <div class="box note">
   <b>Tシャツの色は「黒」です。</b> <span class="chip"></span><br>
   業者に発注するため、<b>お名前</b>と<b>着用サイズ</b>を入力してください。<br>
-  入力を間違えたときは、同じお名前でもう一度送信すると上書きされます。
+  入力を間違えたときは、同じお名前でもう一度送信すると上書きされます。<br>
+  🔒 <b>サイズは他の先生方には共有・表示されません。</b>(集計担当者のみが確認します)
  </div>
  <p style="text-align:center;font-size:.9rem"><a href="tshirt.html#pay" onclick="setTimeout(()=>location.reload(),50)">💴 集金状況を見る</a></p>
  <div class="box">
@@ -155,7 +156,7 @@ async function calcSave(){
 }
 function initAdmin(){
  document.getElementById("form").style.display="none";
- document.getElementById("adm").innerHTML=`<div class="summary-box"><h3>版代・送料を分担する</h3>
+ document.getElementById("adm").innerHTML=`<p style="margin:0 0 12px"><a href="tshirt.html" onclick="location.href=location.pathname;return false" style="font-weight:700">← 回答ページに戻る</a></p><div class="summary-box"><h3>版代・送料を分担する</h3>
   <div class="split-row"><input id="c_plate" type="number" inputmode="numeric" min="0" placeholder="版代(円)"><input id="c_unit" type="number" inputmode="numeric" min="0" placeholder="Tシャツ1枚(円)"><input id="c_ship" type="number" inputmode="numeric" min="0" placeholder="送料(円)"></div>
   <div class="cost-note" style="margin:8px 0 12px">版代 + 送料を、Tシャツを注文した先生方で均等に割ります(「注文しない」の先生は含みません)。</div>
   <label class="field-label">分担方法</label>
@@ -188,10 +189,11 @@ function recalcPay(){
 }
 function initPay(){
  document.getElementById("form").style.display="none";
- document.getElementById("adm").innerHTML='<div class="box note"><b>💴 Tシャツ代の集金状況</b></div><div class="summary-box" id="calc"></div><div class="box"><button class="sm" id="rl" style="float:right">更新</button><b>集金一覧</b><div id="lst" style="margin-top:8px"></div></div>';
+ document.getElementById("adm").innerHTML='<p style="margin:0 0 12px"><a href="tshirt.html" onclick="location.href=location.pathname;return false" style="font-weight:700">← 回答ページに戻る</a></p><div class="box note"><b>💴 Tシャツ代の集金状況</b></div><div class="summary-box" id="calc"></div><div class="box"><button class="sm" id="rl" style="float:right">更新</button><b>集金一覧</b><div id="lst" style="margin-top:8px"></div></div>';
  document.getElementById("rl").onclick=()=>loadAll(false);
  loadAll(false);setInterval(()=>loadAll(false),15000);
 }
+window.addEventListener("hashchange",()=>location.reload());
 if(location.hash==="#list")initAdmin();
 if(location.hash==="#pay")initPay();
 // 回答済みの人が開き直したとき、自分の回答を表示する(同じ端末・ブラウザのみ)
