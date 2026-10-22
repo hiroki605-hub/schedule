@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tシャツ サイズ回答</title>
+<style>
+:root{--bg:#f6f4ef;--fg:#1a1a1a;--card:#fff;--line:#d9d5cb;--acc:#1a1a1a;--mut:#6b675e}
+@media (prefers-color-scheme:dark){:root{--bg:#161513;--fg:#f1eee8;--card:#24221f;--line:#3a372f;--acc:#f1eee8;--mut:#a8a396}}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+main{max-width:560px;margin:0 auto;padding:20px 16px 60px}
+h1{font-size:1.3rem;margin:.2em 0 .6em}
+.box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px}
+.note{line-height:1.7;font-size:.95rem}.note b{font-size:1.05rem}
+.chip{display:inline-block;width:.9em;height:.9em;background:#000;border:1px solid #888;border-radius:50%;vertical-align:-1px}
+label{display:block;font-weight:700;margin:12px 0 6px}
+input[type=text]{width:100%;box-sizing:border-box;padding:12px;font-size:1rem;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
+.sizes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.sz{padding:12px 0;text-align:center;border:2px solid var(--line);border-radius:8px;cursor:pointer;font-weight:700}
+.sz.on{background:var(--acc);color:var(--bg);border-color:var(--acc)}
+button{width:100%;margin-top:16px;padding:14px;border:0;border-radius:10px;background:#b3261e;color:#fff;font-size:1rem;font-weight:700}
+button:disabled{opacity:.4}
+.sm{width:auto;margin:0 6px 0 0;padding:8px 12px;font-size:.85rem;background:var(--acc);color:var(--bg)}
+.sm.d{background:transparent;color:#b3261e;border:1px solid #b3261e;padding:4px 8px;margin:0}
+table{width:100%;border-collapse:collapse}td,th{padding:8px 4px;border-bottom:1px solid var(--line);text-align:left}
+.tally span{display:inline-block;margin:0 10px 6px 0;font-weight:700}
+.ok{text-align:center;padding:30px 0}
+</style></head><body><main>
+<h1>👕 Tシャツ サイズ回答</h1>
+<div id="form">
+ <div class="box note">
+  <b>Tシャツの色は「黒」です。</b> <span class="chip"></span><br>
+  業者に発注するため、<b>お名前</b>と<b>着用サイズ</b>を入力してください。<br>
+  入力を間違えたときは、同じお名前でもう一度送信すると上書きされます。
+ </div>
+ <div class="box">
+  <label for="nm">お名前(フルネーム)</label>
+  <input id="nm" type="text" placeholder="例:山田 太郎" maxlength="30" autocomplete="off">
+  <label>サイズ</label>
+  <div class="sizes" id="sizes"></div>
+  <button id="go" disabled>送信する</button>
+ </div>
+</div>
+<div id="done" class="box ok" style="display:none"><h2>回答ありがとうございました 🙏</h2><p id="sum"></p></div>
+<div id="adm"></div>
+<script>
+const DB_URL="https://touhyou-a6e45-default-rtdb.asia-southeast1.firebasedatabase.app";
+const SIZES=["S","M","L","XL","XXL","3XL"];
+const base=DB_URL.replace(/\/$/,"")+"/tshirt";
+const key=n=>n.trim().replace(/[.$#\[\]\/\s]+/g,"_");
+let sel=null;
+const nm=document.getElementById("nm"),go=document.getElementById("go"),sz=document.getElementById("sizes");
+function upd(){go.disabled=!(nm.value.trim()&&sel)}
+SIZES.forEach(s=>{const d=document.createElement("div");d.className="sz";d.textContent=s;d.onclick=()=>{sel=s;[...sz.children].forEach(c=>c.classList.toggle("on",c===d));upd()};sz.appendChild(d)});
+nm.oninput=upd;
+go.onclick=async()=>{
+ go.disabled=true;const name=nm.value.trim();
+ try{
+  const r=await fetch(base+"/"+encodeURIComponent(key(name))+".json",{method:"PUT",body:JSON.stringify({name,size:sel,t:Date.now()})});
+  if(!r.ok)throw 0;
+  document.getElementById("form").style.display="none";
+  document.getElementById("done").style.display="block";
+  document.getElementById("sum").textContent=name+" さん:サイズ "+sel;
+ }catch(e){go.disabled=false;alert("送信に失敗しました。もう一度お試しください。")}
+};
+// 管理者用: URLの末尾に #list を付けて開く
+async function load(){
+ const o=await (await fetch(base+".json")).json()||{};
+ const rows=Object.entries(o).map(([k,v])=>({k,...v})).sort((a,b)=>a.t-b.t);
+ const cnt={};SIZES.forEach(s=>cnt[s]=0);rows.forEach(r=>{cnt[r.size]=(cnt[r.size]||0)+1});
+ const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+ document.getElementById("adm").innerHTML='<div class="box"><b>📋 回答一覧(あなただけ用)</b> 合計 '+rows.length+' 人(色:黒)'
+  +'<div class="tally" style="margin:10px 0">'+Object.entries(cnt).map(([s,n])=>`<span>${s}: ${n}</span>`).join("")+'</div>'
+  +'<button class="sm" id="csv">CSVをダウンロード</button><button class="sm" id="rl">更新</button>'
+  +'<table><tr><th>名前</th><th>サイズ</th><th></th></tr>'+rows.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.size)}</td><td><button class="sm d" data-k="${esc(r.k)}">削除</button></td></tr>`).join("")+'</table></div>';
+ document.getElementById("rl").onclick=load;
+ document.getElementById("csv").onclick=()=>{
+  const t="名前,サイズ\n"+rows.map(r=>'"'+r.name.replace(/"/g,'""')+'",'+r.size).join("\n");
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\ufeff"+t],{type:"text/csv"}));a.download="tshirt_sizes.csv";a.click();
+ };
+ document.querySelectorAll(".d").forEach(b=>b.onclick=async()=>{if(confirm("削除しますか?")){await fetch(base+"/"+encodeURIComponent(b.dataset.k)+".json",{method:"DELETE"});load()}});
+}
+if(location.hash==="#list"){document.getElementById("form").style.display="none";load();setInterval(()=>{},1e9)}
+</script></main></body></html>
