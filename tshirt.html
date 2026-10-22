@@ -39,6 +39,12 @@ td.paid-cell{text-align:center}
 .paid-toggle.is-unpaid{background:#F3DCD5;border-color:#C4522A;color:#C4522A}
 .paid-toggle:hover{opacity:.85}
 .summary-box .sm{background:#4A2E1F;color:#fff}.summary-box .sm.d{background:transparent;color:#b3261e}
+.split-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.field-label{display:block;font-weight:700;font-size:.9rem;margin:6px 0}
+.cost-note{font-size:.78rem;color:#7A5039;margin:-2px 0 10px;line-height:1.6}
+table.summary-table td.share{color:#7A5039}
+.calcbtn{margin-top:10px;background:#3F5833}
+#toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:#4A2E1F;color:#fff;padding:10px 18px;border-radius:20px;font-size:.9rem;opacity:0;transition:opacity .3s;pointer-events:none}
 .ok{text-align:center;padding:30px 0}
 </style></head><body><main>
 <h1>👕 Tシャツ サイズ回答</h1>
@@ -100,40 +106,31 @@ async function loadAll(admin){
  ROWS=Object.entries(o).map(([k,v])=>({k,name:v.name,size:v.size,t:v.t})).sort((a,b)=>a.t-b.t);
  PAID=p||{};SPLIT=sp||null;
  if(c&&(!admin||!loadAll.done)){COST={plate:+c.plate||0,unit:+c.unit||0,ship:+c.ship||0,round:+c.round||1};
-  if(admin)["plate","unit","ship","round"].forEach(f=>document.getElementById("c_"+f).value=COST[f])}
+  if(admin)["plate","unit","ship","round"].forEach(f=>{const e=document.getElementById("c_"+f);if(e)e.value=(f==="round"||COST[f])?COST[f]:""})}
  loadAll.done=true;admin?recalc():recalcPay();
 }
-// ---- 管理者 ----
+// ---- 管理者(#list) ----
+function toast(m){let t=document.getElementById("toast");if(!t){t=document.createElement("div");t.id="toast";document.body.appendChild(t)}
+ t.textContent=m;t.style.opacity=1;clearTimeout(toast.h);toast.h=setTimeout(()=>t.style.opacity=0,2500)}
 function recalc(){
- const a=prev(),ord=orderers(),per=SPLIT?SPLIT.per:a.per;
+ const a=prev(),ord=orderers();
+ const share=SPLIT?SPLIT.share:a.share,per=SPLIT?SPLIT.per:a.per,rem=SPLIT?SPLIT.rem:a.rem,n=SPLIT?SPLIT.n:a.n;
+ const unit=per-share,fee=COST.plate+COST.ship;
  const cnt={};[...SIZES,NO].forEach(x=>cnt[x]=0);ROWS.forEach(r=>{cnt[r.size]=(cnt[r.size]||0)+1});
- const paid=ord.filter(r=>PAID[r.k]),cost=COST.unit*a.n+COST.plate+COST.ship;
+ const paid=ord.filter(r=>PAID[r.k]);
  const stale=SPLIT&&(SPLIT.n!==a.n||SPLIT.per!==a.per);
- document.getElementById("calc").innerHTML=
-  '<div class="tally">'+Object.entries(cnt).map(([x,c])=>`<span>${x}: ${c}</span>`).join("")+'</div>'
-  +`回答 ${ROWS.length} 人 / 注文 <b>${a.n} 枚</b>(色:黒)<hr>`
-  +`業者への支払い: ${yen(COST.unit)} × ${a.n}枚 + 版代 ${yen(COST.plate)} + 送料 ${yen(COST.ship)} = <b>${yen(cost)}</b><hr>`
-  +`版代+送料 ${yen(a.fee)} ÷ ${a.n}人 = <b>${yen(a.share)}</b> /人 &nbsp;<b>端数 ${yen(a.rem)}</b><br>`
-  +`<span style="font-size:1.15rem">1人あたり: <b>${yen(per)}</b> ${SPLIT?"(確定済み)":"(未確定)"}</span>`
-  +(SPLIT?`<br><span style="color:var(--mut);font-size:.85rem">確定時: ${SPLIT.n}人 / 端数 ${yen(SPLIT.rem)}</span>`:"")
-  +(stale?'<br><b style="color:#b3261e">⚠ 人数や金額が確定時から変わっています。もう一度「全員で割る」を押してください。</b>':"")
-  +'<div style="margin-top:10px"><button class="sm" id="split">全員で割る(金額を確定)</button>'+(SPLIT?'<button class="sm d" id="unsplit">確定を取り消す</button>':"")+'</div>'
-  +`<hr>✔ 集金済み <b>${paid.length}</b> 人 ${yen(per*paid.length)} ／ 未収金 <b>${ord.length-paid.length}</b> 人 ${yen(per*(ord.length-paid.length))}`;
- document.getElementById("split").onclick=async()=>{
-  if(!a.n){alert("注文する人がいません");return}
-  if(!confirm(`版代+送料 ${yen(a.fee)} を ${a.n} 人で割ります。\n\nお一人 ${yen(a.per)}(うち版代+送料 ${yen(a.share)})\n端数 ${yen(a.rem)}\n\nこの金額で確定します。よろしいですか?`))return;
-  const d={...a,plate:COST.plate,unit:COST.unit,ship:COST.ship,round:COST.round,t:Date.now()};delete d.fee;
-  const r=await fetch(root+"/tshirt_split.json",{method:"PUT",body:JSON.stringify(d)});
-  if(r.ok){SPLIT=d;recalc()}else alert("保存に失敗しました");
- };
- const un=document.getElementById("unsplit");
- if(un)un.onclick=async()=>{if(!confirm("確定を取り消します。先生方の画面は「金額は確定前です」に戻ります。よろしいですか?"))return;
-  await fetch(root+"/tshirt_split.json",{method:"DELETE"});SPLIT=null;recalc()};
  const rowsHtml=ROWS.map(r=>{const o=r.size!==NO,pd=!!PAID[r.k];
-  return `<tr><td>${esc(r.name)} 先生</td><td>${esc(r.size)}</td><td class="num">${o?yen(per):"—"}</td><td class="paid-cell">`
+  return `<tr><td>${esc(r.name)}</td><td>${esc(r.size)}</td><td class="num">${o?yen(unit):"—"}</td><td class="num share">${o?yen(share):"—"}</td><td class="num">${o?"<strong>"+yen(per)+"</strong>":"—"}</td><td class="paid-cell">`
    +(o?`<button class="paid-toggle ${pd?"is-paid":"is-unpaid"}" data-k="${esc(r.k)}" data-n="${esc(r.name)}">${pd?"✔ 集金済み":"未収金"}</button>`:"—")
    +`</td><td><button class="sm d x" data-k="${esc(r.k)}">削除</button></td></tr>`}).join("");
- document.getElementById("lst").innerHTML=`<div class="summary-box" style="padding:0;margin:0"><h3 style="margin-top:0">先生別 集計</h3><table class="summary-table"><thead><tr><th>先生</th><th>サイズ</th><th class="num">お支払い</th><th>集金状況</th><th></th></tr></thead><tbody>${rowsHtml}</tbody><tfoot><tr><td><b>合計</b></td><td></td><td class="num"><b>${yen(per*ord.length)}</b></td><td></td><td></td></tr></tfoot></table></div>`;
+ document.getElementById("calc").innerHTML=`<h3>先生別 集計</h3>`
+  +`<div class="cost-note">${[...SIZES,NO].map(x=>x+": "+cnt[x]).join(" / ")}</div>`
+  +`<div class="cost-note">版代+送料の合計 ${yen(fee)}(版代 ${yen(COST.plate)} + 送料 ${yen(COST.ship)})を、注文した ${a.n} 人で均等に割って下表に反映しています。1人 ${yen(a.share)}、<b>端数 ${yen(a.rem)}</b>。${SPLIT?"":" <b>※まだ「この内容で計算する」を押していません。</b>"}`
+  +(stale?' <b style="color:#C4522A">⚠ 人数や金額が計算時から変わっています。もう一度「この内容で計算する」を押してください。</b>':"")+`</div>`
+  +`<div style="overflow-x:auto"><table class="summary-table"><thead><tr><th>先生</th><th>サイズ</th><th class="num">Tシャツ代</th><th class="num">版代・送料</th><th class="num">お支払い合計</th><th>集金状況</th><th></th></tr></thead><tbody>${rowsHtml}</tbody>`
+  +`<tfoot><tr><td><strong>合計</strong></td><td>${n}枚</td><td class="num"><strong>${yen(unit*n)}</strong></td><td class="num"><strong>${yen(share*n)}</strong></td><td class="num"><strong>${yen(per*n)}</strong></td><td></td><td></td></tr>`
+  +`<tr><td>端数</td><td></td><td></td><td class="num">${yen(rem)}</td><td></td><td></td><td></td></tr></tfoot></table></div>`
+  +`<div class="cost-note" style="margin-top:10px">✔ 集金済み <b>${paid.length}</b> 人 ${yen(per*paid.length)} ／ 未収金 <b>${ord.length-paid.length}</b> 人 ${yen(per*(ord.length-paid.length))}</div>`;
  document.querySelectorAll(".paid-toggle[data-k]").forEach(b=>b.onclick=async()=>{
   const now=b.classList.contains("is-paid");
   if(!confirm(now?`${b.dataset.n}先生を「未収金」に戻しますか?`:`${b.dataset.n}先生を「集金済み」にしますか?`))return;
@@ -145,25 +142,34 @@ function recalc(){
   await fetch(base+"/"+k+".json",{method:"DELETE"});await fetch(root+"/tshirt_paid/"+k+".json",{method:"DELETE"});loadAll(true);
  });
 }
+async function calcSave(){
+ const a=prev();
+ if(!a.n){alert("注文する人がいません");return}
+ const d={...a,plate:COST.plate,unit:COST.unit,ship:COST.ship,round:COST.round,t:Date.now()};delete d.fee;
+ try{
+  const r1=await fetch(root+"/tshirt_cost.json",{method:"PUT",body:JSON.stringify(COST)});
+  const r2=await fetch(root+"/tshirt_split.json",{method:"PUT",body:JSON.stringify(d)});
+  if(!r1.ok||!r2.ok)throw 0;
+  SPLIT=d;recalc();toast("計算して保存しました");
+ }catch(e){toast("計算しましたが保存に失敗しました")}
+}
 function initAdmin(){
  document.getElementById("form").style.display="none";
- document.getElementById("adm").innerHTML=`<div class="box"><b>💴 金額の入力</b>
-  <label>版代(円)</label><input id="c_plate" type="number" inputmode="numeric" min="0" value="0">
-  <label>Tシャツ1枚の料金(円)</label><input id="c_unit" type="number" inputmode="numeric" min="0" value="0">
-  <label>送料(円)</label><input id="c_ship" type="number" inputmode="numeric" min="0" value="0">
-  <label>版代+送料を割るときの単位(端数は切り捨て)</label><select id="c_round"><option value="1">1円単位</option><option value="10">10円単位</option><option value="100">100円単位</option></select>
-  <button id="sv">この金額を保存</button></div>
+ document.getElementById("adm").innerHTML=`<div class="summary-box"><h3>版代・送料を分担する</h3>
+  <div class="split-row"><input id="c_plate" type="number" inputmode="numeric" min="0" placeholder="版代(円)"><input id="c_unit" type="number" inputmode="numeric" min="0" placeholder="Tシャツ1枚(円)"><input id="c_ship" type="number" inputmode="numeric" min="0" placeholder="送料(円)"></div>
+  <div class="cost-note" style="margin:8px 0 12px">版代 + 送料を、Tシャツを注文した先生方で均等に割ります(「注文しない」の先生は含みません)。</div>
+  <label class="field-label">分担方法</label>
+  <select id="c_round"><option value="1">注文した先生で均等に割る(1円単位・端数は別に表示)</option><option value="10">注文した先生で均等に割る(10円単位・端数は別に表示)</option><option value="100">注文した先生で均等に割る(100円単位・端数は別に表示)</option></select>
+  <button id="calcbtn" class="calcbtn">この内容で計算する</button></div>
   <div class="summary-box" id="calc"></div>
-  <div class="box"><b>📋 回答・集金一覧</b> <button class="sm" id="rl" style="float:right">更新</button><div id="lst" style="margin-top:8px"></div>
-  <button class="sm" id="csv" style="margin-top:10px">CSVをダウンロード</button></div>`;
+  <div class="box" style="display:flex;gap:8px"><button class="sm" id="csv">⬇ CSVでダウンロード</button><button class="sm" id="rl">更新</button></div>`;
  ["plate","unit","ship","round"].forEach(f=>document.getElementById("c_"+f).oninput=()=>{
   COST={plate:+c_plate.value||0,unit:+c_unit.value||0,ship:+c_ship.value||0,round:+c_round.value||1};recalc()});
- document.getElementById("sv").onclick=async()=>{
-  const r=await fetch(root+"/tshirt_cost.json",{method:"PUT",body:JSON.stringify(COST)});alert(r.ok?"保存しました":"保存に失敗しました")};
+ document.getElementById("calcbtn").onclick=calcSave;
  document.getElementById("rl").onclick=()=>loadAll(true);
  document.getElementById("csv").onclick=()=>{
   const per=SPLIT?SPLIT.per:prev().per;
-  const t="名前,サイズ,金額,集金\n"+ROWS.map(r=>{const o=r.size!==NO;return '"'+r.name.replace(/"/g,'""')+'",'+r.size+","+(o?per:"")+","+(o?(PAID[r.k]?"集金済":"未収金"):"")}).join("\n");
+  const t="名前,サイズ,金額,集金\n"+ROWS.map(r=>{const o=r.size!==NO;return '"'+r.name.replace(/"/g,'""')+'",'+r.size+","+(o?per:"")+","+(o?(PAID[r.k]?"集金済み":"未収金"):"")}).join("\n");
   const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\ufeff"+t],{type:"text/csv"}));a.download="tshirt_sizes.csv";a.click();
  };
  loadAll(true);setInterval(()=>loadAll(true),15000);
