@@ -26,6 +26,19 @@ table{width:100%;border-collapse:collapse}td,th{padding:8px 4px;border-bottom:1p
 input[type=number],select{width:100%;box-sizing:border-box;padding:10px;font-size:1rem;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
 .st{width:auto;margin:0;padding:6px 10px;font-size:.85rem;border-radius:20px;color:#fff}.st.p{background:#1e8e3e}.st.u{background:#b3261e}
 hr{border:0;border-top:1px solid var(--line);margin:10px 0}
+.summary-box{background:#F3E9D2;color:#4A2E1F;border-radius:12px;padding:14px;margin-bottom:14px}
+.summary-box h3{margin:0 0 10px;font-size:.95rem}
+.summary-box hr{border-top-color:#E4D3AA}
+table.summary-table{width:100%;border-collapse:collapse;font-size:.85rem}
+table.summary-table th,table.summary-table td{text-align:left;padding:6px 4px;border-bottom:1px solid #E4D3AA}
+table.summary-table th{color:#7A5039;font-weight:700}
+table.summary-table .num{text-align:right}
+td.paid-cell{text-align:center}
+.paid-toggle{display:inline-flex;align-items:center;gap:4px;width:auto;margin:0;border:1.5px solid #E4D3AA;background:#fff;color:#7A5039;font-size:.75rem;font-weight:700;padding:4px 10px;border-radius:20px;cursor:pointer;white-space:nowrap}
+.paid-toggle.is-paid{background:#E4EEDD;border-color:#5C7A4A;color:#3F5833}
+.paid-toggle.is-unpaid{background:#F3DCD5;border-color:#C4522A;color:#C4522A}
+.paid-toggle:hover{opacity:.85}
+.summary-box .sm{background:#4A2E1F;color:#fff}.summary-box .sm.d{background:transparent;color:#b3261e}
 .ok{text-align:center;padding:30px 0}
 </style></head><body><main>
 <h1>👕 Tシャツ サイズ回答</h1>
@@ -105,7 +118,7 @@ function recalc(){
   +(SPLIT?`<br><span style="color:var(--mut);font-size:.85rem">確定時: ${SPLIT.n}人 / 端数 ${yen(SPLIT.rem)}</span>`:"")
   +(stale?'<br><b style="color:#b3261e">⚠ 人数や金額が確定時から変わっています。もう一度「全員で割る」を押してください。</b>':"")
   +'<div style="margin-top:10px"><button class="sm" id="split">全員で割る(金額を確定)</button>'+(SPLIT?'<button class="sm d" id="unsplit">確定を取り消す</button>':"")+'</div>'
-  +`<hr>✅ 集金済 <b>${paid.length}</b> 人 ${yen(per*paid.length)} / ❌ 未収金 <b>${ord.length-paid.length}</b> 人 ${yen(per*(ord.length-paid.length))}`;
+  +`<hr>✔ 集金済み <b>${paid.length}</b> 人 ${yen(per*paid.length)} ／ 未収金 <b>${ord.length-paid.length}</b> 人 ${yen(per*(ord.length-paid.length))}`;
  document.getElementById("split").onclick=async()=>{
   if(!a.n){alert("注文する人がいません");return}
   if(!confirm(`版代+送料 ${yen(a.fee)} を ${a.n} 人で割ります。\n\nお一人 ${yen(a.per)}(うち版代+送料 ${yen(a.share)})\n端数 ${yen(a.rem)}\n\nこの金額で確定します。よろしいですか?`))return;
@@ -116,14 +129,14 @@ function recalc(){
  const un=document.getElementById("unsplit");
  if(un)un.onclick=async()=>{if(!confirm("確定を取り消します。先生方の画面は「金額は確定前です」に戻ります。よろしいですか?"))return;
   await fetch(root+"/tshirt_split.json",{method:"DELETE"});SPLIT=null;recalc()};
- document.getElementById("lst").innerHTML='<table><tr><th>名前</th><th>サイズ</th><th>金額</th><th>集金</th><th></th></tr>'
-  +ROWS.map(r=>{const o=r.size!==NO,pd=!!PAID[r.k];
-   return `<tr><td>${esc(r.name)}</td><td>${esc(r.size)}</td><td>${o?yen(per):"—"}</td><td>`
-   +(o?`<button class="st ${pd?"p":"u"}" data-k="${esc(r.k)}" data-n="${esc(r.name)}">${pd?"✅ 集金済":"❌ 未収金"}</button>`:"—")
-   +`</td><td><button class="sm d x" data-k="${esc(r.k)}">削除</button></td></tr>`}).join("")+'</table>';
- document.querySelectorAll(".st").forEach(b=>b.onclick=async()=>{
-  const now=b.classList.contains("p");
-  if(!confirm(`${b.dataset.n} さんを「${now?"未収金":"集金済"}」に変更します。よろしいですか?`))return;
+ const rowsHtml=ROWS.map(r=>{const o=r.size!==NO,pd=!!PAID[r.k];
+  return `<tr><td>${esc(r.name)} 先生</td><td>${esc(r.size)}</td><td class="num">${o?yen(per):"—"}</td><td class="paid-cell">`
+   +(o?`<button class="paid-toggle ${pd?"is-paid":"is-unpaid"}" data-k="${esc(r.k)}" data-n="${esc(r.name)}">${pd?"✔ 集金済み":"未収金"}</button>`:"—")
+   +`</td><td><button class="sm d x" data-k="${esc(r.k)}">削除</button></td></tr>`}).join("");
+ document.getElementById("lst").innerHTML=`<div class="summary-box" style="padding:0;margin:0"><h3 style="margin-top:0">先生別 集計</h3><table class="summary-table"><thead><tr><th>先生</th><th>サイズ</th><th class="num">お支払い</th><th>集金状況</th><th></th></tr></thead><tbody>${rowsHtml}</tbody><tfoot><tr><td><b>合計</b></td><td></td><td class="num"><b>${yen(per*ord.length)}</b></td><td></td><td></td></tr></tfoot></table></div>`;
+ document.querySelectorAll(".paid-toggle[data-k]").forEach(b=>b.onclick=async()=>{
+  const now=b.classList.contains("is-paid");
+  if(!confirm(now?`${b.dataset.n}先生を「未収金」に戻しますか?`:`${b.dataset.n}先生を「集金済み」にしますか?`))return;
   await fetch(root+"/tshirt_paid/"+encodeURIComponent(b.dataset.k)+".json",{method:now?"DELETE":"PUT",body:"true"});loadAll(true);
  });
  document.querySelectorAll(".x").forEach(b=>b.onclick=async()=>{
@@ -140,7 +153,7 @@ function initAdmin(){
   <label>送料(円)</label><input id="c_ship" type="number" inputmode="numeric" min="0" value="0">
   <label>版代+送料を割るときの単位(端数は切り捨て)</label><select id="c_round"><option value="1">1円単位</option><option value="10">10円単位</option><option value="100">100円単位</option></select>
   <button id="sv">この金額を保存</button></div>
-  <div class="box" id="calc"></div>
+  <div class="summary-box" id="calc"></div>
   <div class="box"><b>📋 回答・集金一覧</b> <button class="sm" id="rl" style="float:right">更新</button><div id="lst" style="margin-top:8px"></div>
   <button class="sm" id="csv" style="margin-top:10px">CSVをダウンロード</button></div>`;
  ["plate","unit","ship","round"].forEach(f=>document.getElementById("c_"+f).oninput=()=>{
@@ -162,15 +175,14 @@ function recalcPay(){
  let h=`注文 <b>${n} 枚</b>(色:黒)<hr>Tシャツ1枚: ${yen(src.unit)}<br>版代: ${yen(src.plate)}<br>送料: ${yen(src.ship)}<hr>`;
  if(SPLIT){
   h+=`版代+送料 ${yen(src.plate+src.ship)} を ${SPLIT.n} 人で割ると<br><b>${yen(SPLIT.share)}</b> /人(端数 <b>${yen(SPLIT.rem)}</b>)<hr>`
-   +`<span style="font-size:1.2rem">お一人あたりの集金額: <b>${yen(SPLIT.per)}</b></span><hr>✅ 集金済 <b>${paid.length}</b> 人 / ❌ 未収金 <b>${n-paid.length}</b> 人`;
+   +`<span style="font-size:1.2rem">お一人あたりの集金額: <b>${yen(SPLIT.per)}</b></span><hr>✔ 集金済み <b>${paid.length}</b> 人 ／ 未収金 <b>${n-paid.length}</b> 人`;
  }else h+='<b>※ お一人あたりの金額は、人数が確定してからお知らせします。</b>';
  document.getElementById("calc").innerHTML=h;
- document.getElementById("lst").innerHTML='<table><tr><th>名前</th><th>金額</th><th>集金</th></tr>'
-  +ord.map(r=>`<tr><td>${esc(r.name)}</td><td>${SPLIT?yen(SPLIT.per):"—"}</td><td>${PAID[r.k]?"✅ 集金済":"❌ 未収金"}</td></tr>`).join("")+'</table>';
+ document.getElementById("lst").innerHTML=`<div class="summary-box" style="padding:0;margin:0"><h3 style="margin-top:0">先生別 集計</h3><table class="summary-table"><thead><tr><th>先生</th><th class="num">お支払い</th><th>集金状況</th></tr></thead><tbody>${ord.map(r=>`<tr><td>${esc(r.name)} 先生</td><td class="num">${SPLIT?yen(SPLIT.per):"—"}</td><td class="paid-cell"><span class="paid-toggle ${PAID[r.k]?"is-paid":"is-unpaid"}" style="cursor:default">${PAID[r.k]?"✔ 集金済み":"未収金"}</span></td></tr>`).join("")}</tbody><tfoot><tr><td><b>合計</b></td><td class="num"><b>${SPLIT?yen(SPLIT.per*n):"—"}</b></td><td></td></tr></tfoot></table></div>`;
 }
 function initPay(){
  document.getElementById("form").style.display="none";
- document.getElementById("adm").innerHTML='<div class="box note"><b>💴 Tシャツ代の集金状況</b></div><div class="box" id="calc"></div><div class="box"><button class="sm" id="rl" style="float:right">更新</button><b>集金一覧</b><div id="lst" style="margin-top:8px"></div></div>';
+ document.getElementById("adm").innerHTML='<div class="box note"><b>💴 Tシャツ代の集金状況</b></div><div class="summary-box" id="calc"></div><div class="box"><button class="sm" id="rl" style="float:right">更新</button><b>集金一覧</b><div id="lst" style="margin-top:8px"></div></div>';
  document.getElementById("rl").onclick=()=>loadAll(false);
  loadAll(false);setInterval(()=>loadAll(false),15000);
 }
