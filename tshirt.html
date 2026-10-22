@@ -15,6 +15,7 @@ label{display:block;font-weight:700;margin:12px 0 6px}
 input[type=text]{width:100%;box-sizing:border-box;padding:12px;font-size:1rem;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
 .sizes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .sz{padding:12px 0;text-align:center;border:2px solid var(--line);border-radius:8px;cursor:pointer;font-weight:700}
+.sz.no{grid-column:1/-1;font-weight:400}
 .sz.on{background:var(--acc);color:var(--bg);border-color:var(--acc)}
 button{width:100%;margin-top:16px;padding:14px;border:0;border-radius:10px;background:#b3261e;color:#fff;font-size:1rem;font-weight:700}
 button:disabled{opacity:.4}
@@ -34,7 +35,7 @@ table{width:100%;border-collapse:collapse}td,th{padding:8px 4px;border-bottom:1p
  <div class="box">
   <label for="nm">お名前(フルネーム)</label>
   <input id="nm" type="text" placeholder="例:山田 太郎" maxlength="30" autocomplete="off">
-  <label>サイズ</label>
+  <label>サイズ(不要な方は「注文しない」)</label>
   <div class="sizes" id="sizes"></div>
   <button id="go" disabled>送信する</button>
  </div>
@@ -43,13 +44,13 @@ table{width:100%;border-collapse:collapse}td,th{padding:8px 4px;border-bottom:1p
 <div id="adm"></div>
 <script>
 const DB_URL="https://touhyou-a6e45-default-rtdb.asia-southeast1.firebasedatabase.app";
-const SIZES=["S","M","L","XL","XXL","3XL"];
+const SIZES=["S","M","L","XL","XXL","3XL"];const NO="注文しない";
 const base=DB_URL.replace(/\/$/,"")+"/tshirt";
 const key=n=>n.trim().replace(/[.$#\[\]\/\s]+/g,"_");
 let sel=null;
 const nm=document.getElementById("nm"),go=document.getElementById("go"),sz=document.getElementById("sizes");
 function upd(){go.disabled=!(nm.value.trim()&&sel)}
-SIZES.forEach(s=>{const d=document.createElement("div");d.className="sz";d.textContent=s;d.onclick=()=>{sel=s;[...sz.children].forEach(c=>c.classList.toggle("on",c===d));upd()};sz.appendChild(d)});
+[...SIZES,NO].forEach(s=>{const d=document.createElement("div");d.className="sz"+(s===NO?" no":"");d.textContent=s;d.onclick=()=>{sel=s;[...sz.children].forEach(c=>c.classList.toggle("on",c===d));upd()};sz.appendChild(d)});
 nm.oninput=upd;
 go.onclick=async()=>{
  go.disabled=true;const name=nm.value.trim();
@@ -58,16 +59,16 @@ go.onclick=async()=>{
   if(!r.ok)throw 0;
   document.getElementById("form").style.display="none";
   document.getElementById("done").style.display="block";
-  document.getElementById("sum").textContent=name+" さん:サイズ "+sel;
+  document.getElementById("sum").textContent=name+" さん:"+(sel===NO?NO:"サイズ "+sel);
  }catch(e){go.disabled=false;alert("送信に失敗しました。もう一度お試しください。")}
 };
 // 管理者用: URLの末尾に #list を付けて開く
 async function load(){
  const o=await (await fetch(base+".json")).json()||{};
  const rows=Object.entries(o).map(([k,v])=>({k,...v})).sort((a,b)=>a.t-b.t);
- const cnt={};SIZES.forEach(s=>cnt[s]=0);rows.forEach(r=>{cnt[r.size]=(cnt[r.size]||0)+1});
+ const cnt={};[...SIZES,NO].forEach(s=>cnt[s]=0);rows.forEach(r=>{cnt[r.size]=(cnt[r.size]||0)+1});
  const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
- document.getElementById("adm").innerHTML='<div class="box"><b>📋 回答一覧(あなただけ用)</b> 合計 '+rows.length+' 人(色:黒)'
+ document.getElementById("adm").innerHTML='<div class="box"><b>📋 回答一覧(あなただけ用)</b> 回答 '+rows.length+' 人 / 注文 '+(rows.length-cnt[NO])+' 枚(色:黒)'
   +'<div class="tally" style="margin:10px 0">'+Object.entries(cnt).map(([s,n])=>`<span>${s}: ${n}</span>`).join("")+'</div>'
   +'<button class="sm" id="csv">CSVをダウンロード</button><button class="sm" id="rl">更新</button>'
   +'<table><tr><th>名前</th><th>サイズ</th><th></th></tr>'+rows.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.size)}</td><td><button class="sm d" data-k="${esc(r.k)}">削除</button></td></tr>`).join("")+'</table></div>';
