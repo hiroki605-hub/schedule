@@ -45,6 +45,7 @@ td.paid-cell{text-align:center}
 table.summary-table td.share{color:#7A5039}
 .calcbtn{margin-top:10px;background:#3F5833}
 #toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:#4A2E1F;color:#fff;padding:10px 18px;border-radius:20px;font-size:.9rem;opacity:0;transition:opacity .3s;pointer-events:none}
+.noord td{color:#8a7f72}.nobadge{display:inline-block;background:#E4D3AA;color:#7A5039;border-radius:20px;padding:2px 8px;font-size:.75rem;font-weight:700;white-space:nowrap}
 .ok{text-align:center;padding:30px 0}
 </style></head><body><main>
 <h1>👕 Tシャツ サイズ回答</h1>
@@ -121,11 +122,13 @@ function recalc(){
  const paid=ord.filter(r=>PAID[r.k]);
  const stale=SPLIT&&(SPLIT.n!==a.n||SPLIT.per!==a.per);
  const rowsHtml=ROWS.map(r=>{const o=r.size!==NO,pd=!!PAID[r.k];
-  return `<tr><td>${esc(r.name)}</td><td>${esc(r.size)}</td><td class="num">${o?yen(unit):"—"}</td><td class="num share">${o?yen(share):"—"}</td><td class="num">${o?"<strong>"+yen(per)+"</strong>":"—"}</td><td class="paid-cell">`
+  return `<tr${o?"":' class="noord"'}><td>${esc(r.name)}</td><td>${o?esc(r.size):'<span class="nobadge">注文しない</span>'}</td><td class="num">${o?yen(unit):"—"}</td><td class="num share">${o?yen(share):"—"}</td><td class="num">${o?"<strong>"+yen(per)+"</strong>":"—"}</td><td class="paid-cell">`
    +(o?`<button class="paid-toggle ${pd?"is-paid":"is-unpaid"}" data-k="${esc(r.k)}" data-n="${esc(r.name)}">${pd?"✔ 集金済み":"未収金"}</button>`:"—")
    +`</td><td><button class="sm d x" data-k="${esc(r.k)}">削除</button></td></tr>`}).join("");
  document.getElementById("calc").innerHTML=`<h3>先生別 集計</h3>`
-  +`<div class="cost-note">${[...SIZES,NO].map(x=>x+": "+cnt[x]).join(" / ")}</div>`
+  +`<div class="cost-note"><b>回答 ${ROWS.length} 人</b> = 注文 ${a.n} 人 + 注文しない ${cnt[NO]} 人</div>`
+  +`<div class="cost-note">${[...SIZES].map(x=>x+": "+cnt[x]).join(" / ")}</div>`
+  +(cnt[NO]?`<div class="cost-note">注文しない先生: ${ROWS.filter(r=>r.size===NO).map(r=>esc(r.name)).join("、")}</div>`:"")
   +`<div class="cost-note">版代+送料の合計 ${yen(fee)}(版代 ${yen(COST.plate)} + 送料 ${yen(COST.ship)})を、注文した ${a.n} 人で均等に割って下表に反映しています。1人 ${yen(a.share)}、<b>端数 ${yen(a.rem)}</b>。${SPLIT?"":" <b>※まだ「この内容で計算する」を押していません。</b>"}`
   +(stale?' <b style="color:#C4522A">⚠ 人数や金額が計算時から変わっています。もう一度「この内容で計算する」を押してください。</b>':"")+`</div>`
   +`<div style="overflow-x:auto"><table class="summary-table"><thead><tr><th>先生</th><th>サイズ</th><th class="num">Tシャツ代</th><th class="num">版代・送料</th><th class="num">お支払い合計</th><th>集金状況</th><th></th></tr></thead><tbody>${rowsHtml}</tbody>`
