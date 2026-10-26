@@ -343,13 +343,14 @@
     r_responses: [],
     r_loading: false,
     r_grading: {}, // responseId -> true while grading
-    r_batchRunning: false, // 一括採点の実行中フラグ
     r_selected: {}, // responseId -> true (削除用チェック状態)
     rubricGenerating: false,
     r_adviceBoard: [],
     r_visibleIds: [], // 直近の表示行のid一覧（全選択・全件削除に使用）
   };
 
+  // 数字として比較する（1,2,...,9,10 の順になる）
+  function numCmp(a,b){ return String(a==null?'':a).localeCompare(String(b==null?'':b),'ja',{numeric:true}); }
   function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
@@ -720,20 +721,6 @@
         </div>
       </div>`;
     }
-    if(m.kind === 'confirmRegrade'){
-      const sec = Math.round(m.ids.length*5.5);
-      const t = sec<60 ? sec+'秒' : Math.ceil(sec/60)+'分';
-      return `<div class="modal-overlay">
-        <div class="modal-card">
-          <h3>再採点しますか？</h3>
-          <p class="sub">${esc(m.message)}<br>所要時間の目安：約${t}（無料枠の制限のため1件ずつ採点します）。採点中はこの画面を閉じないでください。</p>
-          <div class="row" style="margin-top:14px;">
-            <button class="btn ghost" data-act="modal_cancel">あとで</button>
-            <button class="btn yellow" id="modalSubmitBtn" data-act="modal_confirm_regrade">再採点する</button>
-          </div>
-        </div>
-      </div>`;
-    }
     if(m.kind === 'confirmDeleteTemplate'){
       return `<div class="modal-overlay">
         <div class="modal-card">
@@ -766,6 +753,30 @@
           <div class="row" style="margin-top:14px;">
             <button class="btn ghost" data-act="modal_cancel">キャンセル</button>
             <button class="btn danger" data-act="modal_confirm_delete_class">削除する</button>
+          </div>
+        </div>
+      </div>`;
+    }
+    if(m.kind === 'viewResponse'){
+      const r = state.r_responses.find(x=>x.id===m.id);
+      const tpl = state.config.templates.find(t=>t.id===state.r_templateId);
+      if(!r || !tpl){ return ''; }
+      const box = 'white-space:pre-wrap; word-break:break-word; background:#f6f3ec; border-radius:10px; padding:10px 12px; font-size:14px; line-height:1.7; margin:0 0 14px;';
+      const refs = (tpl.reflections||[]).map(f=>`
+        <div style="font-size:12.5px; font-weight:700; margin-bottom:4px;">${esc(f.label||'感想')}</div>
+        <div style="${box}">${esc((r.reflections||{})[f.id]||'（未記入）')}</div>`).join('');
+      const advList = (Array.isArray(r.advices) && r.advices.length) ? r.advices : (r.advice && r.advice.fromEntry ? [r.advice] : []);
+      const advs = advList.length ? `<div style="font-size:12.5px; font-weight:700; margin:6px 0 4px;">アドバイスの記録</div>` + advList.map(a=>`
+        <div style="font-size:12px; color:var(--muted); margin-bottom:2px;">${esc(a.fromEntry||'-')}番の人へ</div>
+        <div style="${box}">${esc(a.content||'')}</div>`).join('') : '';
+      return `<div class="modal-overlay">
+        <div class="modal-card" style="max-width:560px; max-height:85vh; overflow-y:auto;">
+          <h3>${esc(r.grade||'')} ${esc(r.className)} ${esc(r.entry)}番の感想</h3>
+          <p class="sub">${r.aiScore ? 'AI採点：'+r.aiScore.total+'点' : '未採点'}</p>
+          ${refs}
+          ${advs}
+          <div class="row" style="margin-top:6px;">
+            <button class="btn ghost" data-act="modal_cancel">閉じる</button>
           </div>
         </div>
       </div>`;
@@ -1264,7 +1275,7 @@
     let rows = state.r_responses;
     if(state.r_gradeFilter!=='all') rows = rows.filter(r=>r.grade===state.r_gradeFilter);
     if(state.r_gradeFilter!=='all' && state.r_classFilter!=='all') rows = rows.filter(r=>r.className===state.r_classFilter);
-    rows = rows.slice().sort((a,b)=>(a.grade||'').localeCompare(b.grade||'') || a.className.localeCompare(b.className) || a.entry.localeCompare(b.entry,'ja'));
+    rows = rows.slice().sort((a,b)=> numCmp(a.grade,b.grade) || numCmp(a.className,b.className) || numCmp(a.entry,b.entry));
 
     state.r_visibleIds = rows.map(r=>r.id);
     const selectedCount = state.r_visibleIds.filter(id=>state.r_selected[id]).length;
@@ -1292,8 +1303,7 @@
     body += `<div class="card">
       <div class="row btn-row" style="margin-bottom:12px; align-items:center;">
         <div><strong>${rows.length}</strong> 件の回答（未採点 ${ungraded} 件・選択中 ${selectedCount} 件）</div>
-        <button class="btn yellow sm" data-act="grade_all" ${(ungraded===0||state.r_batchRunning)?'disabled':''}>未採点をまとめてAI採点</button>
-        <button class="btn ghost sm" data-act="regrade_visible" ${(rows.every(r=>!r.aiScore)||state.r_batchRunning)?'disabled':''}>表示中をまとめて再採点</button>
+        <button class="btn yellow sm" data-act="grade_all" ${ungraded===0?'disabled':''}>未採点をまとめてAI採点</button>
         <button class="btn ghost sm" data-act="export_csv">CSVダウンロード</button>
         <button class="btn danger sm" data-act="delete_selected" ${selectedCount===0?'disabled':''}>選択した回答を削除</button>
         <button class="btn danger sm" data-act="delete_all_filtered" ${rows.length===0?'disabled':''}>表示中を全件削除</button>
@@ -1320,7 +1330,7 @@
             <td data-label="クラス">${esc(r.className)}</td>
             <td data-label="出席番号">${esc(r.entry)}番</td>
             ${allRatingItems.map(rt=>`<td class="mono" data-label="${esc(rt.label)}" title="${esc(rt.label)}">${r.ratings[rt.id]||'-'}</td>`).join('')}
-            <td data-label="感想（抜粋）" style="max-width:140px;" title="${esc(Object.values(r.reflections)[0]||'')}">${esc(Object.values(r.reflections)[0]||'').slice(0,15)}…</td>
+            <td data-label="感想（抜粋）" style="max-width:140px; cursor:pointer; color:var(--navy,#1b2a4e); text-decoration:underline dotted;" data-act="view_resp" data-id="${r.id}" title="クリックで全文を表示">${esc(Object.values(r.reflections)[0]||'').slice(0,15)}…</td>
             <td data-label="AI採点（${maxAi}点満点）">${r.aiScore ? `<span class="mono">${r.aiScore.ai} / ${maxAi}</span>${(r.aiScore.level||'normal')!==curLevel ? `<div class="hint">※「${esc(GRADING_LEVELS[r.aiScore.level||'normal'].label.replace(/^\S+\s/,''))}」で採点</div>` : ''}` : '<span class="pending">未採点</span>'}</td>
             <td class="mono" data-label="文字数B（${maxBonus}点満点）">${r.aiScore ? `${r.aiScore.bonus} / ${maxBonus}` : '-'}</td>
             <td data-label="合計（${maxTotal}点満点）">${renderScoreCell(r, maxTotal)}</td>
@@ -1344,10 +1354,10 @@
       body += `<div class="card">
         <h2>🏅 アドバイス集計</h2>
         <p class="sub">表示中の回答の中で、誰が・何回アドバイスをして、内容がどれくらい具体的だったかの積み上げです（表示中のクラス・学年フィルタに連動します）</p>
-        ${board.length ? `
         <div class="row" style="margin-bottom:12px;">
           <button class="btn ghost sm" data-act="export_advice_csv">アドバイス集計をCSVダウンロード</button>
         </div>
+        ${board.length ? `
         <div style="overflow-x:auto;">
         <table class="mtable">
           <thead><tr>
@@ -1408,16 +1418,35 @@
         addOne(r, r.advice.fromEntry, score);
       }
     });
-    return Object.values(map).sort((a,b)=> (b.count+b.bonus) - (a.count+a.bonus));
+    return Object.values(map).sort((a,b)=> numCmp(a.grade,b.grade) || numCmp(a.className,b.className) || numCmp(a.entry,b.entry));
   }
 
   function exportAdviceCsv(){
     const tpl = state.config.templates.find(t=>t.id===state.r_templateId);
+    if(!tpl) return;
     const board = state.r_adviceBoard || [];
-    if(!tpl || board.length===0) return;
     const headers = ['学年','クラス','出席番号','アドバイス回数','具体性ボーナス合計','合計ポイント'];
     const lines = [headers.join(',')];
-    board.forEach(b=>{
+    const grade = tpl.targetGrade;
+    const classes = (state.r_classFilter!=='all' && state.r_gradeFilter!=='all')
+      ? [state.r_classFilter]
+      : (state.config.classesByGrade[grade] || []);
+    const used = new Set();
+    classes.forEach(cls=>{
+      const roster = (state.config.rosters[rosterKey(grade, cls)] || []).slice().sort(numCmp);
+      roster.forEach(num=>{
+        const b = board.find(x=>x.grade===grade && x.className===cls && String(x.entry)===String(num));
+        if(b){
+          used.add(b);
+          lines.push([grade, cls, num, b.count, b.bonus, b.count+b.bonus].join(','));
+        } else {
+          // アドバイスの記録が無い生徒は空欄の行にする
+          lines.push([grade, cls, num, '', '', ''].join(','));
+        }
+      });
+    });
+    // 名簿に載っていない番号の記録が万一あれば最後に追加
+    board.filter(b=>!used.has(b)).forEach(b=>{
       lines.push([b.grade||'', b.className, b.entry, b.count, b.bonus, b.count+b.bonus].join(','));
     });
     const blob = new Blob(["\uFEFF"+lines.join('\n')], {type:'text/csv'});
@@ -1576,7 +1605,7 @@ ${GRADING_LEVELS[getGradingLevel(tpl)].rules}
   async function gradeOne(id){
     const tpl = state.config.templates.find(t=>t.id===state.r_templateId);
     const resp = state.r_responses.find(r=>r.id===id);
-    if(!tpl || !resp || state.r_batchRunning) return;
+    if(!tpl || !resp) return;
     state.r_grading[id] = true; render();
     try{
       const score = await gradeResponse(tpl, resp);
@@ -1589,19 +1618,13 @@ ${GRADING_LEVELS[getGradingLevel(tpl)].rules}
     render();
   }
 
-  // 指定した回答idをまとめてAI採点する（未採点の採点にも、再採点にも使う）
-  async function gradeBatch(ids){
+  async function gradeAll(){
     const tpl = state.config.templates.find(t=>t.id===state.r_templateId);
-    if(!tpl || state.r_batchRunning) return;
-    const targets = ids.map(id=>state.r_responses.find(r=>r.id===id)).filter(Boolean);
-    if(targets.length===0) return;
-    state.r_batchRunning = true;
+    const targets = state.r_responses.filter(r=>!r.aiScore);
     let failCount = 0;
     let lastError = '';
-    for(let i=0; i<targets.length; i++){
-      const resp = targets[i];
+    for(const resp of targets){
       state.r_grading[resp.id] = true; render();
-      toast(`AI採点中… ${i+1} / ${targets.length}`);
       try{
         const score = await gradeResponse(tpl, resp);
         resp.aiScore = score;
@@ -1611,19 +1634,14 @@ ${GRADING_LEVELS[getGradingLevel(tpl)].rules}
         lastError = (e && e.message) ? e.message : '';
       }
       delete state.r_grading[resp.id];
-      if(i < targets.length-1) await new Promise(r=>setTimeout(r, 4200)); // Gemini無料枠のレート制限対策
+      await new Promise(r=>setTimeout(r, 4200)); // Gemini無料枠のレート制限対策
     }
-    state.r_batchRunning = false;
     render();
     if(failCount>0){
       toast(`AI採点が完了しました（${failCount}件失敗：${lastError.slice(0,40)}）`);
     } else {
       toast('AI採点が完了しました');
     }
-  }
-
-  async function gradeAll(){
-    await gradeBatch(state.r_responses.filter(r=>!r.aiScore).map(r=>r.id));
   }
 
   function exportCsv(){
@@ -1644,7 +1662,7 @@ ${GRADING_LEVELS[getGradingLevel(tpl)].rules}
       // 名簿の出席番号順に並べ、欠席などで回答が無い番号は空欄の行にして「飛び」を可視化する
       const roster = (state.config.rosters[rosterKey(grade, cls)] || [])
         .slice()
-        .sort((a,b)=> (parseInt(a,10)||0) - (parseInt(b,10)||0));
+        .sort(numCmp);
       roster.forEach(num=>{
         const r = state.r_responses.find(x=>x.grade===grade && x.className===cls && x.entry===num);
         if(r){
@@ -1796,22 +1814,9 @@ ${GRADING_LEVELS[getGradingLevel(tpl)].rules}
       case 'set_level_resp': {
         const t = state.config.templates.find(x=>x.id===state.r_templateId);
         if(!t) return;
-        if(state.r_batchRunning){ toast('AI採点中は厳しさを変更できません'); return; }
         t.gradingLevel = el.dataset.val;
-        const lvName = GRADING_LEVELS[t.gradingLevel].label.replace(/^\S+\s/,'');
-        try{ await saveConfig(); }
-        catch(e){ toast('保存に失敗しました'); render(); break; }
-        // 表示中の採点済みのうち、今の厳しさと違う基準で採点されたものがあれば、一括再採点を提案する
-        const staleIds = (state.r_visibleIds||[]).filter(id=>{
-          const r = state.r_responses.find(x=>x.id===id);
-          return r && r.aiScore && (r.aiScore.level||'normal') !== t.gradingLevel;
-        });
-        if(staleIds.length>0){
-          state.modal = {kind:'confirmRegrade', ids: staleIds,
-            message:`採点の厳しさを「${lvName}」にしました。表示中の採点済みのうち ${staleIds.length} 件は別の厳しさで採点されています。「${lvName}」で再採点しますか？`};
-        } else {
-          toast('採点の厳しさを「'+lvName+'」にしました');
-        }
+        try{ await saveConfig(); toast('採点の厳しさを「'+GRADING_LEVELS[t.gradingLevel].label.replace(/^\S+\s/,'')+'」にしました'); }
+        catch(e){ toast('保存に失敗しました'); }
         render(); break;
       }
       case 'toggle_advice_field':
@@ -1954,23 +1959,6 @@ ${GRADING_LEVELS[getGradingLevel(tpl)].rules}
         gradeOne(el.dataset.id); break;
       case 'grade_all':
         gradeAll(); break;
-      case 'regrade_visible': {
-        const ids = (state.r_visibleIds||[]).filter(id=>{
-          const r = state.r_responses.find(x=>x.id===id); return r && r.aiScore;
-        });
-        if(ids.length===0){ toast('再採点できる回答がありません'); return; }
-        const t = state.config.templates.find(x=>x.id===state.r_templateId);
-        const lvName = GRADING_LEVELS[getGradingLevel(t)].label.replace(/^\S+\s/,'');
-        state.modal = {kind:'confirmRegrade', ids,
-          message:`表示中の採点済み ${ids.length} 件を、現在の厳しさ「${lvName}」でまとめて再採点します。今ある点数は上書きされます。`};
-        render(); break;
-      }
-      case 'modal_confirm_regrade': {
-        const ids = state.modal.ids;
-        state.modal = null; render();
-        await gradeBatch(ids);
-        break;
-      }
       case 'export_csv':
         exportCsv(); break;
       case 'export_advice_csv':
@@ -1983,6 +1971,9 @@ ${GRADING_LEVELS[getGradingLevel(tpl)].rules}
         state.r_visibleIds.forEach(id=>{ state.r_selected[id] = shouldSelect; });
         render(); break;
       }
+      case 'view_resp':
+        state.modal = {kind:'viewResponse', id: el.dataset.id};
+        render(); break;
       case 'delete_one_resp':
         state.modal = {kind:'confirmDeleteResponses', ids:[el.dataset.id], label:'この回答'};
         render(); break;
