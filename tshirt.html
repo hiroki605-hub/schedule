@@ -114,7 +114,7 @@ go.onclick=async()=>{
 // ===== 共通 =====
 let COST={plate:0,unit:0,ship:0,round:1},SPLIT=null,PAID={},ROWS=[];
 const orderers=()=>ROWS.filter(r=>!r.no);
-// 版代+送料は「注文した先生の人数」で均等に割る(全員同じ金額・割り切れない分は端数)。Tシャツ代は枚数ぶん。
+// 消費税+送料は「注文した先生の人数」で均等に割る(全員同じ金額・割り切れない分は端数)。Tシャツ代は枚数ぶん。
 function prev(){
  const ord=orderers(),n=ord.length,q=ord.reduce((a,r)=>a+r.qty,0),u=COST.round||1,fee=COST.plate+COST.ship;
  if(!n)return{n:0,q:0,share:0,rem:0,fee};
@@ -150,9 +150,9 @@ function recalc(){
   +`<div class="cost-note"><b>回答 ${ROWS.length} 人</b> = 注文 ${a.n} 人(${qAll} 枚)+ 注文しない ${noN} 人</div>`
   +`<div class="cost-note">${SIZES.map(x=>x+": "+cnt[x]).join(" / ")}</div>`
   +(noN?`<div class="cost-note">注文しない先生: ${ROWS.filter(r=>r.no).map(r=>esc(r.name)).join("、")}</div>`:"")
-  +`<div class="cost-note">版代+送料の合計 ${yen(fee)}(版代 ${yen(COST.plate)} + 送料 ${yen(COST.ship)})を、注文した ${a.n} 人で均等に割ります(枚数に関係なく1人同額)。1人 ${yen(a.share)}、<b>端数 ${yen(a.rem)}</b>。Tシャツ代は1枚 ${yen(COST.unit)} × 枚数です。${SPLIT?"":" <b>※まだ「この内容で計算する」を押していません。</b>"}`
+  +`<div class="cost-note">消費税+送料の合計 ${yen(fee)}(消費税 ${yen(COST.plate)} + 送料 ${yen(COST.ship)})を、注文した ${a.n} 人で均等に割ります(枚数に関係なく1人同額)。1人 ${yen(a.share)}、<b>端数 ${yen(a.rem)}</b>。Tシャツ代は1枚 ${yen(COST.unit)} × 枚数です。${SPLIT?"":" <b>※まだ「この内容で計算する」を押していません。</b>"}`
   +(stale?' <b style="color:#C4522A">⚠ 人数や金額が計算時から変わっています。もう一度「この内容で計算する」を押してください。</b>':"")+`</div>`
-  +`<div style="overflow-x:auto"><table class="summary-table"><thead><tr><th>先生</th><th>サイズ・枚数</th><th class="num">Tシャツ代</th><th class="num">版代・送料</th><th class="num">お支払い合計</th><th>集金状況</th><th>操作</th></tr></thead><tbody>${rowsHtml}</tbody>`
+  +`<div style="overflow-x:auto"><table class="summary-table"><thead><tr><th>先生</th><th>サイズ・枚数</th><th class="num">Tシャツ代</th><th class="num">消費税・送料</th><th class="num">お支払い合計</th><th>集金状況</th><th>操作</th></tr></thead><tbody>${rowsHtml}</tbody>`
   +`<tfoot><tr><td><strong>合計</strong></td><td>${qAll}枚</td><td class="num"><strong>${yen(unit*qAll)}</strong></td><td class="num"><strong>${yen(share*n)}</strong></td><td class="num"><strong>${yen(unit*qAll+share*n)}</strong></td><td></td><td></td></tr>`
   +`<tr><td>端数</td><td></td><td></td><td class="num">${yen(rem)}</td><td></td><td></td><td></td></tr></tfoot></table></div>`
   +`<div class="cost-note" style="margin-top:10px">✔ 集金済み <b>${paid.length}</b> 人 ${yen(sum(paid))} ／ 未収金 <b>${unpaid.length}</b> 人 ${yen(sum(unpaid))}</div>`;
@@ -180,9 +180,9 @@ async function calcSave(){
 }
 function initAdmin(){
  document.getElementById("form").style.display="none";
- document.getElementById("adm").innerHTML=back+`<div class="summary-box"><h3>版代・送料を分担する</h3>
-  <div class="split-row"><input id="c_plate" type="number" inputmode="numeric" min="0" placeholder="版代(円)"><input id="c_unit" type="number" inputmode="numeric" min="0" placeholder="Tシャツ1枚(円)"><input id="c_ship" type="number" inputmode="numeric" min="0" placeholder="送料(円)"></div>
-  <div class="cost-note" style="margin:8px 0 12px">版代 + 送料を、Tシャツを注文した先生方で均等に割ります(「注文しない」の先生は含みません)。Tシャツ代は枚数ぶんかかります。</div>
+ document.getElementById("adm").innerHTML=back+`<div class="summary-box"><h3>消費税・送料を分担する</h3>
+  <div class="split-row"><input id="c_plate" type="number" inputmode="numeric" min="0" placeholder="消費税(円)"><input id="c_unit" type="number" inputmode="numeric" min="0" placeholder="Tシャツ1枚(円)"><input id="c_ship" type="number" inputmode="numeric" min="0" placeholder="送料(円)"></div>
+  <div class="cost-note" style="margin:8px 0 12px">消費税 + 送料を、Tシャツを注文した先生方で均等に割ります(「注文しない」の先生は含みません)。Tシャツ代は枚数ぶんかかります。</div>
   <label class="field-label">分担方法</label>
   <select id="c_round"><option value="1">注文した先生で均等に割る(1円単位・端数は別に表示)</option><option value="10">注文した先生で均等に割る(10円単位・端数は別に表示)</option><option value="100">注文した先生で均等に割る(100円単位・端数は別に表示)</option></select>
   <button id="calcbtn" class="calcbtn">この内容で計算する</button></div>
@@ -206,10 +206,10 @@ function recalcPay(){
  const amt=r=>r.qty*src.unit+(SPLIT?SPLIT.share:0);
  const paid=ord.filter(r=>PAID[r.k]),unpaid=ord.filter(r=>!PAID[r.k]);
  const sum=l=>l.reduce((s,r)=>s+amt(r),0);
- let h=`注文 <b>${n} 人 / ${q} 枚</b>(色:黒)<hr>Tシャツ1枚: ${yen(src.unit)}<br>版代: ${yen(src.plate)}<br>送料: ${yen(src.ship)}<hr>`;
+ let h=`注文 <b>${n} 人 / ${q} 枚</b>(色:黒)<hr>Tシャツ1枚: ${yen(src.unit)}<br>消費税: ${yen(src.plate)}<br>送料: ${yen(src.ship)}<hr>`;
  if(SPLIT){
-  h+=`版代+送料 ${yen(src.plate+src.ship)} を ${SPLIT.n} 人で割ると<br><b>${yen(SPLIT.share)}</b> /人(端数 <b>${yen(SPLIT.rem)}</b>)<hr>`
-   +`お支払い = Tシャツ代(1枚 ${yen(src.unit)} × 枚数)+ 版代・送料 ${yen(SPLIT.share)}<hr>✔ 集金済み <b>${paid.length}</b> 人 ${yen(sum(paid))} ／ 未収金 <b>${unpaid.length}</b> 人 ${yen(sum(unpaid))}`;
+  h+=`消費税+送料 ${yen(src.plate+src.ship)} を ${SPLIT.n} 人で割ると<br><b>${yen(SPLIT.share)}</b> /人(端数 <b>${yen(SPLIT.rem)}</b>)<hr>`
+   +`お支払い = Tシャツ代(1枚 ${yen(src.unit)} × 枚数)+ 消費税・送料 ${yen(SPLIT.share)}<hr>✔ 集金済み <b>${paid.length}</b> 人 ${yen(sum(paid))} ／ 未収金 <b>${unpaid.length}</b> 人 ${yen(sum(unpaid))}`;
  }else h+='<b>※ お一人あたりの金額は、人数が確定してからお知らせします。</b>';
  document.getElementById("calc").innerHTML=h;
  document.getElementById("lst").innerHTML=`<div class="summary-box" style="padding:0;margin:0"><h3 style="margin-top:0">先生別 集計</h3><table class="summary-table"><thead><tr><th>先生</th><th class="num">枚数</th><th class="num">お支払い</th><th>集金状況</th></tr></thead><tbody>${ord.map(r=>`<tr><td>${esc(r.name)} 先生</td><td class="num">${r.qty}</td><td class="num">${SPLIT?yen(amt(r)):"—"}</td><td class="paid-cell"><span class="paid-toggle ${PAID[r.k]?"is-paid":"is-unpaid"}" style="cursor:default">${PAID[r.k]?"✔ 集金済み":"未収金"}</span></td></tr>`).join("")}</tbody><tfoot><tr><td><b>合計</b></td><td class="num"><b>${q}</b></td><td class="num"><b>${SPLIT?yen(sum(ord)):"—"}</b></td><td></td></tr></tfoot></table></div>`;
