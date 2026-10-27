@@ -95,7 +95,7 @@ function initApp(){
   var db=firebase.database(fbApp);
   var auth=firebase.auth(fbApp);
   var teacherUnlocked=false;
-  var DB={classes:[],students:{},scores:{},history:{}};
+  var DB={classes:[],students:{},scores:{},history:{},settings:{}};
 
   function syncBar(type,msg){var b=document.getElementById('syncBar');b.textContent=msg;b.className=type;}
   function dbSet(path,val,cb){db.ref('mat1/'+path).set(val,cb||function(){});}
@@ -203,6 +203,29 @@ function initApp(){
     var rules=gradeRules(yr,g);
     for(var i=0;i<rules.length;i++){if(t>=rules[i][1])return rules[i][0];}
     return rules[rules.length-1][0];
+  }
+  // ─── 主体的に取り組む態度（挑戦回数の5段階評価） ───
+  // クラス内の「上位top%の人」の挑戦回数を基準(100%)とし、その何%かで5〜1点をつける
+  var ATT_DEFAULT={top:10,t5:80,t4:60,t3:40,t2:20};
+  function attCfg(){
+    var c=(DB.settings&&DB.settings.attitude)||{};
+    var r={};Object.keys(ATT_DEFAULT).forEach(function(k){var v=Number(c[k]);r[k]=(isFinite(v)&&c[k]!==undefined&&c[k]!==null)?v:ATT_DEFAULT[k];});
+    return r;
+  }
+  function studentAttempts(s){return totalAttempts(s.id,SKILLS[gradeFromCls(s.cls)]);}
+  function classRefAttempts(cls){
+    var cfg=attCfg();
+    var arr=getStudents().filter(function(x){return x.cls===cls;}).map(studentAttempts).sort(function(a,b){return b-a;});
+    if(!arr.length)return 0;
+    var idx=Math.max(0,Math.ceil(arr.length*cfg.top/100)-1);
+    return arr[Math.min(idx,arr.length-1)];
+  }
+  function attitudePts(s){
+    var n=studentAttempts(s);
+    var ref=classRefAttempts(s.cls);
+    if(n<=0||ref<=0)return 1;
+    var cfg=attCfg();var ratio=n/ref*100;
+    if(ratio>=cfg.t5)return 5;if(ratio>=cfg.t4)return 4;if(ratio>=cfg.t3)return 3;if(ratio>=cfg.t2)return 2;return 1;
   }
   function maxSkillCount(){return Math.max(SKILLS[1].length,SKILLS[2].length,SKILLS[3].length);}
   function uniq(arr){var s={},r=[];arr.forEach(function(v){if(!s[v]){s[v]=1;r.push(v);}});return r;}
@@ -582,6 +605,24 @@ function initApp(){
       +'</div></div>';
   }
 
+  function renderAttitudePanel(){
+    var c=attCfg();
+    function inp(k,w){return '<input type="number" min="1" max="100" value="'+c[k]+'" onchange="setAttCfg(\''+k+'\',this.value)" style="width:'+(w||56)+'px;padding:3px 6px;font-size:12px;text-align:center">';}
+    var refs=uniq(getStudents().map(function(x){return x.cls;})).sort().map(function(cl){return cl+'＝'+classRefAttempts(cl)+'回';}).join('　');
+    return '<div style="background:#f8faff;border:1px solid #dde4f8;border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:#444;line-height:2">'
+      +'<b>🙋 主体的に取り組む態度（挑戦回数→5段階）</b><br>'
+      +'クラス内の上位 '+inp('top')+' %の人の挑戦回数を基準(100%)とし、'
+      +'基準の '+inp('t5')+' %以上＝5点／'+inp('t4')+' %以上＝4点／'+inp('t3')+' %以上＝3点／'+inp('t2')+' %以上＝2点／それ未満・0回＝1点<br>'
+      +'<span style="color:#888">現在の基準回数：'+(refs||'―')+'　（クラスの人数や挑戦回数に合わせて自動で変わります）</span>'
+      +'</div>';
+  }
+  window.setAttCfg=function(k,v){
+    var n=Number(v);
+    if(!isFinite(n)||n<1||n>100){uiAlert("1〜100の数字を入力してください");render({keepScroll:true});return;}
+    var c=attCfg();c[k]=n;
+    if(!(c.t5>c.t4&&c.t4>c.t3&&c.t3>c.t2)){uiAlert("5点→2点の割合は、大きい順（例：80 > 60 > 40 > 20）になるようにしてください");render({keepScroll:true});return;}
+    dbSet('settings/attitude',c);
+  };
   function renderModals(mode){
     var html="";
     // 一括追加
@@ -668,6 +709,7 @@ function initApp(){
           +'<td style="text-align:center;padding:5px 8px;border-right:1px solid #f0ede6"><span style="'+gcS+';padding:2px 10px;border-radius:6px;font-weight:700;font-size:13px">'+grade+'</span></td>'
           +'<td style="text-align:center;padding:5px 8px;font-size:14px;font-weight:700;border-right:1px solid #f0ede6">'+(GRADE_POINT[grade]||'')+'<span style="font-size:10px;color:#888;font-weight:400">点</span></td>'
           +'<td style="text-align:center;padding:5px 8px;font-size:12px;color:#666">'+totalAttempts(s.id,skills)+'回</td>'
+          +'<td style="text-align:center;padding:5px 8px;font-size:14px;font-weight:700">'+attitudePts(s)+'<span style="font-size:10px;color:#888;font-weight:400">点</span></td>'
           +'</tr>';
       });
       var skillHeaders="";
@@ -686,6 +728,7 @@ function initApp(){
         +'<select onchange="setRankingFilter(this.value)" style="width:auto">'+rClsOpts+'</select>'
         +'<span style="font-size:12px;color:#888">'+rList.length+'人</span>'
         +'</div>'
+        +renderAttitudePanel()
         +'<div style="overflow-x:auto">'
         +'<table style="border-collapse:collapse;width:100%;font-size:12px">'
         +'<thead><tr style="background:#f0f4ff;border-bottom:2px solid #dde4f8">'
@@ -696,7 +739,8 @@ function initApp(){
         +'<th style="padding:6px 8px;text-align:center;border-right:1px solid #dde4f8">合計</th>'
         +'<th style="padding:6px 8px;text-align:center;border-right:1px solid #dde4f8">評価</th>'
         +'<th style="padding:6px 8px;text-align:center;border-right:1px solid #dde4f8;white-space:nowrap">評価点<div style="font-size:9px;font-weight:400;color:#888">A+=6</div></th>'
-        +'<th style="padding:6px 8px;text-align:center;white-space:nowrap">総挑戦回数</th>'
+        +'<th style="padding:6px 8px;text-align:center;white-space:nowrap;border-right:1px solid #dde4f8">総挑戦回数</th>'
+        +'<th style="padding:6px 8px;text-align:center;white-space:nowrap">態度点<div style="font-size:9px;font-weight:400;color:#888">5段階</div></th>'
         +'</tr></thead>'
         +'<tbody>'+tableRows+'</tbody>'
         +'</table></div>'
@@ -878,7 +922,7 @@ function initApp(){
     var sampleSkills=[SKILLS[1],SKILLS[2],SKILLS[3]].sort(function(a,b){return b.length-a.length;})[0];
     var headers=["クラス","出席番号","性別"];
     sampleSkills.forEach(function(sk,i){headers.push((i+1)+"."+sk.name);headers.push((i+1)+".挑戦回数");});
-    headers.push("合計点","評価","評価点(A+=6・A=5・B+=4・B=3・C=2・D=1)","総挑戦回数");
+    headers.push("合計点","評価","評価点(A+=6・A=5・B+=4・B=3・C=2・D=1)","総挑戦回数","態度点(挑戦回数・5段階)");
     var rows=[headers];
     classesToExport.forEach(function(cls){
       // 出席番号順に並べ、欠席などで登録・記録が無い番号は空欄の行にして「飛び」を可視化する
@@ -905,11 +949,11 @@ function initApp(){
             row.push(att||"");
           });
           for(var pi=skills.length;pi<sampleSkills.length;pi++){row.push("");row.push("");}
-          row.push(total,grade,GRADE_POINT[grade]||"",totalAttempts(s.id,skills));rows.push(row);
+          row.push(total,grade,GRADE_POINT[grade]||"",totalAttempts(s.id,skills),attitudePts(s));rows.push(row);
         }else{
           var blankRow=[cls,String(n),""];
           sampleSkills.forEach(function(){blankRow.push("");blankRow.push("");});
-          blankRow.push("","","","");
+          blankRow.push("","","","","");
           rows.push(blankRow);
         }
       }
@@ -926,7 +970,7 @@ function initApp(){
   // Firebase監視
   db.ref('mat1').on('value',function(snap){
     var val=snap.val()||{};
-    DB.classes=val.classes||[];DB.students=val.students||{};DB.scores=val.scores||{};DB.history=val.history||{};
+    DB.classes=val.classes||[];DB.students=val.students||{};DB.scores=val.scores||{};DB.history=val.history||{};DB.settings=val.settings||{};
     if(S.selId)S.tScores=DB.scores[S.selId]||{};
     syncBar('ok','✅ リアルタイム同期中');
     if(S.page==='teacher'||S.page==='stuview')render({keepScroll:true});
