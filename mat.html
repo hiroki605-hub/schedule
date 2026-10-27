@@ -706,6 +706,7 @@ function initApp(){
           +'<td style="text-align:center;padding:5px 8px;font-size:14px;font-weight:700;border-right:1px solid #f0ede6">'+(GRADE_POINT[grade]||'')+'<span style="font-size:10px;color:#888;font-weight:400">点</span></td>'
           +'<td style="text-align:center;padding:5px 8px;font-size:12px;color:#666">'+totalAttempts(s.id,skills)+'回</td>'
           +'<td style="text-align:center;padding:5px 8px;font-size:14px;font-weight:700">'+attitudePts(s)+'<span style="font-size:10px;color:#888;font-weight:400">点</span></td>'
+          +'<td style="text-align:center;padding:5px 8px;font-size:14px;font-weight:700;'+(skills.length>0&&done===skills.length?'color:#1e6b2e':'color:#bbb')+'">'+(skills.length>0&&done===skills.length?1:0)+'<span style="font-size:10px;color:#888;font-weight:400">/1点</span></td>'
           +'</tr>';
       });
       var skillHeaders="";
@@ -736,7 +737,8 @@ function initApp(){
         +'<th style="padding:6px 8px;text-align:center;border-right:1px solid #dde4f8">評価</th>'
         +'<th style="padding:6px 8px;text-align:center;border-right:1px solid #dde4f8;white-space:nowrap">評価点<div style="font-size:9px;font-weight:400;color:#888">A+=6</div></th>'
         +'<th style="padding:6px 8px;text-align:center;white-space:nowrap;border-right:1px solid #dde4f8">総挑戦回数</th>'
-        +'<th style="padding:6px 8px;text-align:center;white-space:nowrap">態度点<div style="font-size:9px;font-weight:400;color:#888">5段階</div></th>'
+        +'<th style="padding:6px 8px;text-align:center;white-space:nowrap;border-right:1px solid #dde4f8">態度点<div style="font-size:9px;font-weight:400;color:#888">5段階</div></th>'
+        +'<th style="padding:6px 8px;text-align:center;white-space:nowrap">全種目挑戦<div style="font-size:9px;font-weight:400;color:#888">1点満点</div></th>'
         +'</tr></thead>'
         +'<tbody>'+tableRows+'</tbody>'
         +'</table></div>'
@@ -918,7 +920,7 @@ function initApp(){
     var sampleSkills=[SKILLS[1],SKILLS[2],SKILLS[3]].sort(function(a,b){return b.length-a.length;})[0];
     var headers=["クラス","出席番号","性別"];
     sampleSkills.forEach(function(sk,i){headers.push((i+1)+"."+sk.name);headers.push((i+1)+".挑戦回数");});
-    headers.push("合計点","評価","評価点(A+=6・A=5・B+=4・B=3・C=2・D=1)","総挑戦回数","態度点(挑戦回数・学年内で5段階)");
+    headers.push("合計点","評価","評価点(A+=6・A=5・B+=4・B=3・C=2・D=1)","総挑戦回数","態度点(挑戦回数・学年内で5段階)","全種目挑戦(1点満点)");
     var rows=[headers];
     classesToExport.forEach(function(cls){
       // 出席番号順に並べ、欠席などで登録・記録が無い番号は空欄の行にして「飛び」を可視化する
@@ -945,11 +947,11 @@ function initApp(){
             row.push(att||"");
           });
           for(var pi=skills.length;pi<sampleSkills.length;pi++){row.push("");row.push("");}
-          row.push(total,grade,GRADE_POINT[grade]||"",totalAttempts(s.id,skills),attitudePts(s));rows.push(row);
+          row.push(total,grade,GRADE_POINT[grade]||"",totalAttempts(s.id,skills),attitudePts(s),(skills.length>0&&skills.every(function(sk){return sc[sk.id];}))?1:0);rows.push(row);
         }else{
           var blankRow=[cls,String(n),""];
           sampleSkills.forEach(function(){blankRow.push("");blankRow.push("");});
-          blankRow.push("","","","","");
+          blankRow.push("","","","","","");
           rows.push(blankRow);
         }
       }
