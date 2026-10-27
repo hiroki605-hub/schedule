@@ -204,6 +204,7 @@ function initApp(){
     for(var i=0;i<rules.length;i++){if(t>=rules[i][1])return rules[i][0];}
     return rules[rules.length-1][0];
   }
+  function maxSkillCount(){return Math.max(SKILLS[1].length,SKILLS[2].length,SKILLS[3].length);}
   function uniq(arr){var s={},r=[];arr.forEach(function(v){if(!s[v]){s[v]=1;r.push(v);}});return r;}
 
   // ─── 挑戦回数（履歴）関連 ───
@@ -656,6 +657,7 @@ function initApp(){
           var triesTxt=att?'<div style="font-size:9px;color:#aaa;line-height:1.2">'+att+'回</div>':'';
           skillCells+='<td style="text-align:center;padding:4px 5px;font-size:11px;border-right:1px solid #f0ede6;'+(cur?'':'color:#ccc')+'">'+cellTxt+triesTxt+'</td>';
         });
+        for(var pi=skills.length;pi<maxSkillCount();pi++){skillCells+='<td style="border-right:1px solid #f0ede6"></td>';}
         var gcS=gcStyle(grade);
         tableRows+='<tr style="border-bottom:1px solid #f0ede6;'+(done===skills.length?'background:#f5f8ff':'')+'">'
           +'<td style="padding:5px 8px;font-size:12px;white-space:nowrap;border-right:1px solid #f0ede6">'+s.cls+'</td>'
@@ -664,11 +666,12 @@ function initApp(){
           +skillCells
           +'<td style="text-align:center;padding:5px 8px;font-size:14px;font-weight:700;border-right:1px solid #f0ede6">'+total+'</td>'
           +'<td style="text-align:center;padding:5px 8px;border-right:1px solid #f0ede6"><span style="'+gcS+';padding:2px 10px;border-radius:6px;font-weight:700;font-size:13px">'+grade+'</span></td>'
+          +'<td style="text-align:center;padding:5px 8px;font-size:14px;font-weight:700;border-right:1px solid #f0ede6">'+(GRADE_POINT[grade]||'')+'<span style="font-size:10px;color:#888;font-weight:400">点</span></td>'
           +'<td style="text-align:center;padding:5px 8px;font-size:12px;color:#666">'+totalAttempts(s.id,skills)+'回</td>'
           +'</tr>';
       });
       var skillHeaders="";
-      SKILLS[1].forEach(function(sk,i){
+      Array.apply(null,Array(maxSkillCount())).forEach(function(_,i){
         skillHeaders+='<th style="padding:5px 4px;font-size:10px;white-space:nowrap;border-right:1px solid #e0dbd0;font-weight:600;color:#888">'+(i+1)+'</th>';
       });
       html+='<div class="modal-overlay" onclick="if(event.target===this)closeRankingModal()">'
@@ -692,6 +695,7 @@ function initApp(){
         +skillHeaders
         +'<th style="padding:6px 8px;text-align:center;border-right:1px solid #dde4f8">合計</th>'
         +'<th style="padding:6px 8px;text-align:center;border-right:1px solid #dde4f8">評価</th>'
+        +'<th style="padding:6px 8px;text-align:center;border-right:1px solid #dde4f8;white-space:nowrap">評価点<div style="font-size:9px;font-weight:400;color:#888">A+=6</div></th>'
         +'<th style="padding:6px 8px;text-align:center;white-space:nowrap">総挑戦回数</th>'
         +'</tr></thead>'
         +'<tbody>'+tableRows+'</tbody>'
@@ -871,7 +875,7 @@ function initApp(){
   window.downloadCSV=function(){
     var students=getStudents();
     var classesToExport=S.rankingFilterCls==="all"?uniq(students.map(function(s){return s.cls;})):[S.rankingFilterCls];
-    var sampleSkills=SKILLS[1];
+    var sampleSkills=[SKILLS[1],SKILLS[2],SKILLS[3]].sort(function(a,b){return b.length-a.length;})[0];
     var headers=["クラス","出席番号","性別"];
     sampleSkills.forEach(function(sk,i){headers.push((i+1)+"."+sk.name);headers.push((i+1)+".挑戦回数");});
     headers.push("合計点","評価","評価点(A+=6・A=5・B+=4・B=3・C=2・D=1)","総挑戦回数");
@@ -900,6 +904,7 @@ function initApp(){
             row.push(cur?gradeLabel(cur.grade):"");
             row.push(att||"");
           });
+          for(var pi=skills.length;pi<sampleSkills.length;pi++){row.push("");row.push("");}
           row.push(total,grade,GRADE_POINT[grade]||"",totalAttempts(s.id,skills));rows.push(row);
         }else{
           var blankRow=[cls,String(n),""];
