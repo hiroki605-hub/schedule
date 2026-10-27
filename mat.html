@@ -206,9 +206,11 @@ function initApp(){
   }
   // ─── 主体的に取り組む態度（挑戦回数の5段階評価） ───
   // 同じ学年の全クラスの生徒を挑戦回数の多い順に並べ、上位20%ごとに5〜1点をつける（0回は1点）
-  var ATT_DEFAULT={p5:20,p4:40,p3:60,p2:80};  // 上位から何%までがその点か（累計）
+  var ATT_DEFAULT={p5:20,p4:40,p3:60,p2:80};
+  // クラウド(Firebase)に保存できなかった場合の予備（この端末内に保存）
+  var ATT_LOCAL=(function(){try{return JSON.parse(localStorage.getItem("matAtt2")||"null");}catch(e){return null;}})();  // 上位から何%までがその点か（累計）
   function attCfg(){
-    var c=(DB.settings&&DB.settings.attitude2)||{};
+    var c=(DB.settings&&DB.settings.attitude2)||ATT_LOCAL||{};
     var r={};Object.keys(ATT_DEFAULT).forEach(function(k){var v=Number(c[k]);r[k]=(c[k]!==undefined&&c[k]!==null&&isFinite(v))?v:ATT_DEFAULT[k];});
     return r;
   }
@@ -614,10 +616,21 @@ function initApp(){
   }
   window.setAttCfg=function(k,v){
     var n=Number(v);
-    if(!isFinite(n)||n<1||n>100){uiAlert("1〜100の数字を入力してください");render({keepScroll:true});return;}
+    if(v===""||!isFinite(n)||n<1||n>100){uiAlert("1〜100の数字を入力してください");render({keepScroll:true});return;}
     var c=attCfg();c[k]=n;
-    if(!(c.p5<c.p4&&c.p4<c.p3&&c.p3<c.p2&&c.p2<=100)){uiAlert("小さい順（例：20 < 40 < 60 < 80）になるようにしてください");render({keepScroll:true});return;}
-    dbSet('settings/attitude2',c);
+    if(!(c.p5<c.p4&&c.p4<c.p3&&c.p3<c.p2&&c.p2<=100)){
+      uiAlert("区切りは小さい順（例：20 → 40 → 60 → 80）にしてください。\n大きく変えたいときは、先に右側（大きい数字）から変えると入力できます。");
+      render({keepScroll:true});return;
+    }
+    ATT_LOCAL=c;  // 先にこの端末で反映
+    try{localStorage.setItem("matAtt2",JSON.stringify(c));}catch(e){}
+    render({keepScroll:true});
+    dbSet('settings/attitude2',c,function(err){
+      if(err){
+        console.error('設定の保存失敗',err);
+        uiAlert("⚠️ 設定をFirebase（クラウド）に保存できませんでした。\nこの端末では変更が反映されていますが、他の端末や再読み込み後に残らない場合があります。\n（Firebaseのルールで「mat1/settings」への書き込みを許可すると保存できます）");
+      }
+    });
   };
   function renderModals(mode){
     var html="";
