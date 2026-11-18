@@ -298,6 +298,8 @@
       <div class="hint" style="margin:0;flex:1;min-width:280px;">職員用（B4横で印刷）。学校行事・進路関係・給食・校時をすべて表示します。12月+1月で1ページ、2月+3月で1ページに収まるよう自動調整されます。右のボタンで<b>「1か月ずつB4縦」</b>（12・1・2・3月を1枚ずつ、計4枚）にも切り替えられます。</div>
       <div class="month-switch layout-switch"></div>
       <button class="btn secondary" id="btnB4Staff" onclick="toggleB4Preview('staff')">🔍 B4 100%表示で確認</button>
+      <button class="btn secondary" id="btnCsvStaff" onclick="downloadStaffCSV()">📄 CSVダウンロード</button>
+      <button class="btn secondary" id="btnPdfStaff" onclick="downloadStaffPDF()">📥 PDFダウンロード</button>
       <button class="btn" id="btnPrintStaff" onclick="printPanel('staff')">🖨 このページを印刷（B4横）</button>
     </div>
     <div class="sheet" id="staffSheet"></div>
@@ -310,6 +312,21 @@
       <div class="month-switch layout-switch"></div>
       <button class="btn secondary" id="btnB4Student" onclick="toggleB4Preview('student')">🔍 B4 100%表示で確認</button>
       <button class="btn" id="btnPrintStudent" onclick="printPanel('student')">🖨 このページを印刷（B4横）</button>
+    </div>
+    <div class="rte-toolbar" id="stuToolbar">
+      <span class="lbl">選択した文字に適用：</span>
+      <button type="button" class="b-bold" id="btnSBold">B 太字</button>
+      <button type="button" id="btnSFontSmaller" title="選択部分の文字を小さく">A－</button>
+      <button type="button" id="btnSFontBigger" title="選択部分の文字を大きく">A＋</button>
+      <div class="divider"></div>
+      <button type="button" class="c-swatch" data-scolor="#1f2d3d" style="background:#1f2d3d" title="黒"></button>
+      <button type="button" class="c-swatch" data-scolor="#c0392b" style="background:#c0392b" title="赤"></button>
+      <button type="button" class="c-swatch" data-scolor="#1f5fae" style="background:#1f5fae" title="青"></button>
+      <button type="button" class="c-swatch" data-scolor="#2f7d4f" style="background:#2f7d4f" title="緑"></button>
+      <button type="button" class="c-swatch" data-scolor="#d2691e" style="background:#d2691e" title="橙"></button>
+      <button type="button" class="c-swatch" data-scolor="#7d3c98" style="background:#7d3c98" title="紫"></button>
+      <button type="button" class="c-swatch" data-scolor="#c2185b" style="background:#c2185b" title="ピンク"></button>
+      <span class="lbl" style="margin-left:8px;">※変えたい文字をドラッグで選択してから押してください</span>
     </div>
     <div class="sheet" id="studentSheet"></div>
   </div>
@@ -332,7 +349,12 @@
           <button type="button" id="btnIntRowHUp" style="border:none;background:none;font-size:15px;font-weight:900;cursor:pointer;padding:0 4px;">＋</button>
         </span>
         <span class="status-msg" id="interviewStatus"></span>
-        <button class="btn secondary" onclick="printInterview()">🖨 調整表を印刷</button>
+        <span class="pill" id="intPrintMonths">印刷する月：
+          <label><input type="checkbox" value="12"> 12月</label>
+          <label><input type="checkbox" value="1"> 1月</label>
+          <label><input type="checkbox" value="2"> 2月</label>
+        </span>
+        <button class="btn secondary" onclick="printInterview()">🖨 調整表を印刷（A4縦）</button>
       </div>
     </div>
     <div class="interview-legend">○＝面接可　×＝不可　／＝対象外（土日・校時0〜4は自動）</div>
@@ -370,7 +392,7 @@
       </ol>
       <h3>募集要項と「高校別出願日」欄</h3>
       <ol>
-        <li>「⑤ 募集要項」で読み取った日付（事前登録・出願・追試験など）は、①②③の<b>「高校別出願日」欄</b>に高校名つきで自動的に入ります。「進路関係」欄とは別なので、手入力の内容と混ざりません。</li>
+        <li>「⑤ 募集要項」で読み取った日付（事前登録・出願・追試験など）は、①②の<b>「高校別出願日」欄</b>に高校名つきで自動的に入ります。「進路関係」欄とは別なので、手入力の内容と混ざりません。</li>
         <li>どの項目を載せるかは、⑤の上にある<b>全体設定</b>で一括で決められます。高校によって載せたい項目が違うときは、その高校の列にある日付の下の<b>「日程表に載せる」チェック</b>で個別に切り替えてください（その高校だけ個別設定になり、全体設定より優先されます）。高校ごと丸ごと載せたくない場合は、列の上の「日程表に載せる」を外します。</li>
         <li>⑤は<b>「1校ずつ見る」</b>（担任の先生向け。日程が大きく並び、項目もゆったり読めます）と<b>「一覧で比べる」</b>（学校を横に並べて比較・日程表への反映設定）を右上のボタンで切り替えられます。</li>
         <li>学校が増えたら、⑤の上にあるタブ（<b>すべて／県内私立／県外私立／国立／通信制</b>）で絞り込めます。各高校の名前の下の「区分」で振り分けます（新しく読み取るときは、開いているタブの区分が最初から選ばれます）。区分は表示を分けるだけで、日程表への反映には影響しません。</li>
@@ -621,7 +643,7 @@ let schoolYear = 2026;
 const COLWIDTH_DEFAULTS = {
   entry:     [4, 4, 25, 27, 24, 8, 8],
   staff:     [7, 6, 25, 25, 25, 6, 6],
-  student:   [8, 7, 29, 29, 27],
+  student:   [8, 7, 41, 44],
   interview: [8, 6, 28, 18, 18, 22]
 };
 let columnWidths = {entry:{}, staff:{}, student:{}, interview:{}};
@@ -966,7 +988,7 @@ document.querySelectorAll('.tabbtn').forEach(btn=>{
     document.getElementById('panel-'+btn.dataset.tab).classList.add('active');
     if(btn.dataset.tab==='staff') renderStaffPreview();
     if(btn.dataset.tab==='student') renderStudentPreview();
-    if(btn.dataset.tab==='interview') renderInterviewTable();
+    if(btn.dataset.tab==='interview'){ renderInterviewTable(); syncIntPrintChecks(); }
   });
 });
 
@@ -998,6 +1020,34 @@ function commitRte(div){
   saveSchedule();
   applyRowHighlight(div.closest('tr'), idx);
 }
+/* 生徒配布用プレビュー（.rte-mini）側にも同じ書式ツールを使えるようにする */
+function currentMiniDiv(){
+  const sel = window.getSelection();
+  if(!sel || !sel.rangeCount) return null;
+  let node = sel.anchorNode;
+  while(node && !(node.nodeType===1 && node.classList && node.classList.contains('rte-mini'))) node = node.parentNode;
+  return node;
+}
+function commitAnyRte(div){
+  if(div.classList.contains('rte-mini')) commitStudentOverride(div); else commitRte(div);
+}
+document.querySelectorAll('#stuToolbar button').forEach(btn=>{
+  btn.addEventListener('mousedown', e=>e.preventDefault());
+});
+document.getElementById('btnSBold').addEventListener('click', ()=>{
+  const div = currentMiniDiv();
+  if(!div){ alert('太字にしたい部分を、表の中でドラッグして選択してから押してください。'); return; }
+  pushUndo(); document.execCommand('bold', false, null); commitStudentOverride(div);
+});
+document.querySelectorAll('#stuToolbar button[data-scolor]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const div = currentMiniDiv();
+    if(!div){ alert('色を変えたい部分を、表の中でドラッグして選択してから押してください。'); return; }
+    pushUndo(); document.execCommand('foreColor', false, btn.dataset.scolor); commitStudentOverride(div);
+  });
+});
+document.getElementById('btnSFontSmaller').addEventListener('click', ()=>adjustSelectionFontSize(-2));
+document.getElementById('btnSFontBigger').addEventListener('click', ()=>adjustSelectionFontSize(2));
 function currentRteDiv(){
   const sel = window.getSelection();
   if(!sel || !sel.rangeCount) return null;
@@ -1046,7 +1096,7 @@ function adjustSelectionFontSize(delta){
   if(!sel || !sel.rangeCount){ return; }
   const range = sel.getRangeAt(0);
   if(range.collapsed){ alert('文字サイズを変えたい部分を、まずドラッグして選択してから押してください。'); return; }
-  const div = currentRteDiv();
+  const div = currentRteDiv() || currentMiniDiv();
   if(!div) return;
   pushUndo();
   let container = range.commonAncestorContainer;
@@ -1073,7 +1123,7 @@ function adjustSelectionFontSize(delta){
     }
   }
   sel.removeAllRanges();
-  commitRte(div);
+  commitAnyRte(div);
 }
 function stripStaffOnly(html){
   const div = document.createElement('div');
@@ -1356,7 +1406,7 @@ function buildMonthTable(m, forStaff){
   const cols = colgroupHtml(getColWidths(rhType, m.key));
   let head = forStaff
     ? '<th>日</th><th>曜</th><th>学校行事</th><th>進路関係</th><th>高校別出願日</th><th>給食</th><th>校時</th>'
-    : '<th>日</th><th>曜</th><th>学校行事</th><th>進路関係</th><th>高校別出願日</th>';
+    : '<th>日</th><th>曜</th><th>学校行事</th><th>進路関係</th>';
   let html = `<div><div class="month-head">${m.label}`+
     `<span class="rowh-inline" data-type="${rhType}" data-month="${m.key}">`+
       `行高<button type="button" class="rowh-btn" data-dir="-1">－</button>`+
@@ -1385,7 +1435,7 @@ function buildMonthTable(m, forStaff){
       };
       html += `<tr class="${cls}">`+
         `<td class="daycell">${d.day}</td><td class="wdcell">${wd}</td>`+
-        ovCell('evOverride', d.ev)+ovCell('careerOverride', d.career)+ovCell('schoolOverride', d.school||'')+
+        ovCell('evOverride', d.ev)+ovCell('careerOverride', d.career)+
         `</tr>`;
     }
   });
@@ -1699,6 +1749,101 @@ function printPanel(which){
   });
 }
 
+/* ---------- 職員用：CSV / PDF ダウンロード ---------- */
+function htmlToPlainText(html){
+  const div = document.createElement('div');
+  div.innerHTML = String(html==null?'':html).replace(/<br\s*\/?>/gi,'\n').replace(/<\/(div|p|li)>/gi,'\n');
+  return (div.textContent||'').replace(/\u00a0/g,' ').replace(/[ \t]+\n/g,'\n').replace(/\n{2,}/g,'\n').trim();
+}
+function csvCell(v){
+  const t = String(v==null?'':v);
+  return /[",\r\n]/.test(t) ? '"'+t.replace(/"/g,'""')+'"' : t;
+}
+function saveBlob(blob, filename){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+function downloadStaffCSV(){
+  const lines = [['年','月','日','曜','学校行事','進路関係','高校別出願日','給食','校時'].map(csvCell).join(',')];
+  MONTHS.forEach(m=>{
+    const monthNum = parseInt(m.key);
+    (schedule[m.key]||[]).forEach(d=>{
+      const {wd} = rowClassOf(m, monthNum, d.day, d.ev);
+      lines.push([
+        m.year, monthNum, d.day, wd,
+        htmlToPlainText(d.ev), htmlToPlainText(d.career), htmlToPlainText(d.school),
+        d.lunch||'', d.time||''
+      ].map(csvCell).join(','));
+    });
+  });
+  // 先頭にBOMを付けて、Excelで開いても文字化けしないようにする
+  const blob = new Blob(['\ufeff'+lines.join('\r\n')], {type:'text/csv;charset=utf-8'});
+  saveBlob(blob, `${schoolYear}年度_進路関係予定_職員用.csv`);
+}
+function loadScriptOnce(src){
+  return new Promise((resolve,reject)=>{
+    if(document.querySelector('script[data-lib="'+src+'"]')) return resolve();
+    const sc = document.createElement('script');
+    sc.src = src; sc.dataset.lib = src;
+    sc.onload = ()=>resolve();
+    sc.onerror = ()=>{ sc.remove(); reject(new Error('load failed: '+src)); };
+    document.head.appendChild(sc);
+  });
+}
+async function downloadStaffPDF(){
+  const btn = document.getElementById('btnPdfStaff');
+  const label = btn.textContent;
+  const sheetEl = document.getElementById('staffSheet');
+  const wasB4 = sheetEl.classList.contains('b4-preview');
+  btn.disabled = true; btn.textContent = '⏳ PDF作成中…';
+  try{
+    if(!window.html2canvas) await loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+    if(!(window.jspdf && window.jspdf.jsPDF)) await loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  }catch(e){
+    btn.disabled = false; btn.textContent = label;
+    alert('PDF作成用の部品を読み込めませんでした（インターネット接続が必要です）。\n\n代わりに印刷画面を開きます。送信先で「PDFに保存」を選んでください。');
+    printPanel('staff');
+    return;
+  }
+  try{
+    // 印刷と同じB4の大きさ・文字サイズに揃えてから撮影する
+    if(!wasB4) sheetEl.classList.add('b4-preview');
+    fitPrintPages(sheetEl);
+    await new Promise(r=>requestAnimationFrame(()=>setTimeout(r,80)));
+    const pages = Array.from(sheetEl.querySelectorAll('.print-page'));
+    const PX2MM = 25.4/96;
+    let pdf = null;
+    for(let i=0;i<pages.length;i++){
+      const page = pages[i];
+      const wMM = page.offsetWidth*PX2MM, hMM = page.offsetHeight*PX2MM;
+      const canvas = await html2canvas(page, {
+        scale: 2, backgroundColor:'#ffffff', useCORS:true, logging:false,
+        onclone: doc=>{
+          const st = doc.createElement('style');
+          st.textContent = '.rowh-inline,.col-resize-handle{display:none !important;} .print-page{box-shadow:none !important;margin:0 !important;}';
+          doc.head.appendChild(st);
+        }
+      });
+      const img = canvas.toDataURL('image/jpeg', 0.92);
+      const orient = wMM >= hMM ? 'landscape' : 'portrait';
+      if(!pdf){ pdf = new window.jspdf.jsPDF({orientation:orient, unit:'mm', format:[wMM,hMM]}); }
+      else { pdf.addPage([wMM,hMM], orient); }
+      pdf.addImage(img, 'JPEG', 0, 0, wMM, hMM);
+    }
+    if(pdf) pdf.save(`${schoolYear}年度_進路関係予定_職員用.pdf`);
+  }catch(e){
+    console.error(e);
+    alert('PDFの作成に失敗しました。印刷画面を開きます。送信先で「PDFに保存」を選んでください。');
+    printPanel('staff');
+  }finally{
+    if(!wasB4){ resetPrintScale(sheetEl); sheetEl.classList.remove('b4-preview'); }
+    btn.disabled = false; btn.textContent = label;
+  }
+}
+
 /* ---------- interview tab ---------- */
 document.querySelectorAll('input[name=role]').forEach(r=>{
   r.addEventListener('change', ()=>{ currentRole = r.value; renderInterviewTable(); });
@@ -1711,7 +1856,7 @@ function renderInterviewMonthSwitch(){
     const b = document.createElement('button');
     b.textContent = m.label;
     if(k===currentInterviewMonth) b.classList.add('active');
-    b.addEventListener('click', ()=>{ currentInterviewMonth = k; renderInterviewMonthSwitch(); renderInterviewTable(); });
+    b.addEventListener('click', ()=>{ currentInterviewMonth = k; renderInterviewMonthSwitch(); renderInterviewTable(); syncIntPrintChecks(); });
     wrap.appendChild(b);
   });
 }
@@ -1775,11 +1920,59 @@ function renderInterviewTable(){
   if(interviewTableEl && rowHeights.interview[currentInterviewMonth]) applyRowHeightToTable(interviewTableEl, rowHeights.interview[currentInterviewMonth]);
   updateInterviewRowHLabel();
 }
+function syncIntPrintChecks(){
+  document.querySelectorAll('#intPrintMonths input').forEach(c=>{ c.checked = (c.value===currentInterviewMonth); });
+}
+function buildInterviewPrintPage(key, isLast){
+  const monthDef = MONTHS.find(m=>m.key===key);
+  const monthNum = parseInt(key);
+  const rows = interview[key];
+  const schedRows = schedule[key];
+  const n = rows.length;
+  const rowMm = Math.min(9, 238 / (n+1));
+  const fs = rowMm >= 8 ? 13 : 11.5;
+  let body = '';
+  rows.forEach((d,i)=>{
+    const {cls, wd} = rowClassOf(monthDef, monthNum, d.day, '');
+    const sched = schedRows[i];
+    const auto = (wd==='土'||wd==='日') || !!(sched && periodIsShort(sched.time));
+    const show = v => (v==='' && auto) ? '／' : v;
+    body += `<tr class="${cls}"><td class="c">${d.day}</td><td class="c">${wd}</td>`+
+      `<td class="ev" style="font-size:${fs-1}px">${sched?sched.ev:''}</td>`+
+      `<td class="c">${show(d.principal)}</td><td class="c">${show(d.vp)}</td>`+
+      `<td class="memo" style="font-size:${fs-1}px">${escapeHtml(d.note||'')}</td></tr>`;
+  });
+  return `<div class="ipp" style="${isLast?'':'page-break-after:always;break-after:page;'}">
+  <h1>${monthDef.year}年${monthDef.label}　面接日程調整表<small>（${document.getElementById('schoolYearInput').value}年度）</small></h1>
+  <table class="interview" style="font-size:${fs}px"><colgroup><col style="width:8%"><col style="width:7%"><col style="width:32%"><col style="width:14%"><col style="width:14%"><col style="width:25%"></colgroup>
+  <thead><tr><th style="height:${rowMm}mm;font-size:${fs}px">日</th><th>曜</th><th>学校行事（参考）</th><th>校長先生</th><th>教頭先生</th><th>メモ</th></tr></thead>
+  <tbody class="ipb" style="--rh:${rowMm}mm">${body}</tbody></table></div>`;
+}
 function printInterview(){
-  const panel = document.getElementById('panel-interview');
-  panel.classList.add('printing');
-  window.print();
-  setTimeout(()=>{ panel.classList.remove('printing'); }, 300);
+  // A4縦・1か月＝1枚。選んだ月ごとに年月タイトル付きのページを作って印刷する
+  let keys = Array.from(document.querySelectorAll('#intPrintMonths input:checked')).map(c=>c.value);
+  keys = ['12','1','2'].filter(k=>keys.includes(k));
+  if(!keys.length){ alert('印刷する月を選んでください。'); return; }
+  const area = document.createElement('div');
+  area.id = 'interviewPrintArea';
+  area.innerHTML = `<style>
+    #interviewPrintArea{font-family:inherit;color:#000;}
+    #interviewPrintArea h1{font-size:20px;margin:0 0 4mm;text-align:center;letter-spacing:.05em;}
+    #interviewPrintArea h1 small{font-size:13px;margin-left:12px;font-weight:400;}
+    #interviewPrintArea table{width:100%;border-collapse:collapse;table-layout:fixed;border:2px solid #14213d;}
+    #interviewPrintArea th{background:#14213d !important;color:#fff !important;border:1px solid #888;padding:1.5mm;}
+    #interviewPrintArea td{border:1px solid #888;padding:0 2mm;height:var(--rh);overflow:hidden;white-space:nowrap;}
+    #interviewPrintArea td.c{text-align:center;}
+  </style>` + keys.map((k,i)=>buildInterviewPrintPage(k, i===keys.length-1)).join('');
+  const pg = document.createElement('style');
+  pg.textContent = '@media print{@page{size:A4 portrait;margin:10mm;} body.printing-interview > *:not(#interviewPrintArea){display:none !important;} body.printing-interview #interviewPrintArea{display:block !important;} #interviewPrintArea table.interview th,#interviewPrintArea table.interview td{padding-top:0;padding-bottom:0;}}'
+    + '@media screen{#interviewPrintArea{display:none;}}';
+  document.head.appendChild(pg);
+  document.body.appendChild(area);
+  document.body.classList.add('printing-interview');
+  const cleanup = ()=>{ document.body.classList.remove('printing-interview'); area.remove(); pg.remove(); window.removeEventListener('afterprint', cleanup); };
+  window.addEventListener('afterprint', cleanup);
+  setTimeout(()=>window.print(), 50);
 }
 
 document.getElementById('btnUndo').addEventListener('mousedown', e=>e.preventDefault());
@@ -1860,15 +2053,15 @@ const PUBG='奈良県公立（一次・二次選抜）';
 const F=[
 ['name','学校名','text','','学校名'],
 ['year','年度','text','','例: 2027年度'],
-['preRegStart','事前登録 開始日','date','出願まで','WEB出願のユーザー登録など事前登録の開始日'],
-['preRegEnd','事前登録 締切日','date','出願まで','事前登録の締切日。なければ空'],
+['preRegStart','事前登録 開始日','date','出願まで','事前登録の開始日。WEB出願のユーザー登録のほか、募集要項で「出願登録」「出願登録（Web）」「出願登録期間」「WEB出願登録」「Web出願受付開始」「エントリー」などと書かれていて、実際の出願（書類の提出・受付）より前に行う登録・受付開始は、すべて事前登録として扱う'],
+['preRegEnd','事前登録 締切日','date','出願まで','事前登録（出願登録）の締切日。「Web出願受付開始 ○月○日より」のように開始日だけの場合は空'],
 ['applyStart','出願受付 開始日','date','出願まで','出願受付(持参・WEB入力)の開始日'],
 ['applyEnd','出願受付 締切日','date','出願まで','出願受付の締切日(郵送は消印有効日)'],
 ['applyNote','出願方法・受付時間','long','出願まで','WEB/郵送/持参の別、受付時間、締切時刻、事前登録の補足'],
 ['docs','出願書類','long','出願まで','必須・任意を分けて全て列挙'],
 ['feeAmount','考査料','text','出願まで','金額と支払方法の要点。ない学校は空'],
-['feeStart','考査料納付 開始日','date','出願まで','納付期間がある場合のみ'],
-['feeEnd','考査料納付 締切日','date','出願まで','納付期間がある場合のみ。締切時刻は考査料欄に'],
+['feeStart','考査料納付 開始日','date','出願まで','考査料（検定料・受験料）の入金・納付・振込の開始日。出願開始日より前に入金期間が設定されている学校があるので、書かれていれば必ず入れる'],
+['feeEnd','考査料納付 締切日','date','出願まで','入金・納付の締切日。締切時刻は考査料欄に'],
 ['examDate','試験日','date','試験',''],
 ['meetTime','集合時間','text','試験',''],
 ['examStart','試験開始時間','text','試験','最初の教科の開始時刻'],
@@ -1904,11 +2097,11 @@ const F=[
 ['pub2Result','二次選抜 合格発表日','date',PUBG,'二次選抜の合格発表日']
 ];
 const SK='boshu-schools-v1', KS='adm_gemini_key', MS='adm_gemini_model';
-const AUTO=[['preRegStart','事前登録 開始'],['preRegEnd','事前登録 〆切'],['applyStart','出願開始'],['applyEnd','出願〆切'],['infMakeupDate','追試験'],['examDate','入試'],['resultDate','合格発表'],['enrollSengan','専願 入学手続〆切'],['enrollHeigan','併願 入学手続〆切']];
+const AUTO=[['preRegStart','事前登録 開始'],['preRegEnd','事前登録 〆切'],['feeStart','入金 開始'],['feeEnd','入金 〆切'],['applyStart','出願開始'],['applyEnd','出願〆切'],['infMakeupDate','追試験'],['examDate','入試'],['resultDate','合格発表'],['enrollSengan','専願 入学手続〆切'],['enrollHeigan','併願 入学手続〆切']];
 const CATS=['県内私立','県内公立','県外私立','国立','通信制'];
 /* 推薦・学力選抜など、出願区分ごとに日程が違う学校用（s.tracks = [{label,applyStart,applyEnd,examDate,resultDate}]） */
-const TRACK_KEYS=['applyStart','applyEnd','examDate','resultDate'];
-const TRACK_FIELD={applyStart:'出願 開始日',applyEnd:'出願 締切日',examDate:'入試日',resultDate:'合格発表日'};
+const TRACK_KEYS=['preRegStart','preRegEnd','applyStart','applyEnd','examDate','resultDate'];
+const TRACK_FIELD={preRegStart:'事前登録 開始日',preRegEnd:'事前登録 締切日',applyStart:'出願 開始日',applyEnd:'出願 締切日',examDate:'入試日',resultDate:'合格発表日'};
 const DRE=/^\d{4}-\d{2}-\d{2}$/;
 function normTracks(a){
   return (Array.isArray(a)?a:[]).filter(t=>t&&typeof t==='object').map(t=>{
@@ -1923,11 +2116,11 @@ const TRACK_UI=`<div style="margin-top:12px"><div style="font-size:12px;color:va
 let curTab='all', curId=null, view='one';
 try{ view=localStorage.getItem('bs_view')==='table'?'table':'one'; }catch(e){}
 const catOf=s=>CATS.includes(s.cat)?s.cat:'未分類';
-let schools=[], auto=['preRegStart','preRegEnd','applyStart','applyEnd','infMakeupDate'], cur=null;
+let schools=[], auto=['preRegStart','preRegEnd','feeStart','feeEnd','applyStart','applyEnd','infMakeupDate'], cur=null, needPersist=false;
 let colors={apply:'#c0392b',exam:'',result:'#7d3c98',enroll:'',byCat:{'国立':{apply:'#1f5fae'},'県内公立':{apply:'#2f7d4f'}}};   /* 日程表での文字色（出願関係=赤、合格発表=紫が初期設定） */
 const PUB=[['pubFirst1Start','第一出願期間開始','apply'],['pubFirst1End','第一出願期間最終日','apply'],['pubFirst2Start','第二出願期間開始','apply'],['pubFirst2End','第二出願期間最終日','apply'],['pubExamDate','一次選抜入試','exam'],['pubExamDate2','一次選抜入試','exam'],['pubResult1','一次選抜合格発表','result'],['pubMakeupApplyStart','追検査申請','apply'],['pubMakeupApplyEnd','追検査受付最終日','apply'],['pubMakeupExam','追検査入試','exam'],['pubMakeupResult','追検査合格発表','result'],['pub2Start','二次選抜出願開始','apply'],['pub2End','二次選抜出願締切','apply'],['pub2Result','二次選抜合格発表','result']];
 const PUBK=PUB.map(x=>x[0]);
-const CAT_OF={preRegStart:'apply',preRegEnd:'apply',applyStart:'apply',applyEnd:'apply',infMakeupDate:'exam',examDate:'exam',resultDate:'result',enrollSengan:'enroll',enrollHeigan:'enroll'};
+const CAT_OF={preRegStart:'apply',preRegEnd:'apply',feeStart:'apply',feeEnd:'apply',applyStart:'apply',applyEnd:'apply',infMakeupDate:'exam',examDate:'exam',resultDate:'result',enrollSengan:'enroll',enrollHeigan:'enroll'};
 PUB.forEach(x=>{ CAT_OF[x[0]]=x[2]; });
 const COLOR_CATS=[['apply','出願関係（事前登録・出願・追検査申請など）'],['exam','入試日・追検査'],['result','合格発表'],['enroll','入学手続']];
 const PALETTE=[['#1f2d3d','黒'],['#c0392b','赤'],['#1f5fae','青'],['#2f7d4f','緑'],['#d2691e','橙'],['#7d3c98','紫'],['#c2185b','ピンク']];
@@ -1937,15 +2130,25 @@ const say=(t,e)=>{const el=g('bsSt'); el.textContent=t; el.style.color=e?'#a12a1
 const short=n=>String(n||'').replace(/高等専門学校/g,'高専').replace(/高等学校|高校/g,'').replace(/\s/g,'');
 
 async function load(){
-  try{ const r=await storageAdapter.get(SK,true); if(r){ const o=JSON.parse(r.value); schools=o.schools||[]; auto=o.auto||auto; if(o.colors) colors={...colors,...o.colors}; } }catch(e){}
+  try{ const r=await storageAdapter.get(SK,true); if(r){ const o=JSON.parse(r.value); schools=o.schools||[]; auto=o.auto||auto; if(o.colors) colors={...colors,...o.colors};
+    if(o.autoVer!==2){   /* 「入金」項目を追加した版への切り替え：既存の設定にも入金を足す */
+      auto=[...new Set([...auto,'feeStart','feeEnd'])];
+      schools.forEach(x=>{ if(Array.isArray(x.items)) x.items=[...new Set([...x.items,'feeStart','feeEnd'])]; });
+      needPersist=true;
+    } } }catch(e){}
 }
 async function persist(){
-  const r=await storageAdapter.set(SK,JSON.stringify({schools,auto,colors}),true);
+  const r=await storageAdapter.set(SK,JSON.stringify({schools,auto,colors,autoVer:2}),true);
   if(!r) say('保存に失敗しました。もう一度お試しください。',true);
 }
 
 /* この高校の、この項目を日程表に載せるか（個別設定 s.items があればそれを優先、なければ全体設定 auto） */
-const isOn=(s,k)=> s.reflect!==false && (Array.isArray(s.items)? s.items.includes(k) : (auto.includes(k)||PUBK.includes(k)));
+/* 入金（考査料納付）は県外私立（大阪など）だけ日程表に載せる。奈良の学校（県内私立・県内公立・国立）では載せない */
+const FEE_OFF=['県内私立','県内公立','国立'];
+/* 入試日は、県内私立・県外私立は県ごとに全校共通なので日程表に載せない（国立・県内公立は載せる） */
+const EXAM_OFF=['県内私立','県外私立'];
+const feeSkip=(s,k)=> ((k==='feeStart'||k==='feeEnd') && FEE_OFF.includes(s.cat)) || (k==='examDate' && EXAM_OFF.includes(s.cat));
+const isOn=(s,k)=> !feeSkip(s,k) && s.reflect!==false && (Array.isArray(s.items)? s.items.includes(k) : (auto.includes(k)||PUBK.includes(k)));
 /* 「高校別出願日」欄の「自動で入った行」を作り直す（<span data-bs="1"> が目印） */
 function spanFor(cat,tx,schoolCat){ const ov=cat==='apply'&&colors.byCat&&colors.byCat[schoolCat]&&colors.byCat[schoolCat].apply; const c=ov||colors[cat]; return '<span data-bs="1"'+(c?` style="color:${c};font-weight:700"`:'')+'>'+escapeHtml(tx)+'</span>'; }
 function addTo(row,field,html){ const empty=!String(row[field]||'').replace(/<[^>]*>|&nbsp;/g,'').trim(); row[field]=(empty?'':row[field]+'<br>')+html; }
@@ -1954,7 +2157,11 @@ function rowOfDate(v){
   const md=MONTHS.find(x=>x.key===String(+m[2]) && x.year===+m[1] && +m[3]<=x.days); if(!md) return null;
   return (schedule[md.key]||[]).find(r=>r.day===+m[3])||null;
 }
+/* 同じ日に複数の高校が重なったときの並び順：県内私立（奈良）→県外私立（大阪など）→国立→県内公立（県立）→通信制→未分類 */
+const CAT_RANK={'県内私立':0,'県外私立':1,'国立':2,'県内公立':3,'通信制':4};
+const rankOf=s=>CAT_RANK[s.cat]!==undefined?CAT_RANK[s.cat]:5;
 function sync(){
+  const pend=[];
   const snap=JSON.stringify(schedule), RE=/(<br>)?<span data-bs="1"[^>]*>.*?<\/span>/g;
   MONTHS.forEach(m=>(schedule[m.key]||[]).forEach(r=>{ r.career=String(r.career||'').replace(RE,''); r.school=String(r.school||'').replace(RE,''); }));
   schools.filter(s=>s.reflect!==false).forEach(s=>{
@@ -1965,7 +2172,7 @@ function sync(){
       src.forEach(({v,tag})=>{
         const row=rowOfDate(v); if(!row) return;
         let tx=short(s.name)+(tag?' '+tag:'')+' '+label; if(k==='infMakeupDate' && s.infMakeupTime) tx+='（'+s.infMakeupTime+'）';
-        addTo(row,'school',spanFor(CAT_OF[k],tx,s.cat));
+        pend.push({row,rank:rankOf(s),seq:pend.length,html:spanFor(CAT_OF[k],tx,s.cat)});
       });
     });
     /* 奈良県公立の日程は「進路関係」欄に、学校名なしで入れる */
@@ -1974,6 +2181,7 @@ function sync(){
       const row=rowOfDate(s[k]); if(row) addTo(row,'career',spanFor(cat,label,s.cat));
     });
   });
+  pend.sort((a,b)=>a.rank-b.rank||a.seq-b.seq).forEach(p=>addTo(p.row,'school',p.html));
   return JSON.stringify(schedule)!==snap;
 }
 function refresh(){
@@ -2061,7 +2269,7 @@ function render(){
     const isAuto=autoKeys.includes(f[0]);
     h+=`<tr><td class="k">${escapeHtml(f[1])}</td>`+list.map(s=>{
       let c=cellS(f,s);
-      if(isAuto && hasKey(s,f[0])){
+      if(isAuto && hasKey(s,f[0]) && !feeSkip(s,f[0])){
         const on=isOn(s,f[0]);
         c+=`<label class="bs-inc${on?' on':''}"><input type="checkbox" ${on?'checked':''} ${s.reflect===false?'disabled':''} onchange="BS.setItem('${s.id}','${f[0]}',this.checked)"> 日程表に載せる</label>`;
       }
@@ -2078,11 +2286,11 @@ function renderOne(list){
   if(!list.some(x=>x.id===curId)) curId=list[0].id;
   const s=list.find(x=>x.id===curId);
   const pick=list.map(x=>`<button type="button" class="${x.id===curId?'active':''}" onclick="BS.pick('${x.id}')">${escapeHtml(short(x.name))}</button>`).join('');
-  const KEY=[['事前登録','preRegStart','preRegEnd'],['出願','applyStart','applyEnd'],['試験日','examDate'],['合格発表','resultDate'],['入学手続（専願）','enrollSengan'],['入学手続（併願）','enrollHeigan']];
+  const KEY=[['事前登録','preRegStart','preRegEnd'],['入金','feeStart','feeEnd'],['出願','applyStart','applyEnd'],['試験日','examDate'],['合格発表','resultDate'],['入学手続（専願）','enrollSengan'],['入学手続（併願）','enrollHeigan']];
   const keys=KEY.map(([l,a,b])=>{ const x=s[a],y=b&&s[b]; if(!x&&!y) return ''; const v=(x?fmtS(x):'')+(y?(x?' 〜 ':'〜 ')+fmtS(y):''); return `<div class="bs1-key"><div class="l">${l}</div><div class="v">${v}</div></div>`; }).join('');
   const trkGrp={}; collapseTracks({...s}).forEach(tr=>{ const sg=TRACK_KEYS.map(k=>tr[k]||'').join('|'); (trkGrp[sg]=trkGrp[sg]||{tr,labels:[]}).labels.push(tr.label||'コース'); });
   const trkCards=Object.values(trkGrp).map(({tr,labels})=>{
-    const ln=[['出願','applyStart','applyEnd'],['入試日','examDate'],['合格発表','resultDate']].map(([l,a,b])=>{
+    const ln=[['事前登録','preRegStart','preRegEnd'],['出願','applyStart','applyEnd'],['入試日','examDate'],['合格発表','resultDate']].map(([l,a,b])=>{
       const x=tr[a],y=b&&tr[b]; if(!x&&!y) return '';
       return `<div class="v2"><span>${l}</span>${(x?fmtS(x):'')+(y?(x?' 〜 ':'〜 ')+fmtS(y):'')}</div>`; }).join('');
     return ln?`<div class="bs1-key bs1-trkcard"><div class="l">${escapeHtml(labels.join('・'))}</div>${ln}</div>`:'';
@@ -2185,7 +2393,7 @@ async function ask(getParts,label){
   say(`「${label}」を読み取り中…（30秒ほどかかります）`);
   try{
     const keys=F.map(f=>`- ${f[0]}（${f[1]}／${f[2]}）：${f[4]}`).join('\n');
-    const prompt=`これは高校入学試験の募集要項です。内容を読み取り、次のキーだけを持つJSONオブジェクトを1つ返してください。\nルール:\n・date型は必ず YYYY-MM-DD。時刻は日付に入れず、該当するtext/long欄に書く。\n・原文に書かれていない項目は空文字""。推測や補完は絶対にしない。\n・tri型は "あり" "なし" "不明" のいずれか。\n・専願と併願で日付が違うものは別キーに入れる。\n・text/long型は原文の要点を簡潔に。改行は\\n。\nキー:\n${keys}\n- tracks（配列）：推薦・学力選抜など、出願区分ごとに出願日・試験日・合格発表日が別々の場合だけ、区分ごとに {"label":"推薦","applyStart":"YYYY-MM-DD","applyEnd":"","examDate":"","resultDate":""} を入れる（上の通常キーの日付には、区分に共通のものだけを入れる）。区分が1つだけの学校は空配列 [] にする。推薦・学力選抜・一般など出願区分ごとに出願期間・入試日・合格発表日が違う募集要項では、必ず区分ごとに tracks を作り、通常キーのそれらの日付は空にする。ただし専願・併願（一般選抜の専願・併願など）で出願期間・入試日・合格発表日が同じ場合は tracks を作らず、通常キーに1回だけ入れる。\n- pubで始まるキー：奈良県の公立高校入試（県教育委員会の入学者選抜要項）の場合だけ入れる。その場合 name は「奈良県公立高等学校」とし、一次選抜の第一出願期間・第二出願期間・入試日・合格発表、追検査（追試験）の申請日・入試日・合格発表、二次選抜の出願期間・合格発表を、対応するpubキーに入れる。公立の場合、同じ日付を通常の日付キー（事前登録・出願・入試・合格発表・追試験・tracks）には重ねて入れず、それらは空にする。私立・国立の募集要項ではpubキーはすべて空にする。`;
+    const prompt=`これは高校入学試験の募集要項です。内容を読み取り、次のキーだけを持つJSONオブジェクトを1つ返してください。\nルール:\n・date型は必ず YYYY-MM-DD。時刻は日付に入れず、該当するtext/long欄に書く。\n・原文に書かれていない項目は空文字""。推測や補完は絶対にしない。\n・tri型は "あり" "なし" "不明" のいずれか。\n・「出願登録」「出願登録（Web）」「出願登録期間」「WEB出願登録」「Web出願受付開始」「Web出願登録」「Web出願 受付開始日」「インターネット出願登録」のように、実際の出願（出願書類の提出・受付）より前に行うWeb上の登録・受付開始は、applyStart/applyEndではなく preRegStart/preRegEnd（事前登録）に入れる。applyStart/applyEndには出願そのもの（「出願書類受付」「出願書類受付期間」など、書類を提出・郵送する期間）だけを入れる。\n・「Web出願受付開始 ○月○日より」のように開始日しか書かれていない場合は、preRegStart だけに入れ、preRegEnd は空にする（出願書類の受付期間の終了日を preRegEnd に入れてはいけない）。\n・例1：国立奈良工業高等専門学校で「Web出願受付開始 12月7日より」「出願書類受付期間 12月21日〜12月25日」とあれば、preRegStart=12/7、applyStart=12/21、applyEnd=12/25。推薦選抜（卓越エンジニア養成枠・一般推薦枠）と学力選抜はそれぞれ日程が違うので、区分ごとに tracks を作り、各区分の preRegStart に「Web出願受付開始」の日付を入れる。\n・例2：奈良県立大学附属高等学校で「出願登録（Web）12月18日〜12月24日」「出願書類受付 1月8日〜1月14日」とあれば、preRegStart=12/18、preRegEnd=12/24、applyStart=1/8、applyEnd=1/14（推薦選抜と一般選抜で日付が違うので区分ごとに tracks にする）。\n・考査料（検定料・受験料）の入金・納付期間が書かれていれば、出願開始日より前から始まる場合でも feeStart/feeEnd に必ず入れる。\n・専願と併願で日付が違うものは別キーに入れる。\n・text/long型は原文の要点を簡潔に。改行は\\n。\nキー:\n${keys}\n- tracks（配列）：推薦・学力選抜など、出願区分ごとに出願日・試験日・合格発表日が別々の場合だけ、区分ごとに {"label":"推薦","preRegStart":"","preRegEnd":"","applyStart":"YYYY-MM-DD","applyEnd":"","examDate":"","resultDate":""} を入れる（上の通常キーの日付には、区分に共通のものだけを入れる）。区分ごとに事前登録（出願登録）の有無や期間が違う場合（例：推薦は事前登録なし、一般選抜だけ出願登録がある）も、区分ごとの preRegStart/preRegEnd に入れる。区分が1つだけの学校は空配列 [] にする。推薦・学力選抜・一般など出願区分ごとに出願期間・入試日・合格発表日が違う募集要項では、必ず区分ごとに tracks を作り、通常キーのそれらの日付は空にする。ただし専願・併願（一般選抜の専願・併願など）で出願期間・入試日・合格発表日が同じ場合は tracks を作らず、通常キーに1回だけ入れる。\n- pubで始まるキー：奈良県の公立高校入試（県教育委員会の入学者選抜要項）の場合だけ入れる。その場合 name は「奈良県公立高等学校」とし、一次選抜の第一出願期間・第二出願期間・入試日・合格発表、追検査（追試験）の申請日・入試日・合格発表、二次選抜の出願期間・合格発表を、対応するpubキーに入れる。公立の場合、同じ日付を通常の日付キー（事前登録・出願・入試・合格発表・追試験・tracks）には重ねて入れず、それらは空にする。私立・国立の募集要項ではpubキーはすべて空にする。`;
     const body={contents:[{parts:[...await getParts(),{text:prompt}]}],generationConfig:{responseMimeType:'application/json',temperature:0}};
     const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify(body)});
     if(!r.ok) throw new Error(await geminiErrorText(r));
@@ -2209,7 +2417,7 @@ g('bsAdd').onclick=()=>edit(null);
 g('bsSetBtn').onclick=()=>{ g('bsK').value=localStorage.getItem(KS)||''; g('bsM').value=localStorage.getItem(MS)||'gemini-2.5-flash'; g('bsSet').showModal(); };
 function saveSet(){ localStorage.setItem(KS,g('bsK').value.trim()); localStorage.setItem(MS,g('bsM').value.trim()||'gemini-2.5-flash'); g('bsSet').close(); say('設定を保存しました'); }
 
-async function init(){ await load(); render(); if(sync()) saveSchedule(); }
+async function init(){ await load(); if(needPersist){ await persist(); needPersist=false; } render(); if(sync()) saveSchedule(); }
 return {setCatColor,setColor,addTrack,delTrack,init,sync,setView,pick,tab,setCat,setAuto,setReflect,setItem,resetItems,resetAll,edit,saveS,delS,saveSet};
 })();
 
