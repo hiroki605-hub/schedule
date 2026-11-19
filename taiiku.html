@@ -1402,12 +1402,37 @@
   function exportAdviceCsv(){
     const tpl = state.config.templates.find(t=>t.id===state.r_templateId);
     const board = state.r_adviceBoard || [];
-    if(!tpl || board.length===0) return;
+    if(!tpl) return;
     const headers = ['学年','クラス','出席番号','アドバイス回数','具体性ボーナス合計','合計ポイント'];
     const lines = [headers.join(',')];
-    board.forEach(b=>{
+
+    // 通常のCSVと同じく、名簿の出席番号順に並べる。加点がない子も空欄の行として出力する
+    const grade = tpl.targetGrade;
+    const classes = (state.r_classFilter!=='all' && state.r_gradeFilter!=='all')
+      ? [state.r_classFilter]
+      : (state.config.classesByGrade[grade] || []);
+
+    const used = new Set();
+    classes.forEach(cls=>{
+      const roster = (state.config.rosters[rosterKey(grade, cls)] || [])
+        .slice()
+        .sort((a,b)=> (parseInt(a,10)||0) - (parseInt(b,10)||0));
+      roster.forEach(num=>{
+        const b = board.find(x=>x.grade===grade && x.className===cls && String(x.entry)===String(num));
+        if(b){
+          used.add(b);
+          lines.push([grade, cls, num, b.count, b.bonus, b.count+b.bonus].join(','));
+        } else {
+          // 加点がない出席番号：他の列は空欄のまま行だけ作る
+          lines.push([grade, cls, num, '', '', ''].join(','));
+        }
+      });
+    });
+    // 名簿に載っていない番号に加点がある場合は、取りこぼさないよう末尾に追加
+    board.filter(b=>!used.has(b)).forEach(b=>{
       lines.push([b.grade||'', b.className, b.entry, b.count, b.bonus, b.count+b.bonus].join(','));
     });
+
     const blob = new Blob(["\uFEFF"+lines.join('\n')], {type:'text/csv'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
