@@ -2460,9 +2460,12 @@ function saveSet(){ localStorage.setItem(KS,g('bsK').value.trim()); localStorage
 /* ---- Gemini設定：接続テスト／モデル速度テスト／キー削除 ---- */
 const setSt=(t,e)=>{const el=g('bsSetSt'); el.textContent=t; el.style.color=e?'#a12a1a':'';};
 const curKey=()=>g('bsK').value.trim();
-async function pingModel(key,model){
+async function pingModel(key,model,limitMs){
   const t0=performance.now();
-  const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify({contents:[{parts:[{text:'OKとだけ返してください。'}]}],generationConfig:{maxOutputTokens:16,temperature:0}})});
+  const ac=new AbortController(); const tm=limitMs?setTimeout(()=>ac.abort(),limitMs):null;
+  let r; try{ r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify({contents:[{parts:[{text:'OKとだけ返してください。'}]}],generationConfig:{maxOutputTokens:16,temperature:0}}),signal:ac.signal}); }
+  catch(e){ if(e.name==='AbortError') throw new Error('SLOW'); throw e; }
+  finally{ if(tm) clearTimeout(tm); }
   if(!r.ok) throw new Error(await geminiErrorText(r));
   await r.json();
   return performance.now()-t0;
@@ -2491,19 +2494,24 @@ async function speedTest(){
   if(!names.length){ setSt('テストできるモデルが見つかりませんでした',true); return; }
   const rows={};
   box.innerHTML=names.map(n=>`<div id="spd_${n.replace(/[^\w]/g,'_')}">${n}：待機中</div>`).join('');
-  const res=[];
-  for(const n of names){   // 順番に1回ずつ測る（無料枠を節約）
+  let best=null;
+  for(const n of names){   // 順番に1回ずつ測る。今の最速より遅いモデルは途中で打ち切って飛ばす
     const el=g('spd_'+n.replace(/[^\w]/g,'_'));
     setSt(`測定中… ${n}`); el.textContent=`${n}：測定中…`;
-    try{ const ms=await pingModel(key,n); res.push({n,ms}); el.textContent=`${n}：${(ms/1000).toFixed(2)}秒`; }
-    catch(e){ el.textContent=`${n}：使えません`; el.style.color='#999'; }
+    try{
+      const ms=await pingModel(key,n,best?best.ms:5000);
+      if(!best||ms<best.ms){
+        if(best){ const pe=g('spd_'+best.n.replace(/[^\w]/g,'_')); pe.style.fontWeight=''; pe.style.color=''; pe.textContent=`${best.n}：${(best.ms/1000).toFixed(2)}秒`; }
+        best={n,ms}; g('bsM').value=n;   // 最速が出たらすぐモデル名欄へ
+        el.style.fontWeight='700'; el.style.color='#1b6b3a'; el.textContent=`${n}：${(ms/1000).toFixed(2)}秒 ← 今のところ最速（入力済み）`;
+      }else{ el.style.color='#999'; el.textContent=`${n}：${(ms/1000).toFixed(2)}秒`; }
+    }catch(e){
+      el.style.color='#999';
+      el.textContent=e.message==='SLOW'?`${n}：遅いので飛ばしました`:`${n}：使えません`;
+    }
   }
-  if(!res.length){ setSt('速度を測れたモデルがありませんでした。キーや無料枠の上限を確認してください。',true); return; }
-  res.sort((a,b)=>a.ms-b.ms);
-  const best=res[0];
-  g('bsM').value=best.n;
-  const el=g('spd_'+best.n.replace(/[^\w]/g,'_')); if(el){ el.style.fontWeight='700'; el.style.color='#1b6b3a'; el.textContent+=' ← 最速（モデル名に入力しました）'; }
-  setSt(`最速は ${best.n}（${(best.ms/1000).toFixed(2)}秒）です。「保存」を押すと反映されます。`);
+  if(!best){ setSt('速度を測れたモデルがありませんでした。キーや無料枠の上限を確認してください。',true); return; }
+  setSt(`最速は ${best.n}（${(best.ms/1000).toFixed(2)}秒）です。モデル名に入力しました。「保存」を押すと反映されます。`);
 }
 function delKey(){
   if(!confirm('保存されているAPIキーを削除します。よろしいですか？')) return;
