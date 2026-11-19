@@ -123,6 +123,15 @@
     box-shadow:0 2px 8px rgba(0,0,0,.25);
   }
   .arrow-mode-banner.hidden{display:none;}
+  /* ① 日程入力：ツールバー・月タブ・表の見出しを画面上部に固定 */
+  #panel-entry .rte-toolbar{margin-bottom:0;}
+  #panel-entry .rte-hint{margin-top:10px;}
+  #panel-entry .entry-sticky-row{position:sticky;top:var(--tb-h,0px);z-index:4;background:var(--paper);padding:8px 0;margin-bottom:0 !important;}
+  #panel-entry .entry-sticky-row .month-switch{margin-bottom:0;}
+  #panel-entry .arrow-mode-banner{top:calc(var(--tb-h,0px) + var(--row-h,0px));}
+  #panel-entry table.entry thead th{position:sticky;top:var(--th-top,0px);z-index:3;}
+  @media print{ #panel-entry .entry-sticky-row{position:static;} #panel-entry table.entry thead th{position:static;} }
+
   .arrow-mode-banner button{
     appearance:none;border:2px solid #fff;background:#fff;color:var(--navy);
     padding:7px 14px;border-radius:3px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;
@@ -267,7 +276,7 @@
       <button type="button" id="btnShowToStudent" style="background:var(--moss-bg);border-color:var(--moss);color:var(--moss);font-weight:700;">表示に戻す</button>
     </div>
     <div class="rte-hint">同じマス（同じ行事欄）の中でも、一部だけ選択して「生徒に見せない」を押せば、その部分だけ生徒配布用から消えます（例：学力診断テストは表示、小中別会議だけ非表示、など）。薄い赤色の下線がついた部分が生徒には見えなくなります。<b>文字を選択して「A－」「A＋」を押すと、その部分だけ文字を大きく／小さくできます</b>（右上の「文字サイズ」は表全体を一気に変える設定で、こちらは個別の文字だけを変える設定です）。<b>矢印のクリックによる選択・削除はいつでもできます。</b>「→ 矢印モード」をONにしたときだけ、表の上をドラッグして新しい矢印を引いたり、端の点をドラッグして動かしたりできます（ONの間は上に青い帯が出ます。文字入力に戻るときは帯の中の「文字入力に戻す」を押してください）。矢印をクリックすると選択（オレンジの点線）され、複数選んで「選択した矢印を削除」でまとめて消せます。間違えて消してしまったときは、左上の「↺ 元に戻す」で直前の状態に戻せます。</div>
-    <div class="row" style="justify-content:space-between;margin-bottom:8px;">
+    <div class="row entry-sticky-row" id="entryStickyRow" style="justify-content:space-between;">
       <div class="month-switch" id="entryMonthSwitch"></div>
       <div class="row">
         <span class="pill">文字サイズ
@@ -989,6 +998,7 @@ document.querySelectorAll('.tabbtn').forEach(btn=>{
     if(btn.dataset.tab==='staff') renderStaffPreview();
     if(btn.dataset.tab==='student') renderStudentPreview();
     if(btn.dataset.tab==='interview'){ renderInterviewTable(); syncIntPrintChecks(); }
+    if(btn.dataset.tab==='entry'){ setTimeout(updateEntryStickyOffsets, 0); }
   });
 });
 
@@ -1974,6 +1984,29 @@ function printInterview(){
   window.addEventListener('afterprint', cleanup);
   setTimeout(()=>window.print(), 50);
 }
+
+
+/* ---------- ① 固定表示の位置合わせ（ツールバー＋月タブ行＋矢印バナーの高さを測って表の見出しを下に固定） ---------- */
+function updateEntryStickyOffsets(){
+  const panel = document.getElementById('panel-entry');
+  if(!panel) return;
+  const tb = document.getElementById('rteToolbar');
+  const row = document.getElementById('entryStickyRow');
+  const bn = document.getElementById('arrowModeBanner');
+  const tbH = tb ? tb.offsetHeight : 0;
+  const rowH = row ? row.offsetHeight : 0;
+  const bnH = (bn && !bn.classList.contains('hidden')) ? bn.offsetHeight + 10 : 0;
+  panel.style.setProperty('--tb-h', tbH+'px');
+  panel.style.setProperty('--row-h', rowH+'px');
+  panel.style.setProperty('--th-top', (tbH+rowH+bnH)+'px');
+}
+window.addEventListener('resize', updateEntryStickyOffsets);
+if(window.ResizeObserver){
+  const ro = new ResizeObserver(updateEntryStickyOffsets);
+  ['rteToolbar','entryStickyRow','arrowModeBanner'].forEach(id=>{ const el=document.getElementById(id); if(el) ro.observe(el); });
+  new MutationObserver(updateEntryStickyOffsets).observe(document.getElementById('arrowModeBanner'), {attributes:true, attributeFilter:['class']});
+}
+setTimeout(updateEntryStickyOffsets, 0);
 
 document.getElementById('btnUndo').addEventListener('mousedown', e=>e.preventDefault());
 document.getElementById('btnUndo').addEventListener('click', doUndo);
