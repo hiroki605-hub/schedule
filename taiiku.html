@@ -349,8 +349,6 @@
     r_visibleIds: [], // 直近の表示行のid一覧（全選択・全件削除に使用）
   };
 
-  // 数字として比較する（1,2,...,9,10 の順になる）
-  function numCmp(a,b){ return String(a==null?'':a).localeCompare(String(b==null?'':b),'ja',{numeric:true}); }
   function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
@@ -713,6 +711,10 @@
           </p>
           <input type="password" id="modalInput1" placeholder="Gemini APIキー（例：AQ.xxxxx / AIzaSyxxxxx）" value="${esc(current)}">
           <p class="hint" style="margin-top:8px;">${current ? '✅ 現在、あなた専用のキーが設定されています' : '現在は共通キーが使われています'}</p>
+          <label class="hint" for="modalInput2" style="display:block;margin-top:10px;">モデル名（通常はそのままでOK）</label>
+          <input type="text" id="modalInput2" value="${esc(getGeminiModel())}">
+          <div class="row" style="margin-top:8px;"><button class="btn ghost" id="speedTestBtn" data-act="modal_speed_test">⚡ モデル速度テスト</button></div>
+          <div id="speedBox" class="hint" style="margin-top:6px;line-height:1.7;"></div>
           <div class="row" style="margin-top:14px;">
             <button class="btn ghost" data-act="modal_cancel">キャンセル</button>
             ${current ? `<button class="btn danger" data-act="modal_clear_api_key">共通キーに戻す</button>` : ''}
@@ -753,30 +755,6 @@
           <div class="row" style="margin-top:14px;">
             <button class="btn ghost" data-act="modal_cancel">キャンセル</button>
             <button class="btn danger" data-act="modal_confirm_delete_class">削除する</button>
-          </div>
-        </div>
-      </div>`;
-    }
-    if(m.kind === 'viewResponse'){
-      const r = state.r_responses.find(x=>x.id===m.id);
-      const tpl = state.config.templates.find(t=>t.id===state.r_templateId);
-      if(!r || !tpl){ return ''; }
-      const box = 'white-space:pre-wrap; word-break:break-word; background:#f6f3ec; border-radius:10px; padding:10px 12px; font-size:14px; line-height:1.7; margin:0 0 14px;';
-      const refs = (tpl.reflections||[]).map(f=>`
-        <div style="font-size:12.5px; font-weight:700; margin-bottom:4px;">${esc(f.label||'感想')}</div>
-        <div style="${box}">${esc((r.reflections||{})[f.id]||'（未記入）')}</div>`).join('');
-      const advList = (Array.isArray(r.advices) && r.advices.length) ? r.advices : (r.advice && r.advice.fromEntry ? [r.advice] : []);
-      const advs = advList.length ? `<div style="font-size:12.5px; font-weight:700; margin:6px 0 4px;">アドバイスの記録</div>` + advList.map(a=>`
-        <div style="font-size:12px; color:var(--muted); margin-bottom:2px;">${esc(a.fromEntry||'-')}番の人へ</div>
-        <div style="${box}">${esc(a.content||'')}</div>`).join('') : '';
-      return `<div class="modal-overlay">
-        <div class="modal-card" style="max-width:560px; max-height:85vh; overflow-y:auto;">
-          <h3>${esc(r.grade||'')} ${esc(r.className)} ${esc(r.entry)}番の感想</h3>
-          <p class="sub">${r.aiScore ? 'AI採点：'+r.aiScore.total+'点' : '未採点'}</p>
-          ${refs}
-          ${advs}
-          <div class="row" style="margin-top:6px;">
-            <button class="btn ghost" data-act="modal_cancel">閉じる</button>
           </div>
         </div>
       </div>`;
@@ -1275,7 +1253,7 @@
     let rows = state.r_responses;
     if(state.r_gradeFilter!=='all') rows = rows.filter(r=>r.grade===state.r_gradeFilter);
     if(state.r_gradeFilter!=='all' && state.r_classFilter!=='all') rows = rows.filter(r=>r.className===state.r_classFilter);
-    rows = rows.slice().sort((a,b)=> numCmp(a.grade,b.grade) || numCmp(a.className,b.className) || numCmp(a.entry,b.entry));
+    rows = rows.slice().sort((a,b)=>(a.grade||'').localeCompare(b.grade||'') || a.className.localeCompare(b.className) || a.entry.localeCompare(b.entry,'ja'));
 
     state.r_visibleIds = rows.map(r=>r.id);
     const selectedCount = state.r_visibleIds.filter(id=>state.r_selected[id]).length;
@@ -1330,7 +1308,7 @@
             <td data-label="クラス">${esc(r.className)}</td>
             <td data-label="出席番号">${esc(r.entry)}番</td>
             ${allRatingItems.map(rt=>`<td class="mono" data-label="${esc(rt.label)}" title="${esc(rt.label)}">${r.ratings[rt.id]||'-'}</td>`).join('')}
-            <td data-label="感想（抜粋）" style="max-width:140px; cursor:pointer; color:var(--navy,#1b2a4e); text-decoration:underline dotted;" data-act="view_resp" data-id="${r.id}" title="クリックで全文を表示">${esc(Object.values(r.reflections)[0]||'').slice(0,15)}…</td>
+            <td data-label="感想（抜粋）" style="max-width:140px;" title="${esc(Object.values(r.reflections)[0]||'')}">${esc(Object.values(r.reflections)[0]||'').slice(0,15)}…</td>
             <td data-label="AI採点（${maxAi}点満点）">${r.aiScore ? `<span class="mono">${r.aiScore.ai} / ${maxAi}</span>${(r.aiScore.level||'normal')!==curLevel ? `<div class="hint">※「${esc(GRADING_LEVELS[r.aiScore.level||'normal'].label.replace(/^\S+\s/,''))}」で採点</div>` : ''}` : '<span class="pending">未採点</span>'}</td>
             <td class="mono" data-label="文字数B（${maxBonus}点満点）">${r.aiScore ? `${r.aiScore.bonus} / ${maxBonus}` : '-'}</td>
             <td data-label="合計（${maxTotal}点満点）">${renderScoreCell(r, maxTotal)}</td>
@@ -1354,10 +1332,10 @@
       body += `<div class="card">
         <h2>🏅 アドバイス集計</h2>
         <p class="sub">表示中の回答の中で、誰が・何回アドバイスをして、内容がどれくらい具体的だったかの積み上げです（表示中のクラス・学年フィルタに連動します）</p>
+        ${board.length ? `
         <div class="row" style="margin-bottom:12px;">
           <button class="btn ghost sm" data-act="export_advice_csv">アドバイス集計をCSVダウンロード</button>
         </div>
-        ${board.length ? `
         <div style="overflow-x:auto;">
         <table class="mtable">
           <thead><tr>
@@ -1418,35 +1396,16 @@
         addOne(r, r.advice.fromEntry, score);
       }
     });
-    return Object.values(map).sort((a,b)=> numCmp(a.grade,b.grade) || numCmp(a.className,b.className) || numCmp(a.entry,b.entry));
+    return Object.values(map).sort((a,b)=> (b.count+b.bonus) - (a.count+a.bonus));
   }
 
   function exportAdviceCsv(){
     const tpl = state.config.templates.find(t=>t.id===state.r_templateId);
-    if(!tpl) return;
     const board = state.r_adviceBoard || [];
+    if(!tpl || board.length===0) return;
     const headers = ['学年','クラス','出席番号','アドバイス回数','具体性ボーナス合計','合計ポイント'];
     const lines = [headers.join(',')];
-    const grade = tpl.targetGrade;
-    const classes = (state.r_classFilter!=='all' && state.r_gradeFilter!=='all')
-      ? [state.r_classFilter]
-      : (state.config.classesByGrade[grade] || []);
-    const used = new Set();
-    classes.forEach(cls=>{
-      const roster = (state.config.rosters[rosterKey(grade, cls)] || []).slice().sort(numCmp);
-      roster.forEach(num=>{
-        const b = board.find(x=>x.grade===grade && x.className===cls && String(x.entry)===String(num));
-        if(b){
-          used.add(b);
-          lines.push([grade, cls, num, b.count, b.bonus, b.count+b.bonus].join(','));
-        } else {
-          // アドバイスの記録が無い生徒は空欄の行にする
-          lines.push([grade, cls, num, '', '', ''].join(','));
-        }
-      });
-    });
-    // 名簿に載っていない番号の記録が万一あれば最後に追加
-    board.filter(b=>!used.has(b)).forEach(b=>{
+    board.forEach(b=>{
       lines.push([b.grade||'', b.className, b.entry, b.count, b.bonus, b.count+b.bonus].join(','));
     });
     const blob = new Blob(["\uFEFF"+lines.join('\n')], {type:'text/csv'});
@@ -1488,6 +1447,63 @@
     return personal || GEMINI_API_KEY;
   }
 
+  // モデル速度テスト：使えるflash系モデルを順番に測り、今の最速より遅いものは打ち切って飛ばす。
+  // 最速が出るたびにモデル名欄へ自動入力する（保存は「保存する」ボタン）
+  async function runModelSpeedTest(){
+    const box = document.getElementById('speedBox');
+    const btn = document.getElementById('speedTestBtn');
+    const inp = document.getElementById('modalInput2');
+    const typed = ((document.getElementById('modalInput1')||{}).value||'').trim();
+    const key = typed || getGeminiKey();
+    if(!key || key.length<20){ box.textContent = '先にAPIキーを入力してください'; return; }
+    btn.disabled = true;
+    box.textContent = '使えるモデルを調べています…';
+    let names = [];
+    try{
+      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', {headers:{'X-goog-api-key':key}});
+      if(!r.ok) throw new Error('キーが正しくない可能性があります（'+r.status+'）');
+      const j = await r.json();
+      names = (j.models||[]).filter(m=>(m.supportedGenerationMethods||[]).includes('generateContent'))
+        .map(m=>m.name.replace(/^models\//,''))
+        .filter(n=>/^gemini-.*flash/.test(n) && !/(tts|image|live|audio|embedding|thinking|robotics|computer|learnlm|exp)/.test(n));
+    }catch(e){ box.textContent = e.message || '通信に失敗しました'; btn.disabled = false; return; }
+    names = [...new Set(names)].slice(0,10);
+    if(!names.length){ box.textContent = 'テストできるモデルが見つかりませんでした'; btn.disabled = false; return; }
+    const lines = [];
+    const draw = cur => { box.innerHTML = lines.map(x=>esc(x)).join('<br>') + (cur ? '<br>'+esc(cur)+' を測定中…' : ''); };
+    let best = null;
+    for(const n of names){
+      draw(n);
+      const t0 = performance.now();
+      const ac = new AbortController();
+      const tm = setTimeout(()=>ac.abort(), best ? best.ms : 5000);
+      try{
+        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(n)}:generateContent`, {
+          method:'post', headers:{'Content-Type':'application/json','X-goog-api-key':key}, signal: ac.signal,
+          body: JSON.stringify({contents:[{parts:[{text:'日本語で20字程度の短い文章を書いてください。'}]}], generationConfig:{maxOutputTokens:64,temperature:0}})
+        });
+        if(r.ok) await r.json();
+        clearTimeout(tm);
+        const ms = performance.now()-t0;
+        if(!r.ok){ lines.push(n+'：使えません（エラー'+r.status+'）'); }
+        else if(!best || ms < best.ms){
+          best = {n, ms}; inp.value = n;
+          lines.push(n+'：'+(ms/1000).toFixed(2)+'秒 ← 今のところ最速（入力済み）');
+        } else { lines.push(n+'：'+(ms/1000).toFixed(2)+'秒'); }
+      }catch(e){
+        clearTimeout(tm);
+        lines.push(n+'：遅いので飛ばしました');
+      }
+    }
+    if(!best){ box.innerHTML = lines.map(x=>esc(x)).join('<br>') + '<br>測定できたモデルがありません。キーや無料枠の上限を確認してください。'; }
+    else { box.innerHTML = lines.map(x=>esc(x)).join('<br>') + '<br><b>最速は '+esc(best.n)+'（'+(best.ms/1000).toFixed(2)+'秒）です。モデル名に入力しました。「保存する」を押すと反映されます。</b>'; }
+    btn.disabled = false;
+  }
+
+  function getGeminiModel(){
+    return ((state.secure && state.secure.geminiModel) || '').trim() || 'gemini-2.5-flash';
+  }
+
   function checkGeminiKey(){
     const key = getGeminiKey();
     if(!key || key.indexOf('ここに')>=0 || key.length<20){
@@ -1518,7 +1534,7 @@ ${refsText}
 ・記録を伸ばすための次回の目標が、動作の改善点と結びついているか。
 ・練習に意欲的に取り組み、仲間の跳躍からも学ぼうとする姿勢が伝わるか。`;
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(getGeminiModel())}:generateContent`;
     const response = await fetch(url, {
       method: "post",
       headers: {"Content-Type":"application/json", "X-goog-api-key": getGeminiKey()},
@@ -1560,7 +1576,7 @@ ${GRADING_LEVELS[getGradingLevel(tpl)].rules}
 
 出力例（感想が2個${hasAdvice ? '＋アドバイス採点'+advices.length+'個' : ''}の場合）："${hasAdvice ? '4,3,' + advices.map(()=> '4').join(',') : '4,3'}"`;
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(getGeminiModel())}:generateContent`;
     const response = await fetch(url, {
       method: "post",
       headers: {"Content-Type":"application/json", "X-goog-api-key": getGeminiKey()},
@@ -1662,7 +1678,7 @@ ${GRADING_LEVELS[getGradingLevel(tpl)].rules}
       // 名簿の出席番号順に並べ、欠席などで回答が無い番号は空欄の行にして「飛び」を可視化する
       const roster = (state.config.rosters[rosterKey(grade, cls)] || [])
         .slice()
-        .sort(numCmp);
+        .sort((a,b)=> (parseInt(a,10)||0) - (parseInt(b,10)||0));
       roster.forEach(num=>{
         const r = state.r_responses.find(x=>x.grade===grade && x.className===cls && x.entry===num);
         if(r){
@@ -1971,9 +1987,6 @@ ${GRADING_LEVELS[getGradingLevel(tpl)].rules}
         state.r_visibleIds.forEach(id=>{ state.r_selected[id] = shouldSelect; });
         render(); break;
       }
-      case 'view_resp':
-        state.modal = {kind:'viewResponse', id: el.dataset.id};
-        render(); break;
       case 'delete_one_resp':
         state.modal = {kind:'confirmDeleteResponses', ids:[el.dataset.id], label:'この回答'};
         render(); break;
@@ -2008,12 +2021,16 @@ ${GRADING_LEVELS[getGradingLevel(tpl)].rules}
         const val = (document.getElementById('modalInput1').value||'').trim();
         if(!state.secure) state.secure = defaultSecure();
         state.secure.geminiApiKey = val || null;
+        const mval = ((document.getElementById('modalInput2')||{}).value||'').trim();
+        state.secure.geminiModel = (mval && mval !== 'gemini-2.5-flash') ? mval : null;
         await saveSecure();
         state.modal = null;
         toast(val ? 'あなた専用のAPIキーを保存しました' : '共通キーの設定に戻しました');
         render();
         break;
       }
+      case 'modal_speed_test':
+        await runModelSpeedTest(); break;
       case 'modal_clear_api_key':
         if(!state.secure) state.secure = defaultSecure();
         state.secure.geminiApiKey = null;
