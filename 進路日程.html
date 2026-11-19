@@ -468,14 +468,22 @@
 #panel-boshu .bs-link{border:none;background:none;color:var(--navy);text-decoration:underline;cursor:pointer;padding:0;font:inherit;font-size:11.5px}
 #panel-boshu .bs-t tr.g td{background:#e9edf4;color:var(--navy);font-weight:700;position:sticky;left:0}
 </style>
-<dialog id="bsSet" style="border:1px solid #999;border-radius:6px;padding:0;width:min(520px,94vw)">
-  <div style="padding:12px 16px;border-bottom:1px solid #ddd;font-weight:700">Gemini設定（募集要項の読み取り用）</div>
-  <div style="padding:8px 16px">
-    <label style="font-size:12px">APIキー</label><input id="bsK" type="password" autocomplete="off" style="width:100%;box-sizing:border-box;padding:5px 7px">
-    <label style="font-size:12px;display:block;margin-top:8px">モデル名</label><input id="bsM" style="width:100%;box-sizing:border-box;padding:5px 7px">
-    <p style="font-size:12px">キーはこのブラウザの中にだけ保存され、ほかの先生とは共有されません。共有パソコンでは使い終わったら空にしてください。</p></div>
+<dialog id="bsSet" style="border:1px solid #999;border-radius:6px;padding:0;width:min(560px,94vw)">
+  <div style="padding:12px 16px;border-bottom:1px solid #ddd;font-weight:700">Gemini設定（募集要項・行事予定表の読み取り用）</div>
+  <div style="padding:8px 16px;max-height:70vh;overflow:auto">
+    <label style="font-size:12px">APIキー（この端末のブラウザにだけ保存されます）</label><input id="bsK" type="password" autocomplete="off" style="width:100%;box-sizing:border-box;padding:5px 7px">
+    <label style="font-size:12px;display:block;margin-top:8px">モデル名（通常はそのままでOK）</label><input id="bsM" style="width:100%;box-sizing:border-box;padding:5px 7px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <button class="btn" onclick="BS.saveSet()">保存</button>
+      <button class="btn secondary" onclick="BS.testConn()">接続テスト</button>
+      <button class="btn secondary" onclick="BS.speedTest()">モデル速度テスト</button>
+      <button class="btn secondary" style="color:#a12a1a;border-color:#a12a1a" onclick="BS.delKey()">キーを削除</button>
+    </div>
+    <div id="bsSetSt" style="font-size:12.5px;margin-top:8px;min-height:1.2em"></div>
+    <div id="bsSpd" style="font-size:12.5px;margin-top:4px"></div>
+    <p style="font-size:12px">キーはこのブラウザの中にだけ保存され、ほかの先生とは共有されません。共有パソコンでは使い終わったら「キーを削除」してください。</p></div>
   <div style="padding:12px 16px;border-top:1px solid #ddd;display:flex;gap:8px;justify-content:flex-end">
-    <button class="btn secondary" onclick="document.getElementById('bsSet').close()">閉じる</button><button class="btn" onclick="BS.saveSet()">保存</button></div>
+    <button class="btn secondary" onclick="document.getElementById('bsSet').close()">閉じる</button></div>
 </dialog>
 <dialog id="bsEd" style="border:1px solid #999;border-radius:6px;padding:0;width:min(760px,94vw);max-height:92vh">
   <div style="padding:12px 16px;border-bottom:1px solid #ddd;font-weight:700" id="bsEdT"></div>
@@ -2447,11 +2455,63 @@ g('bsTxGo').onclick=()=>{
 };
 g('bsTxBtn').onclick=()=>g('bsTx').showModal();
 g('bsAdd').onclick=()=>edit(null);
-g('bsSetBtn').onclick=()=>{ g('bsK').value=localStorage.getItem(KS)||''; g('bsM').value=localStorage.getItem(MS)||'gemini-2.5-flash'; g('bsSet').showModal(); };
+g('bsSetBtn').onclick=()=>{ g('bsK').value=localStorage.getItem(KS)||''; g('bsM').value=localStorage.getItem(MS)||'gemini-2.5-flash'; g('bsSpd').innerHTML=''; setSt(''); g('bsSet').showModal(); };
 function saveSet(){ localStorage.setItem(KS,g('bsK').value.trim()); localStorage.setItem(MS,g('bsM').value.trim()||'gemini-2.5-flash'); g('bsSet').close(); say('設定を保存しました'); }
+/* ---- Gemini設定：接続テスト／モデル速度テスト／キー削除 ---- */
+const setSt=(t,e)=>{const el=g('bsSetSt'); el.textContent=t; el.style.color=e?'#a12a1a':'';};
+const curKey=()=>g('bsK').value.trim();
+async function pingModel(key,model){
+  const t0=performance.now();
+  const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify({contents:[{parts:[{text:'OKとだけ返してください。'}]}],generationConfig:{maxOutputTokens:16,temperature:0}})});
+  if(!r.ok) throw new Error(await geminiErrorText(r));
+  await r.json();
+  return performance.now()-t0;
+}
+async function testConn(){
+  const key=curKey(); if(!key){ setSt('先にAPIキーを入力してください',true); return; }
+  const model=g('bsM').value.trim()||'gemini-2.5-flash';
+  setSt('接続テスト中…');
+  try{ const ms=await pingModel(key,model); setSt(`接続OK（${model}：${(ms/1000).toFixed(2)}秒）`); }
+  catch(e){ setSt(e.message,true); }
+}
+async function speedTest(){
+  const key=curKey(); if(!key){ setSt('先にAPIキーを入力してください',true); return; }
+  const box=g('bsSpd'); box.innerHTML='';
+  setSt('使えるモデルを調べています…');
+  let names=[];
+  try{
+    const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200',{headers:{'x-goog-api-key':key}});
+    if(!r.ok) throw new Error(await geminiErrorText(r));
+    const j=await r.json();
+    names=(j.models||[]).filter(m=>(m.supportedGenerationMethods||[]).includes('generateContent'))
+      .map(m=>m.name.replace(/^models\//,''))
+      .filter(n=>/^gemini-.*flash/.test(n) && !/(tts|image|live|audio|embedding|thinking|robotics|computer|learnlm|exp)/.test(n));
+  }catch(e){ setSt(e.message,true); return; }
+  names=[...new Set(names)].slice(0,10);
+  if(!names.length){ setSt('テストできるモデルが見つかりませんでした',true); return; }
+  const rows={};
+  box.innerHTML=names.map(n=>`<div id="spd_${n.replace(/[^\w]/g,'_')}">${n}：待機中</div>`).join('');
+  const res=[];
+  for(const n of names){   // 順番に1回ずつ測る（無料枠を節約）
+    const el=g('spd_'+n.replace(/[^\w]/g,'_'));
+    setSt(`測定中… ${n}`); el.textContent=`${n}：測定中…`;
+    try{ const ms=await pingModel(key,n); res.push({n,ms}); el.textContent=`${n}：${(ms/1000).toFixed(2)}秒`; }
+    catch(e){ el.textContent=`${n}：使えません`; el.style.color='#999'; }
+  }
+  if(!res.length){ setSt('速度を測れたモデルがありませんでした。キーや無料枠の上限を確認してください。',true); return; }
+  res.sort((a,b)=>a.ms-b.ms);
+  const best=res[0];
+  g('bsM').value=best.n;
+  const el=g('spd_'+best.n.replace(/[^\w]/g,'_')); if(el){ el.style.fontWeight='700'; el.style.color='#1b6b3a'; el.textContent+=' ← 最速（モデル名に入力しました）'; }
+  setSt(`最速は ${best.n}（${(best.ms/1000).toFixed(2)}秒）です。「保存」を押すと反映されます。`);
+}
+function delKey(){
+  if(!confirm('保存されているAPIキーを削除します。よろしいですか？')) return;
+  localStorage.removeItem(KS); g('bsK').value=''; g('bsSpd').innerHTML=''; setSt('キーを削除しました');
+}
 
 async function init(){ await load(); if(needPersist){ await persist(); needPersist=false; } render(); if(sync()) saveSchedule(); }
-return {setCatColor,setColor,addTrack,delTrack,init,sync,setView,pick,tab,setCat,setAuto,setReflect,setItem,resetItems,resetAll,edit,saveS,delS,saveSet};
+return {setCatColor,setColor,addTrack,delTrack,init,sync,setView,pick,tab,setCat,setAuto,setReflect,setItem,resetItems,resetAll,edit,saveS,delS,saveSet,testConn,speedTest,delKey};
 })();
 
 /* ===== 学校の行事予定表の取り込み（Excel/スプレッドシートをコピー→貼り付け→Geminiで読み取り） ===== */
