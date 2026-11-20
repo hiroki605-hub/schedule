@@ -181,6 +181,19 @@
   table.interview select{width:100%;border:1px solid var(--paper-line);padding:5px;font-family:inherit;font-size:13.5px;background:#fff;}
   table.interview input[type=text]{width:100%;border:1px solid var(--paper-line);padding:5px;font-family:inherit;font-size:13px;}
   table.interview td.disabled-cell select,table.interview td.disabled-cell input{background:#f1f1ef;color:#999;}
+  table.interview td.ist-av{text-align:center;font-size:15px;font-weight:700;vertical-align:middle;}
+  table.interview td.ist-av.ist-o{color:#2e7d32;}
+  table.interview td.ist-av.ist-x{color:#c62828;}
+  table.interview td.ist-av.ist-s{color:#888;}
+  table.interview td.ist-stcell textarea{width:100%;box-sizing:border-box;border:1px solid var(--paper-line);padding:5px;font-family:inherit;font-size:13.5px;line-height:1.4;resize:vertical;min-height:30px;display:block;overflow:hidden;}
+  table.interview td.ist-disabled{background:rgba(0,0,0,.04);vertical-align:middle;}
+  .ist-off{color:#999;font-size:13px;text-align:center;}
+  table.interview td.ist-stcell textarea.ist-stale{margin-top:4px;border-color:#c62828;background:#fff5f5;}
+  .ist-warn{font-size:11.5px;color:#c62828;font-weight:700;margin-top:3px;}
+  .ist-warn:empty{display:none;}
+  .ist-cnt{font-size:11.5px;color:var(--ink-soft);margin-top:2px;}
+  .ist-cnt:empty{display:none;}
+  @media print{ #panel-istudents{display:none !important;} }
   .interview-legend{font-size:12px;color:var(--ink-soft);margin:10px 0 4px;}
 
   .layout-switch{margin:0 !important;}
@@ -238,7 +251,8 @@
     <button class="tabbtn" data-tab="staff">② 職員用プレビュー</button>
     <button class="tabbtn" data-tab="student">③ 生徒配布用プレビュー</button>
     <button class="tabbtn" data-tab="interview">④ 面接日程調整</button>
-    <button class="tabbtn" data-tab="boshu">⑤ 募集要項</button>
+    <button class="tabbtn" data-tab="istudents">⑤ 面接生徒入力</button>
+    <button class="tabbtn" data-tab="boshu">⑥ 募集要項</button>
     <button class="tabbtn" data-tab="howto">使い方</button>
   </div>
 
@@ -307,7 +321,8 @@
       <div class="hint" style="margin:0;flex:1;min-width:280px;">職員用（B4横で印刷）。学校行事・進路関係・給食・校時をすべて表示します。12月+1月で1ページ、2月+3月で1ページに収まるよう自動調整されます。右のボタンで<b>「1か月ずつB4縦」</b>（12・1・2・3月を1枚ずつ、計4枚）にも切り替えられます。</div>
       <div class="month-switch layout-switch"></div>
       <button class="btn secondary" id="btnB4Staff" onclick="toggleB4Preview('staff')">🔍 B4 100%表示で確認</button>
-      <button class="btn secondary" id="btnCsvStaff" onclick="downloadStaffCSV()">📄 CSVダウンロード</button>
+      <button class="btn secondary" id="btnXlsStaff" onclick="downloadStaffXLS()">📊 Excelダウンロード（印刷用）</button>
+      
       <button class="btn secondary" id="btnPdfStaff" onclick="downloadStaffPDF()">📥 PDFダウンロード</button>
       <button class="btn" id="btnPrintStaff" onclick="printPanel('staff')">🖨 このページを印刷（B4横）</button>
     </div>
@@ -342,7 +357,7 @@
 
   <!-- ④ interview -->
   <div class="panel" id="panel-interview">
-    <div class="hint"><b>校長先生・教頭先生には、このツールのリンクをそのまま送ってください。</b>それぞれ自分の役割を選ぶと、自分の欄だけ入力できます。土日、または校時が０〜４の日は自動的に「／」が入ります（欄が空欄のときのみ。手動で○×を入れれば上書きされます）。</div>
+    <div class="hint"><b>校長先生・教頭先生には、このツールのリンクをそのまま送ってください。</b>それぞれ自分の役割を選ぶと、自分の欄だけ入力できます。土日、または校時が０〜４の日は自動的に「／」が入ります（欄が空欄のときのみ。手動で○×を入れれば上書きされます）。自動で「／」が入っている欄を空欄にしたいときは、選択肢の「（空欄）」を選んでください。</div>
     <div class="role-select">
       <span style="font-weight:700;margin-right:14px;">あなたの役割：</span>
       <label><input type="radio" name="role" value="staff" checked> 教務（すべて編集）</label>
@@ -366,8 +381,28 @@
         <button class="btn secondary" onclick="printInterview()">🖨 調整表を印刷（A4縦）</button>
       </div>
     </div>
-    <div class="interview-legend">○＝面接可　×＝不可　／＝対象外（土日・校時0〜4は自動）</div>
+    <div class="interview-legend">○＝面接可　×＝不可　／＝対象外（土日・校時0〜4は自動）　（空欄）＝自動の「／」を消して空欄にする</div>
     <div id="interviewTableWrap"></div>
+  </div>
+
+  <!-- ⑤ 面接生徒入力 -->
+  <div class="panel" id="panel-istudents">
+    <div class="hint"><b>どの日に、どの生徒が面接するかを入力するタブです。</b>校長先生・教頭先生それぞれ、④「面接日程調整」で<b>「○」になっている日だけ</b>入力欄が出ます（④を変えると、ここも自動で切り替わります）。生徒名は1人ずつ改行して入力してください（例：<code>15:30 山田太郎</code> のように時間を添えてもOK）。印刷（B5縦）は生徒に配布・掲示する用で、①で「生徒に見せない」にした行事は印刷されません。</div>
+    <div class="row" style="justify-content:space-between;margin-bottom:8px;">
+      <div class="month-switch" id="istMonthSwitch"></div>
+      <div class="row">
+        <span class="pill" id="istCount">この月の面接予定：0名</span>
+        <span class="status-msg" id="istStatus"></span>
+        <span class="pill" id="istPrintMonths">印刷する月：
+          <label><input type="checkbox" value="12"> 12月</label>
+          <label><input type="checkbox" value="1"> 1月</label>
+          <label><input type="checkbox" value="2"> 2月</label>
+        </span>
+        <button class="btn secondary" onclick="printIStudents()">🖨 生徒配布用を印刷（B5縦）</button>
+      </div>
+    </div>
+    <div class="interview-legend">○の日だけ入力できます。④の変更は自動で反映されます（他のパソコンで変更された場合も数秒で反映）。</div>
+    <div id="istTableWrap"></div>
   </div>
 
   <!-- howto -->
@@ -664,8 +699,16 @@ const COLWIDTH_DEFAULTS = {
   interview: [8, 6, 28, 18, 18, 22]
 };
 let columnWidths = {entry:{}, staff:{}, student:{}, interview:{}};
+const CHUKO_DEFAULTS = {
+  entry: [4, 4, 22, 22, 20, 14, 7, 7],
+  staff: [6, 5, 21, 21, 21, 14, 6, 6]
+};
+function hasChuko(monthKey){ return monthKey==='12' || monthKey==='1'; }
+function defaultWidthsFor(type, monthKey){
+  return ((type==='entry'||type==='staff') && hasChuko(monthKey)) ? CHUKO_DEFAULTS[type] : COLWIDTH_DEFAULTS[type];
+}
 function getColWidths(type, monthKey){
-  if(!columnWidths[type][monthKey]) columnWidths[type][monthKey] = COLWIDTH_DEFAULTS[type].slice();
+  if(!columnWidths[type][monthKey]) columnWidths[type][monthKey] = defaultWidthsFor(type, monthKey).slice();
   return columnWidths[type][monthKey];
 }
 function columnWidthsStorageKey(){ return 'route-colwidths-v2'; }
@@ -762,7 +805,7 @@ async function loadColumnWidths(){
         if(obj[type] && typeof obj[type]==='object'){
           Object.keys(obj[type]).forEach(monthKey=>{
             const arr = obj[type][monthKey];
-            if(Array.isArray(arr) && arr.length===COLWIDTH_DEFAULTS[type].length) columnWidths[type][monthKey]=arr;
+            if(Array.isArray(arr) && arr.length===defaultWidthsFor(type, monthKey).length) columnWidths[type][monthKey]=arr;
           });
         }
       });
@@ -812,6 +855,11 @@ let currentRole = 'staff';
 let saveTimer = null;
 let saveTimerI = null;
 let saveTimerA = null;
+let saveTimerS = null;
+let istPendingSave = false;
+let intPendingSave = false;
+let istudents = {};
+let currentIStMonth = '12';
 let arrowDrawMode = false;
 
 /* ---------- undo (like Word's "back" button) ---------- */
@@ -842,6 +890,7 @@ function doUndo(){
 
 function scheduleStorageKey(){ return 'route-schedule-v3:'+schoolYear; }
 function interviewStorageKey(){ return 'interview-schedule-v3:'+schoolYear; }
+function istudentsStorageKey(){ return 'interview-students-v2:'+schoolYear; }
 function arrowsStorageKey(){ return 'route-arrows-v1:'+schoolYear; }
 
 /* ---------- draggable column widths (applies across all tabs) ---------- */
@@ -906,6 +955,7 @@ function freshScheduleFromEmbedded(){
       ev: textToHtml(d.ev||''),
       career: textToHtml(d.career||''),
       school: '',
+      chuko: '',
       lunch:d.lunch||'',
       time:(d.time===undefined||d.time===null)?'':String(d.time)
     }));
@@ -940,6 +990,10 @@ async function loadAll(){
     interview = r2 ? JSON.parse(r2.value) : freshInterview();
   }catch(e){ interview = freshInterview(); }
   try{
+    const rs = await storageAdapter.get(istudentsStorageKey(), true);
+    istudents = rs ? JSON.parse(rs.value) : {};
+  }catch(e){ istudents = {}; }
+  try{
     const r3 = await storageAdapter.get(arrowsStorageKey(), true);
     arrows = r3 ? JSON.parse(r3.value) : freshArrows();
   }catch(e){ arrows = freshArrows(); }
@@ -961,8 +1015,24 @@ function saveInterview(){
   const el = document.getElementById('interviewStatus');
   if(el){ el.textContent = '保存中…'; el.className='status-msg saving'; }
   clearTimeout(saveTimerI);
+  intPendingSave = true;
   saveTimerI = setTimeout(async ()=>{
     const res = await storageAdapter.set(interviewStorageKey(), JSON.stringify(interview), true);
+    intPendingSave = false;
+    if(el){
+      if(res){ el.textContent = '保存しました'; el.className='status-msg'; }
+      else { el.textContent = '保存に失敗しました。もう一度お試しください。'; el.className='status-msg err'; }
+    }
+  }, 500);
+}
+function saveIStudents(){
+  const el = document.getElementById('istStatus');
+  if(el){ el.textContent = '保存中…'; el.className='status-msg saving'; }
+  clearTimeout(saveTimerS);
+  istPendingSave = true;
+  saveTimerS = setTimeout(async ()=>{
+    const res = await storageAdapter.set(istudentsStorageKey(), JSON.stringify(istudents), true);
+    istPendingSave = false;
     if(el){
       if(res){ el.textContent = '保存しました'; el.className='status-msg'; }
       else { el.textContent = '保存に失敗しました。もう一度お試しください。'; el.className='status-msg err'; }
@@ -993,6 +1063,7 @@ document.getElementById('schoolYearInput').addEventListener('change', async (e)=
   if(BS.sync()) saveSchedule();
   renderEntryMonthSwitch(); renderEntryTable();
   renderInterviewMonthSwitch(); renderInterviewTable();
+  renderIStMonthSwitch(); renderIStudents();
   renderStaffPreview(); renderStudentPreview();
 });
 
@@ -1006,6 +1077,7 @@ document.querySelectorAll('.tabbtn').forEach(btn=>{
     if(btn.dataset.tab==='staff') renderStaffPreview();
     if(btn.dataset.tab==='student') renderStudentPreview();
     if(btn.dataset.tab==='interview'){ renderInterviewTable(); syncIntPrintChecks(); }
+    if(btn.dataset.tab==='istudents'){ renderIStMonthSwitch(); renderIStudents(); syncIStPrintChecks(); istPoll(); }
     if(btn.dataset.tab==='entry'){ setTimeout(updateEntryStickyOffsets, 0); }
   });
 });
@@ -1352,7 +1424,7 @@ function renderEntryTable(){
   const monthNum = parseInt(currentEntryMonth);
   const rows = schedule[currentEntryMonth];
   let html = '<table class="entry">'+colgroupHtml(getColWidths('entry', currentEntryMonth))+'<thead><tr>'+
-    '<th>日</th><th>曜</th><th>学校行事</th><th>進路関係の予定</th><th>高校別出願日</th><th>給食</th><th>校時</th>'+
+    '<th>日</th><th>曜</th><th>学校行事</th><th>進路関係の予定</th><th>高校別出願日</th>'+(hasChuko(currentEntryMonth)?'<th>中高</th>':'')+'<th>給食</th><th>校時</th>'+
     '</tr></thead><tbody>';
   rows.forEach((d,i)=>{
     const {cls, wd} = rowClassOf(monthDef, monthNum, d.day, d.ev);
@@ -1361,6 +1433,7 @@ function renderEntryTable(){
       `<td><div class="rte" contenteditable="true" data-field="ev" data-idx="${i}">${d.ev}</div></td>`+
       `<td><div class="rte" contenteditable="true" data-field="career" data-idx="${i}">${d.career}</div></td>`+
       `<td><div class="rte" contenteditable="true" data-field="school" data-idx="${i}">${d.school||''}</div></td>`+
+      (hasChuko(currentEntryMonth)?`<td><div class="rte" contenteditable="true" data-field="chuko" data-idx="${i}">${d.chuko||''}</div></td>`:'')+
       `<td class="lunchcell"><select data-field="lunch" data-idx="${i}">`+
         `<option value="" ${d.lunch===''?'selected':''}></option>`+
         `<option value="○" ${d.lunch==='○'?'selected':''}>○</option>`+
@@ -1409,7 +1482,7 @@ document.getElementById('btnReset').addEventListener('click', ()=>{
   if(fresh[currentEntryMonth]){
     schedule[currentEntryMonth] = fresh[currentEntryMonth];
   } else {
-    schedule[currentEntryMonth] = schedule[currentEntryMonth].map(d=>({...d, ev:'', career:'', school:'', lunch:'', time:''}));
+    schedule[currentEntryMonth] = schedule[currentEntryMonth].map(d=>({...d, ev:'', career:'', school:'', chuko:'', lunch:'', time:''}));
   }
   try{ BS.sync(); }catch(e){}
   renderEntryTable();
@@ -1423,7 +1496,7 @@ function buildMonthTable(m, forStaff){
   const rhType = forStaff ? 'staff' : 'student';
   const cols = colgroupHtml(getColWidths(rhType, m.key));
   let head = forStaff
-    ? '<th>日</th><th>曜</th><th>学校行事</th><th>進路関係</th><th>高校別出願日</th><th>給食</th><th>校時</th>'
+    ? '<th>日</th><th>曜</th><th>学校行事</th><th>進路関係</th><th>高校別出願日</th>'+(hasChuko(m.key)?'<th>中高</th>':'')+'<th>給食</th><th>校時</th>'
     : '<th>日</th><th>曜</th><th>学校行事</th><th>進路関係</th>';
   let html = `<div><div class="month-head">${m.label}`+
     `<span class="rowh-inline" data-type="${rhType}" data-month="${m.key}">`+
@@ -1438,6 +1511,7 @@ function buildMonthTable(m, forStaff){
       html += `<tr class="${cls}">`+
         `<td class="daycell">${d.day}</td><td class="wdcell">${wd}</td>`+
         `<td>${d.ev}</td><td>${d.career}</td><td>${d.school||''}</td>`+
+        (hasChuko(m.key)?`<td>${d.chuko||''}</td>`:'')+
         `<td class="lunchcell">${escapeHtml(d.lunch)}</td><td class="pdcell${timeOff(wd,d.time)?' off':''}">${escapeHtml(d.time)}</td>`+
         `</tr>`;
     } else {
@@ -1785,14 +1859,14 @@ function saveBlob(blob, filename){
   setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
 }
 function downloadStaffCSV(){
-  const lines = [['年','月','日','曜','学校行事','進路関係','高校別出願日','給食','校時'].map(csvCell).join(',')];
+  const lines = [['年','月','日','曜','学校行事','進路関係','高校別出願日','中高','給食','校時'].map(csvCell).join(',')];
   MONTHS.forEach(m=>{
     const monthNum = parseInt(m.key);
     (schedule[m.key]||[]).forEach(d=>{
       const {wd} = rowClassOf(m, monthNum, d.day, d.ev);
       lines.push([
         m.year, monthNum, d.day, wd,
-        htmlToPlainText(d.ev), htmlToPlainText(d.career), htmlToPlainText(d.school),
+        htmlToPlainText(d.ev), htmlToPlainText(d.career), htmlToPlainText(d.school), htmlToPlainText(d.chuko),
         d.lunch||'', d.time||''
       ].map(csvCell).join(','));
     });
@@ -1800,6 +1874,94 @@ function downloadStaffCSV(){
   // 先頭にBOMを付けて、Excelで開いても文字化けしないようにする
   const blob = new Blob(['\ufeff'+lines.join('\r\n')], {type:'text/csv;charset=utf-8'});
   saveBlob(blob, `${schoolYear}年度_進路関係予定_職員用.csv`);
+}
+
+/* 印刷用Excel：本物の.xlsx（月ごとに1シート、罫線・色・列幅・B4横1枚印刷設定つき） */
+function makeZip(files){
+  const enc=new TextEncoder(); const T=[]; for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;T[n]=c>>>0;}
+  const crc=b=>{let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=T[(c^b[i])&255]^(c>>>8);return (c^0xFFFFFFFF)>>>0;};
+  const parts=[],cen=[];let off=0;
+  const u16=v=>[v&255,(v>>8)&255], u32=v=>[v&255,(v>>8)&255,(v>>16)&255,(v>>>24)&255];
+  files.forEach(([name,text])=>{
+    const nb=enc.encode(name), db=enc.encode(text), c=crc(db);
+    const lh=new Uint8Array([0x50,0x4b,3,4,...u16(20),...u16(0x0800),...u16(0),...u16(0),...u16(0x21),...u32(c),...u32(db.length),...u32(db.length),...u16(nb.length),...u16(0)]);
+    parts.push(lh,nb,db);
+    cen.push(new Uint8Array([0x50,0x4b,1,2,...u16(20),...u16(20),...u16(0x0800),...u16(0),...u16(0),...u16(0x21),...u32(c),...u32(db.length),...u32(db.length),...u16(nb.length),...u16(0),...u16(0),...u16(0),...u16(0),...u32(0),...u32(off)]),nb);
+    off+=lh.length+nb.length+db.length;
+  });
+  let cl=0; cen.forEach(b=>cl+=b.length);
+  const end=new Uint8Array([0x50,0x4b,5,6,...u16(0),...u16(0),...u16(files.length),...u16(files.length),...u32(cl),...u32(off),...u16(0)]);
+  return new Blob([...parts,...cen,end],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+}
+function downloadStaffXLS(){
+  const esc=v=>String(v==null?'':v).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g,'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const wlen=t=>{let n=0;for(const ch of t){n+=ch.charCodeAt(0)>255?2:1;}return n;};
+  const lineCount=(txt,w)=>{let n=0;String(txt).split('\n').forEach(l=>{n+=Math.max(1,Math.ceil(wlen(l)/Math.max(4,w*1.8)));});return n;};
+  const colL=i=>String.fromCharCode(65+i);
+  const styles='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
+    '<fonts count="4"><font><sz val="10"/><name val="游ゴシック"/><family val="3"/><charset val="128"/></font>'+
+    '<font><b/><sz val="10"/><color rgb="FFFFFFFF"/><name val="游ゴシック"/><family val="3"/><charset val="128"/></font>'+
+    '<font><b/><sz val="14"/><name val="游ゴシック"/><family val="3"/><charset val="128"/></font>'+
+    '<font><b/><sz val="10"/><color rgb="FFD32F2F"/><name val="游ゴシック"/><family val="3"/><charset val="128"/></font></fonts>'+
+    '<fills count="5"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>'+
+    '<fill><patternFill patternType="solid"><fgColor rgb="FF233A5E"/><bgColor indexed="64"/></patternFill></fill>'+
+    '<fill><patternFill patternType="solid"><fgColor rgb="FFE3EBF5"/><bgColor indexed="64"/></patternFill></fill>'+
+    '<fill><patternFill patternType="solid"><fgColor rgb="FFF7E4E4"/><bgColor indexed="64"/></patternFill></fill></fills>'+
+    '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border>'+
+    '<border><left style="thin"><color rgb="FF808080"/></left><right style="thin"><color rgb="FF808080"/></right><top style="thin"><color rgb="FF808080"/></top><bottom style="thin"><color rgb="FF808080"/></bottom><diagonal/></border></borders>'+
+    '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="12">'+
+    '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'+
+    '<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="center"/></xf>'+
+    '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'+
+    [0,3,4].map(f=>
+      `<xf numFmtId="0" fontId="0" fillId="${f}" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="top" wrapText="1"/></xf>`+
+      `<xf numFmtId="0" fontId="0" fillId="${f}" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="top" wrapText="1"/></xf>`+
+      `<xf numFmtId="0" fontId="3" fillId="${f}" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="top" wrapText="1"/></xf>`).join('')+
+    '</cellXfs><cellStyles count="1"><cellStyle name="標準" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+  const str=(ref,t,st)=>`<c r="${ref}" s="${st}" t="inlineStr"><is><t xml:space="preserve">${esc(t)}</t></is></c>`;
+  const sheets=[];
+  MONTHS.forEach(m=>{
+    const mn=parseInt(m.key), chuko=hasChuko(m.key);
+    const heads=['日','曜','学校行事','進路関係','高校別出願日'].concat(chuko?['中高']:[]).concat(['給食','校時']);
+    const wch=[5,5,26,26,28].concat(chuko?[20]:[]).concat([6,6]);
+    const n=heads.length, last=colL(n-1);
+    let rows=`<row r="1" ht="26" customHeight="1">${str('A1',schoolYear+'年度 進路関係予定（職員用） '+m.label,1)}</row>`+
+      `<row r="2" ht="22" customHeight="1">${heads.map((h,i)=>str(colL(i)+'2',h,2)).join('')}</row>`;
+    (schedule[m.key]||[]).forEach((d,ri)=>{
+      const r=ri+3;
+      const {cls,wd}=rowClassOf(m,mn,d.day,d.ev);
+      const k=(cls==='sat')?1:(cls==='sun'||cls==='holiday')?2:0;
+      const base=3+k*3;
+      const vals=[String(d.day),wd,htmlToPlainText(d.ev),htmlToPlainText(d.career),htmlToPlainText(d.school)];
+      if(chuko) vals.push(htmlToPlainText(d.chuko));
+      vals.push(d.lunch||'',(d.time===undefined||d.time===null)?'':String(d.time));
+      let maxL=1; for(let i=2;i<=(chuko?5:4);i++) maxL=Math.max(maxL,lineCount(vals[i],wch[i]));
+      const h=Math.max(20,maxL*14+4);
+      rows+=`<row r="${r}" ht="${h}" customHeight="1">`+vals.map((v,i)=>{
+        const ref=colL(i)+r;
+        if(i===0) return `<c r="${ref}" s="${base}"><v>${esc(v)}</v></c>`;
+        let st=base+1; if(i<2||i>=n-2) st=base; if(i===n-1&&timeOff(wd,d.time)) st=base+2;
+        return str(ref,v,st);
+      }).join('')+'</row>';
+    });
+    const xml='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
+      '<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>'+
+      '<sheetViews><sheetView workbookViewId="0"><pane ySplit="2" topLeftCell="A3" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'+
+      '<sheetFormatPr defaultRowHeight="20"/>'+
+      '<cols>'+wch.map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join('')+'</cols>'+
+      `<sheetData>${rows}</sheetData><mergeCells count="1"><mergeCell ref="A1:${last}1"/></mergeCells>`+
+      '<printOptions horizontalCentered="1"/><pageMargins left="0.4" right="0.4" top="0.4" bottom="0.4" header="0.3" footer="0.3"/>'+
+      '<pageSetup paperSize="12" orientation="landscape" fitToWidth="1" fitToHeight="1"/></worksheet>';
+    sheets.push([m.label,xml]);
+  });
+  const files=[
+    ['[Content_Types].xml','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'+sheets.map((_,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')+'</Types>'],
+    ['_rels/.rels','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'],
+    ['xl/workbook.xml','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>'+sheets.map(([nm],i)=>`<sheet name="${esc(nm)}" sheetId="${i+1}" r:id="rId${i+1}"/>`).join('')+'</sheets></workbook>'],
+    ['xl/_rels/workbook.xml.rels','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+sheets.map((_,i)=>`<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i+1}.xml"/>`).join('')+`<Relationship Id="rId${sheets.length+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
+    ['xl/styles.xml',styles]
+  ].concat(sheets.map(([,x],i)=>[`xl/worksheets/sheet${i+1}.xml`,x]));
+  saveBlob(makeZip(files), `${schoolYear}年度_進路関係予定_職員用.xlsx`);
 }
 function loadScriptOnce(src){
   return new Promise((resolve,reject)=>{
@@ -1904,12 +2066,13 @@ function renderInterviewTable(){
 
     function cellHtml(field, canEdit){
       const val = d[field];
-      const selClass = val==='○' ? 'avail-o' : (val==='×' ? 'avail-x' : (val==='／' || (val===''&&autoSlash) ? 'avail-slash' : ''));
+      const selClass = val==='○' ? 'avail-o' : (val==='×' ? 'avail-x' : (val==='／' || (val===''&&autoSlash) ? 'avail-slash' : ''));  // val==='blank' は空欄（自動の／も出さない）
       return `<td class="${canEdit?'':'disabled-cell'}"><select data-field="${field}" data-idx="${i}" ${canEdit?'':'disabled'} class="${selClass}">`+
         `<option value="" ${val===''?'selected':''}>${val===''&&autoSlash?'（自動／）':''}</option>`+
         `<option value="○" ${val==='○'?'selected':''}>○ 面接可</option>`+
         `<option value="×" ${val==='×'?'selected':''}>× 不可</option>`+
         `<option value="／" ${val==='／'?'selected':''}>／ 対象外</option>`+
+        `<option value="blank" ${val==='blank'?'selected':''}>（空欄）</option>`+
       `</select></td>`;
     }
 
@@ -1938,6 +2101,252 @@ function renderInterviewTable(){
   if(interviewTableEl && rowHeights.interview[currentInterviewMonth]) applyRowHeightToTable(interviewTableEl, rowHeights.interview[currentInterviewMonth]);
   updateInterviewRowHLabel();
 }
+
+/* ---------- ⑤ 面接生徒入力 ---------- */
+function intEffective(val, auto){
+  if(val==='blank') return '';
+  if(val==='' && auto) return '／';
+  return val;
+}
+function istCountNames(text){
+  return String(text||'').split(/\n/).map(x=>x.trim()).filter(x=>x).length;
+}
+function renderIStMonthSwitch(){
+  const wrap = document.getElementById('istMonthSwitch');
+  if(!wrap) return;
+  wrap.innerHTML = '';
+  ['12','1','2'].forEach(k=>{
+    const m = MONTHS.find(x=>x.key===k);
+    const b = document.createElement('button');
+    b.textContent = m.label;
+    if(k===currentIStMonth) b.classList.add('active');
+    b.addEventListener('click', ()=>{ currentIStMonth = k; renderIStMonthSwitch(); renderIStudents(); syncIStPrintChecks(); });
+    wrap.appendChild(b);
+  });
+}
+function istGet(key, day){
+  const mp = (istudents[key] = istudents[key] || {});
+  const o = mp[day];
+  return (o && typeof o==='object') ? o : {p:'', v:''};
+}
+function istSet(key, day, who, text){
+  const mp = (istudents[key] = istudents[key] || {});
+  const o = (mp[day] && typeof mp[day]==='object') ? mp[day] : {p:'', v:''};
+  o[who] = text;
+  if(String(o.p||'').trim()==='' && String(o.v||'').trim()==='') delete mp[day];
+  else mp[day] = o;
+}
+function istAutoGrow(ta){
+  ta.style.height = 'auto';
+  ta.style.height = Math.max(30, ta.scrollHeight + 2) + 'px';
+}
+function istRowAuto(d, sched, wd){
+  return (wd==='土' || wd==='日') || !!(sched && periodIsShort(sched.time));
+}
+function istPersonCell(eff, who, day, text){
+  // eff: 'o' なら入力欄。それ以外は入力欄なし（すでに入力があれば警告つきで残す）
+  const label = who==='p' ? '校長先生' : '教頭先生';
+  if(eff==='○'){
+    return `<td class="ist-stcell"><textarea rows="1" data-day="${day}" data-who="${who}" placeholder="生徒名">${escapeHtml(text)}</textarea><div class="ist-cnt">${istCountNames(text)>0 ? istCountNames(text)+'名' : ''}</div></td>`;
+  }
+  const mark = eff==='×' ? '× 不可' : (eff==='／' ? '／ 対象外' : '―');
+  let inner = `<div class="ist-off">${mark}</div>`;
+  if(String(text||'').trim()!==''){
+    inner += `<textarea rows="1" data-day="${day}" data-who="${who}" class="ist-stale">${escapeHtml(text)}</textarea>`+
+      `<div class="ist-warn">⚠ ${label}が○でなくなりました。この入力は印刷されません（不要なら消してください）</div>`;
+  }
+  return `<td class="ist-stcell ist-disabled">${inner}</td>`;
+}
+function renderIStudents(){
+  const wrap = document.getElementById('istTableWrap');
+  if(!wrap || !interview || !schedule) return;
+  // 入力中のカーソル位置を覚えておく（連動で作り直しても入力を邪魔しない）
+  let keep = null;
+  const ae = document.activeElement;
+  if(ae && ae.tagName==='TEXTAREA' && wrap.contains(ae)){
+    keep = {day: ae.dataset.day, who: ae.dataset.who, s: ae.selectionStart, e: ae.selectionEnd};
+  }
+  const key = currentIStMonth;
+  const monthDef = MONTHS.find(m=>m.key===key);
+  const monthNum = parseInt(key);
+  const rows = interview[key] || [];
+  const schedRows = schedule[key] || [];
+  const cls = e => e==='○' ? 'ist-o' : (e==='×' ? 'ist-x' : (e==='／' ? 'ist-s' : ''));
+
+  let html = '<table class="interview"><colgroup><col style="width:6%"><col style="width:5%"><col style="width:22%"><col style="width:33.5%"><col style="width:33.5%"></colgroup>'+
+    '<thead><tr><th>日</th><th>曜</th><th>学校行事（参考）</th><th>校長先生（1人ずつ改行）</th><th>教頭先生（1人ずつ改行）</th></tr></thead><tbody>';
+  rows.forEach((d,i)=>{
+    const {cls:rowCls, wd} = rowClassOf(monthDef, monthNum, d.day, '');
+    const sched = schedRows[i];
+    const auto = istRowAuto(d, sched, wd);
+    const pEff = intEffective(d.principal, auto);
+    const vEff = intEffective(d.vp, auto);
+    const st = istGet(key, d.day);
+    html += `<tr class="${rowCls}">`+
+      `<td class="daycell">${d.day}</td><td>${wd}</td>`+
+      `<td style="font-size:12px;color:#4b5a6b;">${sched?sched.ev:''}</td>`+
+      istPersonCell(pEff,'p',d.day,st.p||'')+
+      istPersonCell(vEff,'v',d.day,st.v||'')+
+      `</tr>`;
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+
+  wrap.querySelectorAll('textarea').forEach(ta=>{
+    istAutoGrow(ta);
+    ta.addEventListener('input', ()=>{
+      istSet(currentIStMonth, parseInt(ta.dataset.day), ta.dataset.who, ta.value);
+      istAutoGrow(ta);
+      const cnt = ta.parentElement.querySelector('.ist-cnt');
+      if(cnt){ const n = istCountNames(ta.value); cnt.textContent = n>0 ? n+'名' : ''; }
+      istUpdateTotal();
+      saveIStudents();
+    });
+  });
+  if(keep){
+    const t = wrap.querySelector(`textarea[data-day="${keep.day}"][data-who="${keep.who}"]`);
+    if(t){ t.focus(); try{ t.setSelectionRange(keep.s, keep.e); }catch(e){} }
+  }
+  istUpdateTotal();
+}
+function istUpdateTotal(){
+  const el = document.getElementById('istCount');
+  if(!el) return;
+  const mp = istudents[currentIStMonth] || {};
+  let total = 0;
+  Object.keys(mp).forEach(d=>{ total += istCountNames(mp[d].p) + istCountNames(mp[d].v); });
+  el.textContent = 'この月の面接予定：' + total + '名';
+}
+
+/* 他のパソコンでの④・⑤の変更を数秒おきに取り込む（⑤タブを開いている間だけ） */
+async function istPoll(){
+  if(!fbOn()) return;
+  const panel = document.getElementById('panel-istudents');
+  if(!panel || !panel.classList.contains('active')) return;
+  try{
+    let changed = false;
+    if(!intPendingSave){
+      const r = await fetch(fbBase()+'/'+fbKey(interviewStorageKey())+'.json');
+      if(r.ok){
+        const v = await r.json();
+        if(typeof v==='string' && v!==JSON.stringify(interview)){
+          try{ interview = JSON.parse(v); localStorage.setItem(interviewStorageKey(), v); changed = true; }catch(e){}
+        }
+      }
+    }
+    if(!istPendingSave){
+      const r2 = await fetch(fbBase()+'/'+fbKey(istudentsStorageKey())+'.json');
+      if(r2.ok){
+        const v2 = await r2.json();
+        if(typeof v2==='string' && v2!==JSON.stringify(istudents)){
+          try{ istudents = JSON.parse(v2); localStorage.setItem(istudentsStorageKey(), v2); changed = true; }catch(e){}
+        }
+      }
+    }
+    if(changed) renderIStudents();
+  }catch(e){}
+}
+setInterval(istPoll, 6000);
+window.addEventListener('focus', istPoll);
+
+/* ---------- ⑤ 生徒配布用の印刷（B5縦） ---------- */
+function istNames(text){
+  return String(text||'').split(/\n/).map(x=>x.trim()).filter(x=>x);
+}
+function istStudentEvHtml(d){
+  const has = (d.evOverride!==undefined && d.evOverride!==null);
+  return has ? d.evOverride : stripStaffOnly(d.ev);   // 「生徒に見せない」部分は含めない（生徒配布用プレビューと同じ）
+}
+function istBuildPrintPage(key, isLast){
+  const monthDef = MONTHS.find(m=>m.key===key);
+  const monthNum = parseInt(key);
+  const rows = interview[key] || [];
+  const schedRows = schedule[key] || [];
+  const mm = 0.2646;
+  const items = rows.map((d,i)=>{
+    const {cls, wd} = rowClassOf(monthDef, monthNum, d.day, '');
+    const sched = schedRows[i] || {};
+    const auto = istRowAuto(d, sched, wd);
+    const st = istGet(key, d.day);
+    const pOk = intEffective(d.principal, auto)==='○';
+    const vOk = intEffective(d.vp, auto)==='○';
+    const evHtml = istStudentEvHtml(sched);
+    return {day:d.day, wd, cls, evHtml,
+      evLines: splitIntoLinesHtml(evHtml).map(lineTextOf),
+      pN: pOk ? istNames(st.p) : [], vN: vOk ? istNames(st.v) : []};
+  });
+  // 1ページに収まる文字サイズを探す
+  const availH = 241 - 14 - 2;          // 用紙内側 − タイトル − 余裕
+  const headH = 7, minRow = 5.6;
+  const colW = {ev: 0.31*166-3, nm: 0.285*166-3};
+  function calc(fs){
+    const lineH = fs*1.35*mm;
+    const cpl = w => Math.max(1, Math.floor(w/(fs*mm)));
+    let total = headH;
+    const hs = items.map(it=>{
+      const evL = it.evLines.reduce((a,t)=>a+Math.max(1,Math.ceil(t.length/cpl(colW.ev))),0);
+      const pL = it.pN.reduce((a,t)=>a+Math.max(1,Math.ceil(t.length/cpl(colW.nm))),0);
+      const vL = it.vN.reduce((a,t)=>a+Math.max(1,Math.ceil(t.length/cpl(colW.nm))),0);
+      const h = Math.max(minRow, Math.max(evL,pL,vL,1)*lineH + 1.8);
+      total += h; return h;
+    });
+    return {hs,total};
+  }
+  let fs = 12, r = calc(fs);
+  while(r.total > availH && fs > 7){ fs -= 0.5; r = calc(fs); }
+  let hs = r.hs;
+  if(r.total < availH){                    // 余った分は行の高さに均等に配る（広げすぎない）
+    const extra = Math.min((availH - r.total)/hs.length, 3.2);
+    hs = hs.map(h=>h+extra);
+  }
+  let body = '';
+  items.forEach((it,i)=>{
+    const nm = arr => arr.map(escapeHtml).join('<br>');
+    body += `<tr class="${it.cls}" style="height:${hs[i].toFixed(2)}mm">`+
+      `<td class="c b">${it.day}</td><td class="c">${it.wd}</td>`+
+      `<td class="ev">${it.evHtml||''}</td>`+
+      `<td class="nm">${nm(it.pN)}</td><td class="nm">${nm(it.vN)}</td></tr>`;
+  });
+  return `<div class="ispp" style="${isLast?'':'page-break-after:always;break-after:page;'}">
+  <h1>${monthDef.year}年${monthDef.label}　面接日程<small>（${document.getElementById('schoolYearInput').value}年度）</small></h1>
+  <table class="isp" style="font-size:${fs}px"><colgroup><col style="width:7%"><col style="width:6%"><col style="width:31%"><col style="width:28.5%"><col style="width:28.5%"></colgroup>
+  <thead><tr><th style="height:${headH}mm">日</th><th>曜</th><th>学校行事</th><th>校長先生</th><th>教頭先生</th></tr></thead>
+  <tbody>${body}</tbody></table></div>`;
+}
+function printIStudents(){
+  let keys = Array.from(document.querySelectorAll('#istPrintMonths input:checked')).map(c=>c.value);
+  keys = ['12','1','2'].filter(k=>keys.includes(k));
+  if(!keys.length){ alert('印刷する月を選んでください。'); return; }
+  const area = document.createElement('div');
+  area.id = 'istPrintArea';
+  area.innerHTML = `<style>
+    #istPrintArea{font-family:inherit;color:#000;}
+    #istPrintArea h1{font-size:19px;margin:0 0 4mm;text-align:center;letter-spacing:.06em;}
+    #istPrintArea h1 small{font-size:12px;margin-left:10px;font-weight:400;}
+    #istPrintArea table.isp{width:100%;border-collapse:collapse;table-layout:fixed;border:2px solid #14213d;}
+    #istPrintArea table.isp th{background:#14213d !important;color:#fff !important;border:1px solid #14213d;padding:0 1mm;text-align:center;font-size:1em;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    #istPrintArea table.isp td{border:1px solid #555;padding:0.6mm 1.6mm;vertical-align:middle;line-height:1.35;word-break:break-all;overflow:hidden;}
+    #istPrintArea td.c{text-align:center;padding:0;}
+    #istPrintArea td.b{font-weight:700;}
+    #istPrintArea td.nm{text-align:left;font-weight:600;}
+    #istPrintArea tr.sat td{background:#cfdcf0 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    #istPrintArea tr.sun td,#istPrintArea tr.holiday td{background:#f6cfc8 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    #istPrintArea tr.sat td.c{color:#1f4f99;} #istPrintArea tr.sun td.c,#istPrintArea tr.holiday td.c{color:#b3261e;}
+  </style>` + keys.map((k,i)=>istBuildPrintPage(k, i===keys.length-1)).join('');
+  const pg = document.createElement('style');
+  pg.textContent = '@media print{@page{size:182mm 257mm;margin:8mm;} body.printing-istudents > *:not(#istPrintArea){display:none !important;} body.printing-istudents #istPrintArea{display:block !important;}}'
+    + '@media screen{#istPrintArea{display:none;}}';
+  document.head.appendChild(pg);
+  document.body.appendChild(area);
+  document.body.classList.add('printing-istudents');
+  const cleanup = ()=>{ document.body.classList.remove('printing-istudents'); area.remove(); pg.remove(); window.removeEventListener('afterprint', cleanup); };
+  window.addEventListener('afterprint', cleanup);
+  setTimeout(()=>window.print(), 50);
+}
+function syncIStPrintChecks(){
+  document.querySelectorAll('#istPrintMonths input').forEach(c=>{ c.checked = (c.value===currentIStMonth); });
+}
+
 function syncIntPrintChecks(){
   document.querySelectorAll('#intPrintMonths input').forEach(c=>{ c.checked = (c.value===currentInterviewMonth); });
 }
@@ -1954,7 +2363,7 @@ function buildInterviewPrintPage(key, isLast){
     const {cls, wd} = rowClassOf(monthDef, monthNum, d.day, '');
     const sched = schedRows[i];
     const auto = (wd==='土'||wd==='日') || !!(sched && periodIsShort(sched.time));
-    const show = v => (v==='' && auto) ? '／' : v;
+    const show = v => v==='blank' ? '' : ((v==='' && auto) ? '／' : v);
     body += `<tr class="${cls}"><td class="c">${d.day}</td><td class="c">${wd}</td>`+
       `<td class="ev" style="font-size:${fs-1}px">${sched?sched.ev:''}</td>`+
       `<td class="c">${show(d.principal)}</td><td class="c">${show(d.vp)}</td>`+
@@ -2626,6 +3035,7 @@ async function init(){
   renderInterviewMonthSwitch();
   renderStaffPreview(); renderStudentPreview();
   renderInterviewTable();
+  renderIStMonthSwitch(); renderIStudents();
 }
 init();
 </script>
