@@ -87,7 +87,7 @@ window.uiAlert=function(m){S.modal={msg:m};render();};
 window.uiConfirm=function(m,f){S.modal={msg:m,ok:f};render();};
 window.mOk=function(){var m=S.modal;S.modal=null;if(m&&m.ok)m.ok();render();};
 window.mCancel=function(){S.modal=null;render();};
-window.go=function(p){S.page=p;S.tErr=S.sErr='';render();};
+window.go=function(p){if(S.M&&S.M.running&&S.page==='measure')return;S.page=p;S.tErr=S.sErr='';render();};
 function back(t,p){return '<button onclick="go(\''+p+'\')" style="border:none;background:none;color:#888;padding:0 0 14px">'+t+'</button>';}
 function vHome(){var c=cfg();
   return '<div style="max-width:440px;margin:0 auto;padding:2rem 1.5rem"><p style="font-size:12px;color:#999">体育</p><h1 style="font-size:22px;margin:4px 0">🏃 持久走 記録アプリ</h1>'
@@ -108,7 +108,7 @@ function vTeacher(){
   +'<div><span class="lbl">今の授業の回（生徒に表示）</span><select style="width:90px" onchange="setS(\'cur\',this.value)">'+rg(1,c.n).map(function(i){return '<option'+(i===c.cur?' selected':'')+' value="'+i+'">第'+i+'回</option>';}).join('')+'</select></div></div>'
   +'<p style="font-size:11px;color:#888;margin-top:8px;line-height:1.7">第1回と第'+c.n+'回＝タイム測定（男子1500m・女子1000m）／その間＝'+c.min+'分完走（'+(c.track/2)+'m単位＝半周で記録）。タイム点：全国平均（令和6年度 体力・運動能力調査）の5段階（平均付近＝3点）。短縮点：'+IMP.join('秒・')+'秒以上短縮＝5〜2点、それ未満＝1点。完走点：全国平均ペア×'+c.factor+'%で'+c.min+'分走った場合の距離を基準に5段階→最後'+c.k+'回の平均。</p></div>'
   +'<div class="card"><div class="row"><b>生徒</b><select style="width:auto" onchange="S.cls=this.value;render()"><option value="">全クラス</option>'+cl.map(function(x){return '<option'+(S.cls===x?' selected':'')+'>'+x+'</option>';}).join('')+'</select><input id="nc" placeholder="クラス名 例:1年1組" style="width:150px"><button onclick="addCls()">クラス追加</button></div>'
-  +'<div class="row" style="margin-top:8px"><select id="bc" style="width:auto">'+cl.map(function(x){return '<option>'+x+'</option>';}).join('')+'</select><input id="bm" placeholder="男子の番号 例 1-18" style="width:170px"><input id="bf" placeholder="女子の番号 例 19-35" style="width:170px"><button class="bp" onclick="bulk()">男女まとめて追加</button></div><p style="font-size:11px;color:#888;margin-top:6px">番号は「1-18」「1,3,5-9」のように書けます（男女混合名簿もOK）。すでにある番号は、性別だけ書き換えます。</p></div>'
+  +'<div class="row" style="margin-top:8px"><select id="bc" style="width:auto">'+cl.map(function(x){return '<option>'+x+'</option>';}).join('')+'</select><input id="bm" placeholder="出席番号順に　例：男18女17　または　男男女女男…" style="flex:1;min-width:260px"><button class="bp" onclick="bulk()">出席番号順に追加</button></div><p style="font-size:11px;color:#888;margin-top:6px">1番から順に割り当てます。「男18女17」＝1〜18番が男子、19〜35番が女子。男女混合名簿なら「男女男男女…」と1人ずつ並べて入力。すでにある番号は性別だけ書き換えます。</p></div>'
   +'<div style="overflow-x:auto"><table style="background:#fff"><tr><th>クラス</th><th>番号</th><th>性別</th>';
   rg(1,c.n).forEach(function(i){h+='<th>第'+i+'回<br><span style="font-weight:400;color:#888">'+(typ(i,c.n)==='time'?'タイム':c.min+'分完走(周)')+'</span></th>';});
   h+='<th>タイム点</th><th>短縮秒</th><th>短縮点</th><th>完走点</th><th>合計/15</th><th></th></tr>';
@@ -127,11 +127,11 @@ window.setR=function(id,i,v){var c=cfg(),t=typ(i,c.n)==='time';v=(v||'').trim();
   if(t){var x=parseT(v);if(isNaN(x)||x==null){uiAlert('「6:32.5」や「392」のように入力してください');render();return;}set('rec/'+id+'/'+i,{t:x,by:'teacher',at:Date.now()});}
   else{var l=+v;if(!isFinite(l)||l<0||(l*2)%1){uiAlert('周回数は0.5周単位の数字で入力してください');render();return;}set('rec/'+id+'/'+i,{laps:l,by:'teacher',at:Date.now()});}};
 window.addCls=function(){var v=$('nc').value.trim();if(!v||DB.classes.indexOf(v)>=0)return;set('classes',DB.classes.concat([v]));};
-function nums(v){v=(v||'').replace(/[０-９]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-65248);}).replace(/[ー－–〜～~]/g,'-');var r=[];v.split(/[,、，\s]+/).forEach(function(p){var m=p.match(/^(\d+)-(\d+)$/);if(m){for(var i=+m[1];i<=+m[2]&&i<=99;i++)r.push(i);}else if(/^\d+$/.test(p))r.push(+p);});return r;}
-window.bulk=function(){var cls=$('bc').value,m=nums($('bm').value),f=nums($('bf').value);if(!cls||!(m.length+f.length)){uiAlert('クラスと、男子・女子の番号を入れてください');return;}
+window.bulk=function(){var cls=$('bc').value,v=($('bm').value||'').replace(/[０-９]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-65248);}),seq=[],re=/([男女mMfF])\s*(\d*)/g,x;
+  while((x=re.exec(v))){var g=/[男mM]/.test(x[1])?'m':'f',n=x[2]?+x[2]:1;for(var k=0;k<n&&seq.length<99;k++)seq.push(g);}
+  if(!cls||!seq.length){uiAlert('クラスと、出席番号順の男女を入れてください（例：男18女17）');return;}
   var ex={};students().forEach(function(s){if(s.cls===cls)ex[+s.number]=s;});
-  function put(n,g){if(ex[n]){set('students/'+ex[n].id+'/gender',g);}else{var id=genId();set('students/'+id,{id:id,number:n,cls:cls,gender:g,password:String(n)});}}
-  m.forEach(function(n){put(n,'m');});f.forEach(function(n){put(n,'f');});$('bm').value=$('bf').value='';};
+  seq.forEach(function(g,k){var n=k+1;if(ex[n])set('students/'+ex[n].id+'/gender',g);else{var id=genId();set('students/'+id,{id:id,number:n,cls:cls,gender:g,password:String(n)});}});$('bm').value='';};
 window.delS=function(id){uiConfirm('この生徒と記録を削除しますか？',function(){rm('students/'+id);rm('rec/'+id);});};
 window.csv=function(){var c=cfg(),rows=[['クラス','番号','性別']];
   rg(1,c.n).forEach(function(i){rows[0].push('第'+i+'回'+(typ(i,c.n)==='time'?'(秒)':'(周)'));});
@@ -157,7 +157,7 @@ function vPick(){var c=cfg(),mates=students().filter(function(s){return s.cls===
 window.goMeasure=function(){var id=$('rn').value;if(!id){uiAlert('走る人を選んでください');return;}
   S.run=id;S.M={running:false,done:false,laps:[],cnt:0,t0:0,iv:null,raw:''};S.page='measure';render();};
 function vMeasure(){var c=cfg(),r=DB.students[S.run],g=gOf(r),M=S.M,t=typ(S.ses,c.n)==='time',pl=plan(g,c.track),old=(DB.rec[r.id]||{})[S.ses];
-  var h='<div style="max-width:440px;margin:0 auto;padding:1.2rem">'+back('← 戻る','pick')+'<div class="card"><b>第'+S.ses+'回　'+esc(r.cls)+' '+esc(r.number)+'番</b>（'+(g==='f'?'女子':'男子')+'）<div style="font-size:12px;color:#666;margin-top:4px">'
+  var h='<div style="max-width:440px;margin:0 auto;padding:1.2rem">'+(M.running?'<p style="font-size:12px;color:#d93025;padding-bottom:14px">⏱ 測定中は戻れません（終わるまでこの画面のままです）</p>':back('← 戻る','pick'))+'<div class="card"><b>第'+S.ses+'回　'+esc(r.cls)+' '+esc(r.number)+'番</b>（'+(g==='f'?'女子':'男子')+'）<div style="font-size:12px;color:#666;margin-top:4px">'
   +(t?dist(g)+'mタイム測定：'+(pl.first===c.track?'ゴールラインからスタート':'<b>ゴールラインの手前'+pl.first+'mからスタート</b>')+'、ゴールラインを通るたびにボタン（全'+pl.n+'回）':c.min+'分間走り、1周ごとにボタン。時間になったら半周以上走っていれば「＋半周」')+'</div></div>';
   if(!M.running&&!M.done)h+='<button class="big bp" onclick="mStart()">▶ スタート</button>';
   h+='<div class="tm" id="tm">'+(M.done?(t?fmt(M.t):c.min+'分終了'):fmt(t?0:c.min*60))+'</div>';
@@ -173,25 +173,39 @@ function vMeasure(){var c=cfg(),r=DB.students[S.run],g=gOf(r),M=S.M,t=typ(S.ses,
   if(t&&!M.running)h+='<div class="card" style="margin-top:12px"><span class="lbl" style="margin-top:0">手入力（まちがえたとき）</span><div class="row"><input id="mt" placeholder="例 6:32.5 または 392" value="'+(M.done?fmt(M.t):'')+'" style="flex:1"><button class="bp" onclick="mManual()">保存</button></div></div>';
   if(!t&&!M.running)h+='<div class="card" style="margin-top:12px"><span class="lbl" style="margin-top:0">手入力の周回数（0.5周単位）</span><div class="row"><input id="mt" type="number" step="0.5" placeholder="例 12.5" style="flex:1"><button class="bp" onclick="mManual()">保存</button></div></div>';
   if(old)h+='<p style="font-size:12px;color:#888;margin-top:10px">いまの記録：'+(t?fmt(old.t):old.laps+'周')+'（上書きされます）</p>';
-  return h+'</div>';}
+  return h+critCard(r,t)+'</div>';}
+function fmtS(s){var m=Math.floor(s/60),x=s%60;return m+':'+(x<10?'0':'')+x;}
+function critCard(r,t){var c=cfg(),y=yrOf(r.cls),B=BND,k=['m','f'],o='<div class="card" style="margin-top:12px"><b style="font-size:13px">📊 評価基準（中'+y+'・全国平均をもとにした5段階）</b><div style="font-size:11px;color:#888;margin:2px 0 6px">'+(t?'タイム測定：男子1500m／女子1000m':c.min+'分完走：走った距離（トラック'+c.track+'m）')+'</div><table style="width:100%;font-size:13px"><tr><th>点</th><th>男子</th><th>女子</th></tr>';
+  for(var i=0;i<5;i++){o+='<tr><td><b>'+(5-i)+'点</b></td>';k.forEach(function(g){var b=B[g][y],s;
+    if(t)s=i===0?'〜'+fmtS(b[0]):i<4?fmtS(b[i-1]+1)+'〜'+fmtS(b[i]):fmtS(b[3]+1)+'〜';
+    else{var d=b.map(function(x){return Math.round(dist(g)/x*c.min*60*c.factor/100/10)*10;});s=i<4?d[i]+'m以上':d[3]+'m未満';}
+    o+='<td>'+s+'</td>';});o+='</tr>';}
+  return o+'</table></div>';}
 function tick(){var M=S.M,c=cfg();if(!M||!M.running)return;var e=(Date.now()-M.t0)/1000,t=typ(S.ses,c.n)==='time',el=$('tm');
   if(t){if(el)el.textContent=fmt(e);}else{var rem=c.min*60-e;if(rem<=0){finRun();return;}if(el)el.textContent=fmt(rem);}}
-function stop(){var M=S.M;clearInterval(M.iv);M.running=false;M.done=true;}
+function persist(){try{var M=S.M;localStorage.setItem('kyuso_m',JSON.stringify({me:S.me.id,run:S.run,ses:S.ses,t0:M.t0,laps:M.laps,cnt:M.cnt}));}catch(e){}}
+function stop(){var M=S.M;clearInterval(M.iv);M.running=false;M.done=true;try{localStorage.removeItem('kyuso_m');}catch(e){}try{if(S.wl)S.wl.release();}catch(e){}S.wl=null;}
+function wake(){try{navigator.wakeLock.request('screen').then(function(l){S.wl=l;}).catch(function(){});}catch(e){}}
+document.addEventListener('visibilitychange',function(){if(!document.hidden&&S.M&&S.M.running){tick();wake();}});
+window.onbeforeunload=function(e){if(S.M&&S.M.running){e.preventDefault();e.returnValue='';return '';}};
+var restored=false;
+function tryRestore(){try{var d=JSON.parse(localStorage.getItem('kyuso_m')||'null');if(!d||Date.now()-d.t0>3*3600*1000||!DB.students[d.me]||!DB.students[d.run]){localStorage.removeItem('kyuso_m');return;}
+  S.me=DB.students[d.me];S.run=d.run;S.ses=d.ses;S.M={running:true,done:false,laps:d.laps||[],cnt:d.cnt||0,t0:d.t0,iv:setInterval(tick,100)};S.page='measure';wake();}catch(e){}}
 function save(v){set('rec/'+S.run+'/'+S.ses,Object.assign(v,{by:S.me.id,at:Date.now()}));}
 function finRun(){stop();save({laps:S.M.cnt});render();}
-window.mStart=function(){var M=S.M;M.running=true;M.t0=Date.now();M.laps=[];M.cnt=0;M.iv=setInterval(tick,100);render();};
+window.mStart=function(){var M=S.M;M.running=true;M.t0=Date.now();M.laps=[];M.cnt=0;M.iv=setInterval(tick,100);persist();wake();render();};
 window.mLap=function(){var M=S.M,c=cfg(),e=(Date.now()-M.t0)/1000;
   if(typ(S.ses,c.n)==='time'){M.laps.push(e);if(M.laps.length>=plan(gOf(DB.students[S.run]),c.track).n){M.t=r1(e);stop();save({t:M.t});}}
-  else{M.laps.push(e);M.cnt+=1;}render();};
-window.mUndo=function(){var M=S.M;M.laps.pop();if(typ(S.ses,cfg().n)!=='time')M.cnt=Math.max(0,M.cnt-1);render();};
-window.mAdj=function(d){var M=S.M;M.cnt=Math.max(0,M.cnt+d);if(M.done)save({laps:M.cnt});render();};
+  else{M.laps.push(e);M.cnt+=1;}if(S.M.running)persist();render();};
+window.mUndo=function(){var M=S.M;M.laps.pop();if(typ(S.ses,cfg().n)!=='time')M.cnt=Math.max(0,M.cnt-1);if(M.running)persist();render();};
+window.mAdj=function(d){var M=S.M;M.cnt=Math.max(0,M.cnt+d);if(M.done)save({laps:M.cnt});else if(M.running)persist();render();};
 window.mManual=function(){var c=cfg(),v=$('mt').value,M=S.M;
   if(typ(S.ses,c.n)==='time'){var x=parseT(v);if(!x||isNaN(x)){uiAlert('「6:32.5」や「392」のように入力してください');return;}M.t=x;M.done=true;save({t:x});}
   else{var l=+v;if(v===''||!isFinite(l)||l<0||(l*2)%1){uiAlert('0.5周単位の数字で入力してください');return;}M.cnt=l;M.done=true;save({laps:l});}
   render();};
 // ── 同期 ──
 db.ref('kyuso1').on('value',function(snap){var v=snap.val()||{};DB.classes=v.classes||[];DB.students=v.students||{};DB.rec=v.rec||{};DB.settings=v.settings||{};
-  $('sync').textContent='✅ リアルタイム同期中';$('sync').className='ok';
+  $('sync').textContent='✅ リアルタイム同期中';$('sync').className='ok';if(!restored){restored=true;tryRestore();}
   if(S.page==='measure'&&S.M&&S.M.running)return;
   var a=document.activeElement;if(S.page==='teacher'&&a&&a.tagName==='INPUT'&&a.id!=='nc')return;
   render();},function(e){$('sync').textContent='❌ 接続エラー: '+e.message;$('sync').className='err';});
