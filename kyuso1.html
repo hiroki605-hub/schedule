@@ -163,8 +163,12 @@ function vMeasure(){var c=cfg(),r=DB.students[S.run],g=gOf(r),M=S.M,t=typ(S.ses,
   h+='<div class="tm" id="tm">'+(M.done?(t?fmt(M.t):c.min+'分終了'):fmt(t?0:c.min*60))+'</div>';
   if(M.running)h+='<button class="big" style="background:#e6f4ea;border-color:#1e6b2e;color:#1e6b2e" onclick="mLap()">🏁 1周</button>';
   h+='<div style="text-align:center;margin:10px 0;font-size:16px">'+(t?'<b>'+M.laps.length+'</b> / '+pl.n+' 回':'<b>'+M.cnt+'</b> 周（'+M.cnt*c.track+'m）')+'</div>';
-  if(M.running&&t)h+='<button onclick="mUndo()">↩ 1つ取り消す</button> ';
+  if(M.running&&M.laps.length)h+='<div style="text-align:center;margin-bottom:8px"><button onclick="mUndo()">↩ 1つ取り消す</button></div>';
   if(!t&&(M.running||M.done))h+='<div class="row" style="justify-content:center"><button onclick="mAdj(-1)">−1周</button><button onclick="mAdj(-.5)">−半周</button><button onclick="mAdj(.5)">＋半周</button><button onclick="mAdj(1)">＋1周</button></div>';
+  if(M.laps.length){h+='<div class="card" style="margin-top:12px;padding:8px 12px"><div style="font-size:12px;color:#888;margin-bottom:4px">記録（新しい順）</div>';
+    for(var i=M.laps.length-1;i>=0;i--){var sp=M.laps[i]-(i?M.laps[i-1]:0);
+      h+='<div style="display:flex;justify-content:space-between;padding:6px 2px;border-top:1px solid #eef1fb;font-size:14px"><b>'+(i+1)+(t?'回目':'周目')+(!t?'（'+(i+1)*c.track+'m）':'')+'</b><span>'+fmt(M.laps[i])+'　<span style="color:#888;font-size:12px">ラップ '+fmt(sp)+'</span></span></div>';}
+    h+='</div>';}
   if(M.done)h+='<p style="text-align:center;color:#1e6b2e;font-weight:700;margin:10px 0">✅ 記録を保存しました</p>';
   if(t&&!M.running)h+='<div class="card" style="margin-top:12px"><span class="lbl" style="margin-top:0">手入力（まちがえたとき）</span><div class="row"><input id="mt" placeholder="例 6:32.5 または 392" value="'+(M.done?fmt(M.t):'')+'" style="flex:1"><button class="bp" onclick="mManual()">保存</button></div></div>';
   if(!t&&!M.running)h+='<div class="card" style="margin-top:12px"><span class="lbl" style="margin-top:0">手入力の周回数（0.5周単位）</span><div class="row"><input id="mt" type="number" step="0.5" placeholder="例 12.5" style="flex:1"><button class="bp" onclick="mManual()">保存</button></div></div>';
@@ -178,8 +182,8 @@ function finRun(){stop();save({laps:S.M.cnt});render();}
 window.mStart=function(){var M=S.M;M.running=true;M.t0=Date.now();M.laps=[];M.cnt=0;M.iv=setInterval(tick,100);render();};
 window.mLap=function(){var M=S.M,c=cfg(),e=(Date.now()-M.t0)/1000;
   if(typ(S.ses,c.n)==='time'){M.laps.push(e);if(M.laps.length>=plan(gOf(DB.students[S.run]),c.track).n){M.t=r1(e);stop();save({t:M.t});}}
-  else M.cnt+=1;render();};
-window.mUndo=function(){S.M.laps.pop();render();};
+  else{M.laps.push(e);M.cnt+=1;}render();};
+window.mUndo=function(){var M=S.M;M.laps.pop();if(typ(S.ses,cfg().n)!=='time')M.cnt=Math.max(0,M.cnt-1);render();};
 window.mAdj=function(d){var M=S.M;M.cnt=Math.max(0,M.cnt+d);if(M.done)save({laps:M.cnt});render();};
 window.mManual=function(){var c=cfg(),v=$('mt').value,M=S.M;
   if(typ(S.ses,c.n)==='time'){var x=parseT(v);if(!x||isNaN(x)){uiAlert('「6:32.5」や「392」のように入力してください');return;}M.t=x;M.done=true;save({t:x});}
