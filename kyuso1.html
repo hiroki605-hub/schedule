@@ -108,7 +108,7 @@ function vTeacher(){
   +'<div><span class="lbl">今の授業の回（生徒に表示）</span><select style="width:90px" onchange="setS(\'cur\',this.value)">'+rg(1,c.n).map(function(i){return '<option'+(i===c.cur?' selected':'')+' value="'+i+'">第'+i+'回</option>';}).join('')+'</select></div></div>'
   +'<p style="font-size:11px;color:#888;margin-top:8px;line-height:1.7">第1回と第'+c.n+'回＝タイム測定（男子1500m・女子1000m）／その間＝'+c.min+'分完走（'+(c.track/2)+'m単位＝半周で記録）。タイム点：全国平均（令和6年度 体力・運動能力調査）の5段階（平均付近＝3点）。短縮点：'+IMP.join('秒・')+'秒以上短縮＝5〜2点、それ未満＝1点。完走点：全国平均ペア×'+c.factor+'%で'+c.min+'分走った場合の距離を基準に5段階→最後'+c.k+'回の平均。</p></div>'
   +'<div class="card"><div class="row"><b>生徒</b><select style="width:auto" onchange="S.cls=this.value;render()"><option value="">全クラス</option>'+cl.map(function(x){return '<option'+(S.cls===x?' selected':'')+'>'+x+'</option>';}).join('')+'</select><input id="nc" placeholder="クラス名 例:1年1組" style="width:150px"><button onclick="addCls()">クラス追加</button></div>'
-  +'<div class="row" style="margin-top:8px"><select id="bc" style="width:auto">'+cl.map(function(x){return '<option>'+x+'</option>';}).join('')+'</select><input id="bn" type="number" placeholder="人数" style="width:80px"><select id="bg" style="width:auto"><option value="m">男子</option><option value="f">女子</option></select><button onclick="bulk()">出席番号を連番で一括追加</button></div></div>'
+  +'<div class="row" style="margin-top:8px"><select id="bc" style="width:auto">'+cl.map(function(x){return '<option>'+x+'</option>';}).join('')+'</select><input id="bm" placeholder="男子の番号 例 1-18" style="width:170px"><input id="bf" placeholder="女子の番号 例 19-35" style="width:170px"><button class="bp" onclick="bulk()">男女まとめて追加</button></div><p style="font-size:11px;color:#888;margin-top:6px">番号は「1-18」「1,3,5-9」のように書けます（男女混合名簿もOK）。すでにある番号は、性別だけ書き換えます。</p></div>'
   +'<div style="overflow-x:auto"><table style="background:#fff"><tr><th>クラス</th><th>番号</th><th>性別</th>';
   rg(1,c.n).forEach(function(i){h+='<th>第'+i+'回<br><span style="font-weight:400;color:#888">'+(typ(i,c.n)==='time'?'タイム':c.min+'分完走(周)')+'</span></th>';});
   h+='<th>タイム点</th><th>短縮秒</th><th>短縮点</th><th>完走点</th><th>合計/15</th><th></th></tr>';
@@ -127,9 +127,11 @@ window.setR=function(id,i,v){var c=cfg(),t=typ(i,c.n)==='time';v=(v||'').trim();
   if(t){var x=parseT(v);if(isNaN(x)||x==null){uiAlert('「6:32.5」や「392」のように入力してください');render();return;}set('rec/'+id+'/'+i,{t:x,by:'teacher',at:Date.now()});}
   else{var l=+v;if(!isFinite(l)||l<0||(l*2)%1){uiAlert('周回数は0.5周単位の数字で入力してください');render();return;}set('rec/'+id+'/'+i,{laps:l,by:'teacher',at:Date.now()});}};
 window.addCls=function(){var v=$('nc').value.trim();if(!v||DB.classes.indexOf(v)>=0)return;set('classes',DB.classes.concat([v]));};
-window.bulk=function(){var cls=$('bc').value,n=parseInt($('bn').value,10),g=$('bg').value;if(!cls||!n){uiAlert('クラスと人数を入れてください');return;}
-  var ex=students().filter(function(s){return s.cls===cls;}).map(function(s){return +s.number;});
-  for(var i=1;i<=n;i++)if(ex.indexOf(i)<0){var id=genId();set('students/'+id,{id:id,number:i,cls:cls,gender:g,password:String(i)});}};
+function nums(v){v=(v||'').replace(/[０-９]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-65248);}).replace(/[ー－–〜～~]/g,'-');var r=[];v.split(/[,、，\s]+/).forEach(function(p){var m=p.match(/^(\d+)-(\d+)$/);if(m){for(var i=+m[1];i<=+m[2]&&i<=99;i++)r.push(i);}else if(/^\d+$/.test(p))r.push(+p);});return r;}
+window.bulk=function(){var cls=$('bc').value,m=nums($('bm').value),f=nums($('bf').value);if(!cls||!(m.length+f.length)){uiAlert('クラスと、男子・女子の番号を入れてください');return;}
+  var ex={};students().forEach(function(s){if(s.cls===cls)ex[+s.number]=s;});
+  function put(n,g){if(ex[n]){set('students/'+ex[n].id+'/gender',g);}else{var id=genId();set('students/'+id,{id:id,number:n,cls:cls,gender:g,password:String(n)});}}
+  m.forEach(function(n){put(n,'m');});f.forEach(function(n){put(n,'f');});$('bm').value=$('bf').value='';};
 window.delS=function(id){uiConfirm('この生徒と記録を削除しますか？',function(){rm('students/'+id);rm('rec/'+id);});};
 window.csv=function(){var c=cfg(),rows=[['クラス','番号','性別']];
   rg(1,c.n).forEach(function(i){rows[0].push('第'+i+'回'+(typ(i,c.n)==='time'?'(秒)':'(周)'));});
