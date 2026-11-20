@@ -387,7 +387,7 @@
 
   <!-- ⑤ 面接生徒入力 -->
   <div class="panel" id="panel-istudents">
-    <div class="hint"><b>どの日に、どの生徒が面接するかを入力するタブです。</b>校長先生・教頭先生それぞれ、④「面接日程調整」で<b>「○」になっている日だけ</b>入力欄が出ます（④を変えると、ここも自動で切り替わります）。生徒名は1人ずつ改行して入力してください（例：<code>15:30 山田太郎</code> のように時間を添えてもOK）。印刷（B5縦）は生徒に配布・掲示する用で、①で「生徒に見せない」にした行事は印刷されません。</div>
+    <div class="hint"><b>どの日に、どの生徒が面接するかを入力するタブです。</b>校長先生・教頭先生それぞれ、④「面接日程調整」で<b>「○」になっている日だけ</b>入力欄が出ます（④を変えると、ここも自動で切り替わります）。生徒名は1人ずつ改行して入力してください（例：<code>15:30 山田太郎</code> のように時間を添えてもOK）。印刷（B4縦）は教室に掲示する用で、①で「生徒に見せない」にした行事は印刷されません。</div>
     <div class="row" style="justify-content:space-between;margin-bottom:8px;">
       <div class="month-switch" id="istMonthSwitch"></div>
       <div class="row">
@@ -398,10 +398,17 @@
           <label><input type="checkbox" value="1"> 1月</label>
           <label><input type="checkbox" value="2"> 2月</label>
         </span>
-        <button class="btn secondary" onclick="printIStudents()">🖨 生徒配布用を印刷（B5縦）</button>
+        <button class="btn secondary" onclick="printIStudents()">🖨 掲示用を印刷（B4縦）</button>
       </div>
     </div>
     <div class="interview-legend">○の日だけ入力できます。④の変更は自動で反映されます（他のパソコンで変更された場合も数秒で反映）。</div>
+    <div style="background:#fff;border:1px solid var(--paper-line);padding:10px 14px;margin:8px 0 12px;">
+      <div style="font-weight:700;margin-bottom:6px;">印刷する用紙に入れる注意書き（空欄なら入りません。全部の月に共通です）</div>
+      <label style="font-size:12px;color:var(--ink-soft);">表の上（タイトルの下）に入れる文章</label>
+      <textarea id="istNoteTop" rows="2" style="width:100%;box-sizing:border-box;padding:5px 7px;font-family:inherit;font-size:13.5px;margin-bottom:8px;" placeholder="例：面接の時間は変更になることがあります。"></textarea>
+      <label style="font-size:12px;color:var(--ink-soft);">表の下に入れる文章</label>
+      <textarea id="istNoteBottom" rows="2" style="width:100%;box-sizing:border-box;padding:5px 7px;font-family:inherit;font-size:13.5px;" placeholder="例：面接に行けない場合は、前日までに担任の先生に連絡してください。"></textarea>
+    </div>
     <div id="istTableWrap"></div>
   </div>
 
@@ -2208,7 +2215,24 @@ function renderIStudents(){
     if(t){ t.focus(); try{ t.setSelectionRange(keep.s, keep.e); }catch(e){} }
   }
   istUpdateTotal();
+  istSyncNoteBoxes();
 }
+function istSyncNoteBoxes(){
+  const n = istudents._note || {};
+  [['istNoteTop', n.top], ['istNoteBottom', n.bottom]].forEach(([id, v])=>{
+    const el = document.getElementById(id);
+    if(el && el !== document.activeElement) el.value = v || '';
+  });
+}
+[['istNoteTop','top'], ['istNoteBottom','bottom']].forEach(([id, f])=>{
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.addEventListener('input', ()=>{
+    istudents._note = Object.assign({top:'', bottom:''}, istudents._note || {});
+    istudents._note[f] = el.value;
+    saveIStudents();
+  });
+});
 function istUpdateTotal(){
   const el = document.getElementById('istCount');
   if(!el) return;
@@ -2249,7 +2273,7 @@ async function istPoll(){
 setInterval(istPoll, 6000);
 window.addEventListener('focus', istPoll);
 
-/* ---------- ⑤ 生徒配布用の印刷（B5縦） ---------- */
+/* ---------- ⑤ 掲示用の印刷（B4縦） ---------- */
 function istNames(text){
   return String(text||'').split(/\n/).map(x=>x.trim()).filter(x=>x);
 }
@@ -2276,9 +2300,17 @@ function istBuildPrintPage(key, isLast){
       pN: pOk ? istNames(st.p) : [], vN: vOk ? istNames(st.v) : []};
   });
   // 1ページに収まる文字サイズを探す
-  const availH = 241 - 14 - 2;          // 用紙内側 − タイトル − 余裕
-  const headH = 7, minRow = 5.6;
-  const colW = {ev: 0.31*166-3, nm: 0.285*166-3};
+  const nt = String((istudents._note && istudents._note.top) || '');
+  const nb = String((istudents._note && istudents._note.bottom) || '');
+  const noteH = t => {                    // 注意書きの高さ（mm）の見積り
+    if(!t.trim()) return 0;
+    const cpl = Math.floor(237/(15*0.2646));
+    const lines = t.split('\n').reduce((a,l)=>a+Math.max(1,Math.ceil(l.length/cpl)),0);
+    return lines*15*1.45*0.2646 + 4;
+  };
+  const availH = 344 - 20 - 3 - noteH(nt) - noteH(nb);   // B4用紙の内側(344mm) − タイトル − 余裕 − 注意書き
+  const headH = 10, minRow = 8;
+  const colW = {ev: 0.31*237-4, nm: 0.285*237-4};
   function calc(fs){
     const lineH = fs*1.35*mm;
     const cpl = w => Math.max(1, Math.floor(w/(fs*mm)));
@@ -2287,16 +2319,16 @@ function istBuildPrintPage(key, isLast){
       const evL = it.evLines.reduce((a,t)=>a+Math.max(1,Math.ceil(t.length/cpl(colW.ev))),0);
       const pL = it.pN.reduce((a,t)=>a+Math.max(1,Math.ceil(t.length/cpl(colW.nm))),0);
       const vL = it.vN.reduce((a,t)=>a+Math.max(1,Math.ceil(t.length/cpl(colW.nm))),0);
-      const h = Math.max(minRow, Math.max(evL,pL,vL,1)*lineH + 1.8);
+      const h = Math.max(minRow, Math.max(evL,pL,vL,1)*lineH + 2.6);
       total += h; return h;
     });
     return {hs,total};
   }
-  let fs = 12, r = calc(fs);
-  while(r.total > availH && fs > 7){ fs -= 0.5; r = calc(fs); }
+  let fs = 17, r = calc(fs);
+  while(r.total > availH && fs > 9){ fs -= 0.5; r = calc(fs); }
   let hs = r.hs;
   if(r.total < availH){                    // 余った分は行の高さに均等に配る（広げすぎない）
-    const extra = Math.min((availH - r.total)/hs.length, 3.2);
+    const extra = Math.min((availH - r.total)/hs.length, 4.6);
     hs = hs.map(h=>h+extra);
   }
   let body = '';
@@ -2309,9 +2341,10 @@ function istBuildPrintPage(key, isLast){
   });
   return `<div class="ispp" style="${isLast?'':'page-break-after:always;break-after:page;'}">
   <h1>${monthDef.year}年${monthDef.label}　面接日程<small>（${document.getElementById('schoolYearInput').value}年度）</small></h1>
+  ${nt.trim() ? `<div class="isp-note" style="margin:0 0 4mm">${escapeHtml(nt)}</div>` : ''}
   <table class="isp" style="font-size:${fs}px"><colgroup><col style="width:7%"><col style="width:6%"><col style="width:31%"><col style="width:28.5%"><col style="width:28.5%"></colgroup>
   <thead><tr><th style="height:${headH}mm">日</th><th>曜</th><th>学校行事</th><th>校長先生</th><th>教頭先生</th></tr></thead>
-  <tbody>${body}</tbody></table></div>`;
+  <tbody>${body}</tbody></table>${nb.trim() ? `<div class="isp-note" style="margin:4mm 0 0">${escapeHtml(nb)}</div>` : ''}</div>`;
 }
 function printIStudents(){
   let keys = Array.from(document.querySelectorAll('#istPrintMonths input:checked')).map(c=>c.value);
@@ -2321,11 +2354,12 @@ function printIStudents(){
   area.id = 'istPrintArea';
   area.innerHTML = `<style>
     #istPrintArea{font-family:inherit;color:#000;}
-    #istPrintArea h1{font-size:19px;margin:0 0 4mm;text-align:center;letter-spacing:.06em;}
-    #istPrintArea h1 small{font-size:12px;margin-left:10px;font-weight:400;}
+    #istPrintArea h1{font-size:27px;margin:0 0 5mm;text-align:center;letter-spacing:.06em;}
+    #istPrintArea h1 small{font-size:17px;margin-left:14px;font-weight:400;}
     #istPrintArea table.isp{width:100%;border-collapse:collapse;table-layout:fixed;border:2px solid #14213d;}
-    #istPrintArea table.isp th{background:#14213d !important;color:#fff !important;border:1px solid #14213d;padding:0 1mm;text-align:center;font-size:1em;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-    #istPrintArea table.isp td{border:1px solid #555;padding:0.6mm 1.6mm;vertical-align:middle;line-height:1.35;word-break:break-all;overflow:hidden;}
+    #istPrintArea table.isp th{background:#14213d !important;color:#fff !important;border:1px solid #14213d;padding:0 1.5mm;text-align:center;font-size:1em;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    #istPrintArea table.isp td{border:1px solid #555;padding:0.9mm 2.2mm;vertical-align:middle;line-height:1.35;word-break:break-all;overflow:hidden;}
+    #istPrintArea .isp-note{font-size:15px;line-height:1.45;white-space:pre-wrap;}
     #istPrintArea td.c{text-align:center;padding:0;}
     #istPrintArea td.b{font-weight:700;}
     #istPrintArea td.nm{text-align:left;font-weight:600;}
@@ -2334,7 +2368,7 @@ function printIStudents(){
     #istPrintArea tr.sat td.c{color:#1f4f99;} #istPrintArea tr.sun td.c,#istPrintArea tr.holiday td.c{color:#b3261e;}
   </style>` + keys.map((k,i)=>istBuildPrintPage(k, i===keys.length-1)).join('');
   const pg = document.createElement('style');
-  pg.textContent = '@media print{@page{size:182mm 257mm;margin:8mm;} body.printing-istudents > *:not(#istPrintArea){display:none !important;} body.printing-istudents #istPrintArea{display:block !important;}}'
+  pg.textContent = '@media print{@page{size:257mm 364mm;margin:10mm;} body.printing-istudents > *:not(#istPrintArea){display:none !important;} body.printing-istudents #istPrintArea{display:block !important;}}'
     + '@media screen{#istPrintArea{display:none;}}';
   document.head.appendChild(pg);
   document.body.appendChild(area);
