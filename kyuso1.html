@@ -101,7 +101,7 @@ window.tLogout=function(){auth.signOut().then(function(){teacher=false;go('home'
 function vTeacher(){
   var c=cfg(),all=students(),cl=DB.classes,list=S.cls?all.filter(function(s){return s.cls===S.cls;}):all;
   function num(k,v,mn,mx,u){return '<div><span class="lbl">'+u+'</span><input type="number" min="'+mn+'" max="'+mx+'" value="'+v+'" style="width:90px" onchange="setS(\''+k+'\',this.value)"></div>';}
-  var h='<div style="padding:12px;max-width:1300px;margin:0 auto"><div class="row" style="margin-bottom:10px"><button onclick="go(\'home\')">← 戻る</button><button onclick="tLogout()" style="color:#d93025">ログアウト</button><button onclick="csv()" style="margin-left:auto;background:#1e6b2e;color:#fff">⬇ CSV</button></div>'
+  var h='<div style="padding:12px;max-width:1300px;margin:0 auto"><div class="row" style="margin-bottom:10px"><button onclick="go(\'home\')">← 戻る</button><button onclick="tLogout()" style="color:#d93025">ログアウト</button><button onclick="printView()" style="margin-left:auto;background:#4A86E8;color:#fff;border-color:#4A86E8">🖨 印刷用（PDF保存可）</button><button onclick="csv()" style="background:#1e6b2e;color:#fff">⬇ CSV</button></div>'
   +'<div class="card"><b>⚙ 設定（生徒の画面にそのまま反映）</b><div class="row" style="align-items:flex-end">'
   +'<div><span class="lbl">トラック1周</span><select style="width:110px" onchange="setS(\'track\',this.value)"><option value="150"'+(c.track===150?' selected':'')+'>150m（現在の学校）</option><option value="200"'+(c.track===200?' selected':'')+'>200m</option></select></div>'
   +num('n',c.n,2,12,'全体の回数')+num('min',c.min,1,30,'完走の時間(分)')+num('k',c.k,1,10,'完走点に使う最後の回数')+num('factor',c.factor,50,120,'完走の基準ペース(%)')
@@ -133,11 +133,26 @@ window.bulk=function(){var cls=$('bc').value,v=($('bm').value||'').replace(/[０
   var ex={};students().forEach(function(s){if(s.cls===cls)ex[+s.number]=s;});
   seq.forEach(function(g,k){var n=k+1;if(ex[n])set('students/'+ex[n].id+'/gender',g);else{var id=genId();set('students/'+id,{id:id,number:n,cls:cls,gender:g,password:String(n)});}});$('bm').value='';};
 window.delS=function(id){uiConfirm('この生徒と記録を削除しますか？',function(){rm('students/'+id);rm('rec/'+id);});};
+window.printView=function(){
+  var c=cfg(),all=students(),cl=S.cls?[S.cls]:uniq(all.map(function(s){return s.cls;})).sort(),dt=new Date(),ds=dt.getFullYear()+'年'+(dt.getMonth()+1)+'月'+dt.getDate()+'日';
+  var css='@page{size:A4 '+(c.n>7?'landscape':'portrait')+';margin:10mm}body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;color:#000;font-size:11px}h2{font-size:16px;margin-bottom:2px}p.s{font-size:10px;color:#444;margin-bottom:6px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #555;padding:3px 2px;text-align:center}th{background:#e8edf8;font-size:10px}tr{page-break-inside:avoid}thead{display:table-header-group}.pb{page-break-after:always}.m td.g{background:#eef4ff}.f td.g{background:#fff0f6}.tt{font-weight:700;font-size:12px}';
+  var body=cl.map(function(cn,idx){var l=all.filter(function(s){return s.cls===cn;});
+    var t='<div'+(idx<cl.length-1?' class="pb"':'')+'><h2>'+esc(cn)+'　持久走 記録</h2><p class="s">トラック'+c.track+'m ／ 男子1500m・女子1000m ／ 完走'+c.min+'分（最後'+c.k+'回の平均）／ 印刷日 '+ds+'</p><table><thead><tr><th>番号</th><th>性</th>';
+    rg(1,c.n).forEach(function(i){t+='<th>第'+i+'回<br>'+(typ(i,c.n)==='time'?'タイム':c.min+'分完走')+'</th>';});
+    t+='<th>タイム点</th><th>短縮秒</th><th>短縮点</th><th>完走点</th><th>合計<br>/15</th></tr></thead><tbody>';
+    l.forEach(function(s){var r=DB.rec[s.id]||{},o=calc(s),pn=function(v){return v==null?'':v;};
+      t+='<tr class="'+gOf(s)+'"><td class="g"><b>'+esc(s.number)+'</b></td><td class="g">'+(gOf(s)==='f'?'女':'男')+'</td>';
+      rg(1,c.n).forEach(function(i){t+='<td>'+(r[i]?(typ(i,c.n)==='time'?fmt(r[i].t):Math.round(r[i].laps*c.track)+'m'):'')+'</td>';});
+      t+='<td>'+pn(o.timePt)+'</td><td>'+pn(o.imp)+'</td><td>'+pn(o.impPt)+'</td><td>'+pn(o.runPt)+'</td><td class="tt">'+((o.timePt==null&&o.impPt==null&&o.runPt==null)?'':o.total)+'</td></tr>';});
+    return t+'</tbody></table></div>';}).join('');
+  var fr=document.createElement('iframe');fr.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';document.body.appendChild(fr);
+  var w=fr.contentWindow;w.document.open();w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>持久走 記録</title><style>'+css+'</style></head><body>'+body+'</body></html>');w.document.close();
+  setTimeout(function(){w.focus();w.print();setTimeout(function(){fr.remove();},60000);},300);};
 window.csv=function(){var c=cfg(),rows=[['クラス','番号','性別']];
   rg(1,c.n).forEach(function(i){rows[0].push('第'+i+'回'+(typ(i,c.n)==='time'?'(秒)':'(周)'));});
   rows[0].push('タイム点','短縮秒','短縮点','完走点','合計(15点満点)');
   students().forEach(function(s){var r=DB.rec[s.id]||{},o=calc(s),row=[s.cls,s.number,gOf(s)==='f'?'女':'男'];
-    rg(1,c.n).forEach(function(i){row.push(r[i]?(typ(i,c.n)==='time'?r[i].t:r[i].laps):'');});
+    rg(1,c.n).forEach(function(i){row.push(r[i]?(typ(i,c.n)==='time'?fmt(r[i].t):r[i].laps):'');});
     row.push(o.timePt==null?'':o.timePt,o.imp==null?'':o.imp,o.impPt==null?'':o.impPt,o.runPt==null?'':o.runPt,o.total);rows.push(row);});
   var b=new Blob(['\uFEFF'+rows.map(function(r){return r.join(',');}).join('\n')],{type:'text/csv'}),a=document.createElement('a');
   a.href=URL.createObjectURL(b);a.download='持久走記録.csv';document.body.appendChild(a);a.click();a.remove();};
@@ -163,6 +178,7 @@ function vMeasure(){var c=cfg(),r=DB.students[S.run],g=gOf(r),M=S.M,t=typ(S.ses,
   h+='<div class="tm" id="tm">'+(M.done?(t?fmt(M.t):c.min+'分終了'):fmt(t?0:c.min*60))+'</div>';
   if(M.running)h+='<button class="big" style="background:#e6f4ea;border-color:#1e6b2e;color:#1e6b2e" onclick="mLap()">🏁 1周</button>';
   h+='<div style="text-align:center;margin:10px 0;font-size:16px">'+(t?'<b>'+M.laps.length+'</b> / '+pl.n+' 回':'<b>'+M.cnt+'</b> 周（'+M.cnt*c.track+'m）')+'</div>';
+  h+=liveBox(r,t);
   if(M.running&&M.laps.length)h+='<div style="text-align:center;margin-bottom:8px"><button onclick="mUndo()">↩ 1つ取り消す</button></div>';
   if(!t&&(M.running||M.done))h+='<div class="row" style="justify-content:center"><button onclick="mAdj(-1)">−1周</button><button onclick="mAdj(-.5)">−半周</button><button onclick="mAdj(.5)">＋半周</button><button onclick="mAdj(1)">＋1周</button></div>';
   if(M.laps.length){h+='<div class="card" style="margin-top:12px;padding:8px 12px"><div style="font-size:12px;color:#888;margin-bottom:4px">記録（新しい順）</div>';
@@ -174,6 +190,24 @@ function vMeasure(){var c=cfg(),r=DB.students[S.run],g=gOf(r),M=S.M,t=typ(S.ses,
   if(!t&&!M.running)h+='<div class="card" style="margin-top:12px"><span class="lbl" style="margin-top:0">手入力の周回数（0.5周単位）</span><div class="row"><input id="mt" type="number" step="0.5" placeholder="例 12.5" style="flex:1"><button class="bp" onclick="mManual()">保存</button></div></div>';
   if(old)h+='<p style="font-size:12px;color:#888;margin-top:10px">いまの記録：'+(t?fmt(old.t):old.laps+'周')+'（上書きされます）</p>';
   return h+critCard(r,t)+'</div>';}
+function liveBox(r,t){
+  var M=S.M,c=cfg(),g=gOf(r),y=yrOf(r.cls),k=M.laps.length,B=BND[g][y],tot=dist(g),o,sc,big='font-size:20px;color:#b45309';
+  var w='<div class="card" style="margin-top:12px;background:#fffbea;border-color:#f3dc8a;line-height:1.9;font-size:14px">';
+  if(t){
+    if(M.done&&M.t!=null)return w+'🎉 <b>ゴール！　'+fmt(M.t)+'</b><br>評価：<b style="'+big+'">'+tScore(M.t,y,g)+'点</b>（5点満点）</div>';
+    if(!M.running||!k)return '';
+    var pl=plan(g,c.track),d=pl.first+(k-1)*c.track,e=M.laps[k-1],proj=e/d*tot,left=tot-d;sc=tScore(proj,y,g);
+    o=w+'⏱ 今のペース：<b>1周 '+fmt(e/d*c.track)+'</b>（1000m '+fmtS(Math.round(e/d*1000))+'）<br>残り <b>'+(pl.n-k)+'回</b>（あと'+left+'m）<br>このペースなら <b>'+fmt(proj)+'</b> → 評価 <b style="'+big+'">'+sc+'点</b>';
+    if(sc<5){var tg=B[4-sc],rt=tg-e;o+='<br><span style="color:#b45309">🔥 '+(sc+1)+'点まであと約'+Math.max(1,Math.ceil(proj-tg))+'秒！'+(rt>0&&left>0?'残りを1周 '+fmt(rt/left*c.track)+' 以内で走れば届く':'')+'</span>';}
+    else o+='<br><span style="color:#1e6b2e">🔥 最高評価のペース！この調子！</span>';
+    return o+'</div>';}
+  if(M.done)return w+'🏁 <b>'+c.min+'分完走！　'+M.cnt+'周 ＝ '+Math.round(M.cnt*c.track)+'m</b><br>評価：<b style="'+big+'">'+rScore(M.cnt*c.track,y,g,c)+'点</b>（5点満点）</div>';
+  if(!M.running||!k||!M.cnt)return '';
+  var e2=M.laps[k-1],dn=M.cnt*c.track,pj=dn/e2*c.min*60,th=B.map(function(x){return Math.round(dist(g)/x*c.min*60*c.factor/100/10)*10;});sc=rScore(pj,y,g,c);
+  o=w+'⏱ 今のペース：<b>1周 '+fmt(e2/M.cnt)+'</b>（1000m '+fmtS(Math.round(e2/dn*1000))+'）<br>いま <b>'+M.cnt+'周 ＝ '+dn+'m</b><br>このペースで走り切ると <b>約'+(Math.round(pj/c.track*10)/10)+'周 ＝ 約'+Math.round(pj/10)*10+'m</b> → 評価 <b style="'+big+'">'+sc+'点</b>';
+  if(sc<5)o+='<br><span style="color:#b45309">🔥 '+(sc+1)+'点は '+th[4-sc]+'m ―あと約'+Math.max(10,th[4-sc]-Math.round(pj/10)*10)+'m分ペースアップ！</span>';
+  else o+='<br><span style="color:#1e6b2e">🔥 最高評価のペース！この調子！</span>';
+  return o+'</div>';}
 function fmtS(s){var m=Math.floor(s/60),x=s%60;return m+':'+(x<10?'0':'')+x;}
 function critCard(r,t){var c=cfg(),y=yrOf(r.cls),B=BND,k=['m','f'],o='<div class="card" style="margin-top:12px"><b style="font-size:13px">📊 評価基準（中'+y+'・全国平均をもとにした5段階）</b><div style="font-size:11px;color:#888;margin:2px 0 6px">'+(t?'タイム測定：男子1500m／女子1000m':c.min+'分完走：走った距離（トラック'+c.track+'m）')+'</div><table style="width:100%;font-size:13px"><tr><th>点</th><th>男子</th><th>女子</th></tr>';
   for(var i=0;i<5;i++){o+='<tr><td><b>'+(5-i)+'点</b></td>';k.forEach(function(g){var b=B[g][y],s;
