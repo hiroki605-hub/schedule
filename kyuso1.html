@@ -247,11 +247,13 @@ function vSLogin(){var st=students(),cl=uniq(st.map(function(s){return s.cls;}))
   +'<span class="lbl">③ パスワード（初期は出席番号）</span><input type="password" id="sp" onkeydown="if(event.key===\'Enter\')sLogin()">'
   +(S.sErr?'<p style="color:#d93025;font-size:13px;margin-top:8px">'+S.sErr+'</p>':'')+'<button class="bp" style="width:100%;margin-top:14px" onclick="sLogin()">ログイン</button></div>';}
 window.sLogin=function(){var s=DB.students[$('sn').value];if(!s||s.password!==$('sp').value){S.sErr='出席番号またはパスワードが違います';render();return;}S.me=s;S.ses=cfg().cur;S.run='';S.sErr='';S.page='pick';render();};
-function vPick(){var c=cfg(),mates=students().filter(function(s){return s.cls===S.me.cls;});
+function doneSes(m){var d={};Object.keys(DB.rec).forEach(function(id){var r=DB.rec[id]||{};Object.keys(r).forEach(function(i){if(r[i]&&r[i].by===m.id)d[i]=1;});});return d;} // m が計測を記録した回
+function vPick(){var c=cfg(),mates=students().filter(function(s){return s.cls===S.me.cls;}),dn=doneSes(S.me),left=rg(1,c.n).filter(function(i){return !dn[i];});
+  if(left.length&&left.indexOf(S.ses)<0)S.ses=left.filter(function(i){return i>S.ses;})[0]||left[0];
   return '<div style="max-width:420px;margin:0 auto;padding:1.5rem">'+back('← ログアウト','home')+'<h2 style="margin-bottom:4px">'+esc(S.me.cls)+' '+esc(S.me.number)+'番</h2><p style="color:#888;font-size:13px;margin-bottom:12px">ペアの記録をとります</p>'
-  +'<span class="lbl">今日は第何回？</span><select onchange="S.ses=+this.value;render()">'+rg(1,c.n).map(function(i){return '<option value="'+i+'"'+(i===S.ses?' selected':'')+'>第'+i+'回（'+(typ(i,c.n)==='time'?'タイム測定':c.min+'分完走')+'）</option>';}).join('')+'</select>'
-  +'<span class="lbl">走る人（ペア）の出席番号</span><select id="rn"><option value="">選んでください</option>'+mates.map(function(s){return '<option value="'+s.id+'">'+s.number+'番（'+(gOf(s)==='f'?'女':'男')+'）</option>';}).join('')+'</select>'
-  +'<button class="bp" style="width:100%;margin-top:16px;padding:14px" onclick="goMeasure()">測定画面へ</button>'
+  +(!left.length?'<div class="card" style="margin-top:12px;text-align:center">🎉 全部の回の計測がおわっています</div>':'<span class="lbl">今日は第何回？</span><select onchange="S.ses=+this.value;render()">'+left.map(function(i){return '<option value="'+i+'"'+(i===S.ses?' selected':'')+'>第'+i+'回（'+(typ(i,c.n)==='time'?'タイム測定':c.min+'分完走')+'）</option>';}).join('')+'</select><p style="font-size:11px;color:#888;margin-top:4px">計測を記録した回は表示されません</p>')
+  +(!left.length?'':'<span class="lbl">走る人（ペア）の出席番号</span><select id="rn"><option value="">選んでください</option>'+mates.map(function(s){return '<option value="'+s.id+'">'+s.number+'番（'+(gOf(s)==='f'?'女':'男')+'）</option>';}).join('')+'</select>')
+  +(!left.length?'':'<button class="bp" style="width:100%;margin-top:16px;padding:14px" onclick="goMeasure()">測定画面へ</button>')
   +'<button style="width:100%;margin-top:10px;padding:12px" onclick="S.mi=1;go(\'mine\')">📖 自分の記録を見る</button></div>';}
 window.goMeasure=function(){var id=$('rn').value;if(!id){uiAlert('走る人を選んでください');return;}
   S.run=id;S.M={running:false,done:false,laps:[],cnt:0,t0:0,iv:null,raw:''};S.page='measure';render();};
