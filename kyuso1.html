@@ -66,7 +66,7 @@ var TS=firebase.database.ServerValue.TIMESTAMP;
 function $(id){return document.getElementById(id);}
 function uniq(a){return a.filter(function(v,i){return a.indexOf(v)===i;});}
 // ── 設定 ──
-function cfg(){var s=DB.settings||{};return{track:+s.track||150,n:Math.max(2,+s.n||6),k:+s.k||4,min:+s.min||10,factor:+s.factor||90,cur:+s.cur||1};}
+function cfg(){var s=DB.settings||{};return{track:+s.track||150,n:Math.max(2,+s.n||6),k:+s.k||4,min:+s.min||10,factor:+s.factor||90,cur:+s.cur||1,lv:(s.lv==='easy'||s.lv==='hard')?s.lv:'normal'};}
 function typ(i,n){return(i===1||i===n)?'time':'run';}
 function dist(g){var w=cfg().track===200;return g==='f'?(w?1500:1000):(w?2000:1500);} // 150m:男1500/女1000、200m:男2000/女1500
 function plan(g,tr){var d=dist(g),r=d%tr,f=r===0?tr:r;return{first:f,n:(d-f)/tr+1};}
@@ -76,8 +76,10 @@ var IMP=[45,40,35,30,25,20,15,10,5]; // 短縮秒の下限（10点,9点,…,2点
 // 200mトラック用：全国調査に男子2000m・女子1500mが無いので、150m用（男1500/女1000）をリーゲル式 T2=T1×(D2/D1)^RG で距離換算した推定値
 var RG=1.06;
 function scaleF(g){return cfg().track===200?Math.pow(g==='f'?1.5:4/3,RG):1;}
-function bnd(g,y){var b=BND[g][y],f=scaleF(g);return f===1?b:b.map(function(x){return Math.round(x*f);});}
-function impTh(g){var f=scaleF(g);return f===1?IMP:IMP.map(function(x){return Math.max(1,Math.round(x*f));});}
+var LV={easy:{t:1.10,i:0.7},normal:{t:1,i:1},hard:{t:0.90,i:1.3}}; // 評価の厳しさ（t=基準タイムの倍率、i=短縮秒数の倍率）
+function bnd(g,y){var b=BND[g][y],f=scaleF(g)*LV[cfg().lv].t;return f===1?b:b.map(function(x){return Math.round(x*f);});}
+function lvTxt(){var l=cfg().lv;return l==='easy'?'・優しい設定':l==='hard'?'・厳しい設定':'';}
+function impTh(g){var f=scaleF(g),k=LV[cfg().lv].i;return (f===1&&k===1)?IMP:IMP.map(function(x){return Math.max(1,Math.round(x*f*k));});}
 function yrOf(c){var m=(c||'').match(/[1-3１-３]/);return m?('123'.indexOf(m[0])>=0?+m[0]:'１２３'.indexOf(m[0])+1):1;}
 function gOf(s){return s&&s.gender==='f'?'f':'m';}
 function tScore(t,y,g){var b=bnd(g,y);for(var i=0;i<4;i++)if(t<b[i]+1)return 5-i;return 1;}
@@ -148,9 +150,10 @@ function vTeacher(){
   var h='<div style="padding:12px;max-width:1300px;margin:0 auto"><div class="row" style="margin-bottom:10px"><button onclick="go(\'home\')">← 戻る</button><button onclick="tLogout()" style="color:#d93025">ログアウト</button><button onclick="xlsxDl()" style="margin-left:auto;background:#1e6b2e;color:#fff;border-color:#1e6b2e;font-weight:600">⬇ Excelでダウンロード（色つき）</button></div>'
   +'<details class="card"'+(S.setOpen?' open':'')+' ontoggle="S.setOpen=this.open"><summary>⚙ 設定（生徒の画面にそのまま反映）</summary><div class="row" style="align-items:flex-end;margin-top:6px">'
   +'<div><span class="lbl">トラック1周</span><select style="width:110px" onchange="setS(\'track\',this.value)"><option value="150"'+(c.track===150?' selected':'')+'>150m（現在の学校）</option><option value="200"'+(c.track===200?' selected':'')+'>200m</option></select></div>'
+  +'<div><span class="lbl">評価の厳しさ</span><select style="width:110px" onchange="setLv(this.value)"><option value="easy"'+(c.lv==='easy'?' selected':'')+'>優しい</option><option value="normal"'+(c.lv==='normal'?' selected':'')+'>普通</option><option value="hard"'+(c.lv==='hard'?' selected':'')+'>厳しい</option></select></div>'
   +num('n',c.n,2,12,'全体の回数')+num('min',c.min,1,30,'完走の時間(分)')+num('k',c.k,1,10,'完走点に使う最後の回数')+num('factor',c.factor,50,120,'完走の基準ペース(%)')
   +'<div><span class="lbl">今の授業の回（生徒に表示）</span><select style="width:90px" onchange="setS(\'cur\',this.value)">'+rg(1,c.n).map(function(i){return '<option'+(i===c.cur?' selected':'')+' value="'+i+'">第'+i+'回</option>';}).join('')+'</select></div></div>'
-  +'<p style="font-size:11px;color:#888;margin-top:8px;line-height:1.7">第1回と第'+c.n+'回＝タイム測定（男子'+dist('m')+'m・女子'+dist('f')+'m）／その間＝'+c.min+'分完走（1周＝'+c.track+'mごとにボタンで記録。終了時の半周分は「＋半周」で追加）。タイム点：全国平均（令和6年度 体力・運動能力調査）の5段階（平均付近＝3点）。'+(c.track===200?'<b>※200m用は、全国調査に男子2000m・女子1500mが無いため、150m用の全国平均を距離換算（リーゲル式・係数'+RG+'）した推定値です。</b>':'')+'短縮点（10点満点）：'+impTh('m').join('・')+'秒以上短縮＝10〜2点、それ未満＝1点'+(c.track===200?'（女子は'+impTh('f').join('・')+'秒）':'')+'。完走点：全国平均ペア×'+c.factor+'%で'+c.min+'分走った場合の距離を基準に5段階→最後'+c.k+'回の平均。</p></details>'
+  +'<p style="font-size:11px;color:#888;margin-top:8px;line-height:1.7">第1回と第'+c.n+'回＝タイム測定（男子'+dist('m')+'m・女子'+dist('f')+'m）／その間＝'+c.min+'分完走（1周＝'+c.track+'mごとにボタンで記録。終了時の半周分は「＋半周」で追加）。タイム点：全国平均（令和6年度 体力・運動能力調査）の5段階（平均付近＝3点）。'+(c.lv!=='normal'?'<b>【評価：'+(c.lv==='easy'?'優しい':'厳しい')+'】基準タイムを'+Math.round(Math.abs(LV[c.lv].t-1)*100)+'%'+(c.lv==='easy'?'ゆるく':'きびしく')+'、短縮の秒数を'+Math.round(Math.abs(LV[c.lv].i-1)*100)+'%'+(c.lv==='easy'?'少なく':'多く')+'しています。</b>':'')+(c.track===200?'<b>※200m用は、全国調査に男子2000m・女子1500mが無いため、150m用の全国平均を距離換算（リーゲル式・係数'+RG+'）した推定値です。</b>':'')+'短縮点（10点満点）：'+impTh('m').join('・')+'秒以上短縮＝10〜2点、それ未満＝1点'+(c.track===200?'（女子は'+impTh('f').join('・')+'秒）':'')+'。完走点：全国平均ペア×'+c.factor+'%で'+c.min+'分走った場合の距離を基準に5段階→最後'+c.k+'回の平均。</p></details>'
   +'<details class="card"'+((S.rosOpen||!cl.length)?' open':'')+' ontoggle="S.rosOpen=this.open"><summary>👥 クラス・名簿の追加</summary>'
   +'<div class="row" style="margin-top:8px"><input id="nc" placeholder="クラス名 例:1年1組" style="width:170px"><button onclick="addCls()">クラス追加</button></div>'
   +'<div class="row" style="margin-top:8px"><select id="bc" style="width:auto">'+cl.map(function(x){return '<option>'+esc(x)+'</option>';}).join('')+'</select><input id="bm" placeholder="出席番号順に　例：男18女17　または　男男女女男…" style="flex:1;min-width:260px"><button class="bp" onclick="bulk()">出席番号順に追加</button></div><p style="font-size:11px;color:#888;margin-top:6px">1番から順に割り当てます。「男18女17」＝1〜18番が男子、19〜35番が女子。男女混合名簿なら「男女男男女…」と1人ずつ並べて入力。すでにある番号は性別だけ書き換えます。</p></details>'
@@ -174,6 +177,7 @@ function vTeacher(){
 }
 function rg(a,b){var r=[];for(var i=a;i<=b;i++)r.push(i);return r;}
 function nz(v){return v==null?'<span style="color:#ccc">―</span>':v;}
+window.setLv=function(v){var a=document.activeElement;if(a&&a.blur)a.blur();set('settings/lv',v);};
 window.setS=function(k,v){var n=+v;if(!(n>0)){uiAlert('正しい数字を入れてください');return;}var a=document.activeElement;if(a&&a.blur)a.blur();set('settings/'+k,n);};
 window.setR=function(id,i,v,el){var c=cfg(),t=typ(i,c.n)==='time';v=hw(v||'').trim();S.hold=Date.now();
   var done=function(){if(el){el.classList.add('sv');setTimeout(function(){el.classList.remove('sv');},700);}refreshCalc();};
@@ -316,7 +320,7 @@ function liveBox(r,t){
   else o+='<br><span style="color:#1e6b2e">🔥 最高評価のペース！この調子！</span>';
   return o+'</div>';}
 function fmtS(s){var m=Math.floor(s/60),x=s%60;return m+':'+(x<10?'0':'')+x;}
-function critCard(r,t){var c=cfg(),y=yrOf(r.cls),k=['m','f'],o='<div class="card" style="margin-top:12px"><b style="font-size:13px">📊 評価基準（中'+y+'・全国平均をもとにした5段階'+(c.track===200?'・200mは距離換算の推定':'')+'）</b><div style="font-size:11px;color:#888;margin:2px 0 6px">'+(t?'タイム測定：男子'+dist('m')+'m／女子'+dist('f')+'m':c.min+'分完走：走った距離（トラック'+c.track+'m）')+'</div><table style="width:100%;font-size:13px"><tr><th>点</th><th>男子</th><th>女子</th></tr>';
+function critCard(r,t){var c=cfg(),y=yrOf(r.cls),k=['m','f'],o='<div class="card" style="margin-top:12px"><b style="font-size:13px">📊 評価基準（中'+y+'・全国平均をもとにした5段階'+(c.track===200?'・200mは距離換算の推定':'')+lvTxt()+'）</b><div style="font-size:11px;color:#888;margin:2px 0 6px">'+(t?'タイム測定：男子'+dist('m')+'m／女子'+dist('f')+'m':c.min+'分完走：走った距離（トラック'+c.track+'m）')+'</div><table style="width:100%;font-size:13px"><tr><th>点</th><th>男子</th><th>女子</th></tr>';
   for(var i=0;i<5;i++){o+='<tr><td><b>'+(5-i)+'点</b></td>';k.forEach(function(g){var b=bnd(g,y),s;
     if(t)s=i===0?'〜'+fmtS(b[0]):i<4?fmtS(b[i-1]+1)+'〜'+fmtS(b[i]):fmtS(b[3]+1)+'〜';
     else{var d=b.map(function(x){return Math.round(dist(g)/x*c.min*60*c.factor/100/10)*10;});s=i<4?d[i]+'m以上':d[3]+'m未満';}
