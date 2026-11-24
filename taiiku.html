@@ -311,6 +311,14 @@
 
   function rosterKey(grade, cls){ return grade+'|'+cls; }
 
+  // 回答のID（＝Firebaseのキー）。学年・クラス・出席番号から必ず同じ値になる。
+  // → 同じ生徒が同じ種目にもう一度送ると、既存データと衝突して書き込みが拒否される（二重回答防止）
+  // Firebaseのキーに使えない文字（. $ # [ ] /）はエスケープする
+  function responseKey(grade, cls, entry){
+    const enc = v => encodeURIComponent(String(v)).replace(/\./g, '%2E');
+    return enc(grade)+'|'+enc(cls)+'|'+enc(entry);
+  }
+
   let state = {
     mode: 'student', // 'student' | 'teacher'
     teacherTab: 'templates', // templates | roster | responses
@@ -621,7 +629,7 @@
   }
 
   let toastTimer=null;
-  function toast(msg){
+  function toast(msg, ms){
     let el = document.querySelector('.toast');
     if(el) el.remove();
     el = document.createElement('div');
@@ -629,7 +637,7 @@
     el.textContent=msg;
     document.body.appendChild(el);
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(()=>el.remove(), 2400);
+    toastTimer = setTimeout(()=>el.remove(), ms || 2400);
   }
 
   function render(){
@@ -759,11 +767,50 @@
         </div>
       </div>`;
     }
+    if(m.kind === 'changeEntry'){
+      const r = state.r_responses.find(x=>x.id===m.id);
+      if(!r) return '';
+      const roster = state.config.rosters[rosterKey(r.grade, r.className)] || [];
+      const answered = new Set(state.r_responses.map(x=>x.id));
+      const picker = roster.length
+        ? `<select id="modalEntrySelect">
+            ${roster.map(n=>{
+              const taken = n!==r.entry && answered.has(responseKey(r.grade, r.className, n));
+              return `<option value="${esc(n)}" ${n===r.entry?'selected':''} ${taken?'disabled':''}>${esc(n)}番${n===r.entry?'（現在）':''}${taken?'（回答済み）':''}</option>`;
+            }).join('')}
+          </select>`
+        : `<input type="text" id="modalEntrySelect" value="${esc(r.entry)}">`;
+      return `<div class="modal-overlay">
+        <div class="modal-card">
+          <h3>出席番号を変更</h3>
+          <p class="sub">${esc(r.grade||'')} ${esc(r.className)} ${esc(r.entry)}番 の回答を、別の出席番号に付け替えます。回答内容・AI採点はそのまま引き継がれます。</p>
+          ${picker}
+          <div class="row" style="margin-top:14px;">
+            <button class="btn ghost" data-act="modal_cancel">キャンセル</button>
+            <button class="btn yellow" id="modalSubmitBtn" data-act="modal_confirm_change_entry">変更する</button>
+          </div>
+        </div>
+      </div>`;
+    }
+    if(m.kind === 'confirmReopen'){
+      const r = state.r_responses.find(x=>x.id===m.id);
+      if(!r) return '';
+      return `<div class="modal-overlay">
+        <div class="modal-card">
+          <h3>再入力を許可しますか？</h3>
+          <p class="sub">${esc(r.grade||'')} ${esc(r.className)} ${esc(r.entry)}番 の回答を削除して、この生徒がもう一度この種目に回答できるようにします。<br>現在の回答内容（AI採点を含む）は消え、元に戻せません。</p>
+          <div class="row" style="margin-top:14px;">
+            <button class="btn ghost" data-act="modal_cancel">キャンセル</button>
+            <button class="btn danger" data-act="modal_confirm_reopen">許可する（回答を削除）</button>
+          </div>
+        </div>
+      </div>`;
+    }
     if(m.kind === 'confirmDeleteResponses'){
       return `<div class="modal-overlay">
         <div class="modal-card">
           <h3>回答を削除しますか？</h3>
-          <p class="sub">${esc(m.label)}を完全に削除します。この操作は取り消せません。</p>
+          <p class="sub">${esc(m.label)}を完全に削除します。この操作は取り消せません。<br>削除した生徒は、同じ種目にもう一度回答できるようになります。</p>
           <div class="row" style="margin-top:14px;">
             <button class="btn ghost" data-act="modal_cancel">キャンセル</button>
             <button class="btn danger" data-act="modal_confirm_delete_responses">削除する</button>
@@ -930,7 +977,7 @@
     state.s_submitting = true; render();
     try{
       const resp = {
-        id: uid(),
+        id: responseKey(state.s_grade, state.s_class, state.s_entry),
         templateId: tpl.id,
         grade: state.s_grade,
         className: state.s_class,
@@ -941,13 +988,22 @@
         aiScore: null,
         submittedAt: Date.now(),
       };
+      // 先生ログイン中（テスト送信など）は上書きできてしまうので、先に回答済みか確認する
+      if(firebase.auth().currentUser){
+        const snap = await db.ref('responses/'+tpl.id+'/'+resp.id).once('value');
+        if(snap.exists()) throw {code:'ALREADY_ANSWERED'};
+      }
       await pushOneResponse(tpl.id, resp);
       state.s_submitting = false;
       state.s_done = true;
       render();
     }catch(e){
       state.s_submitting = false;
-      toast('送信に失敗しました。もう一度お試しください');
+      // 既存の回答があるキーへの書き込みは、Firebaseのルールで PERMISSION_DENIED になる
+      const already = e && (e.code==='ALREADY_ANSWERED' || e.code==='PERMISSION_DENIED' || /permission_denied/i.test(e.message||''));
+      toast(already
+        ? 'この出席番号は、この種目ではすでに回答済みです。番号が合っているか確認してください（間違いなら先生に伝えてください）'
+        : '送信に失敗しました。もう一度お試しください', already ? 7000 : 2400);
       render();
     }
   }
@@ -1260,6 +1316,7 @@
     const allSelected = rows.length>0 && selectedCount===rows.length;
 
     const ungraded = rows.filter(r=>!r.aiScore).length;
+    const legacyCount = state.r_responses.filter(r=>r.id!==responseKey(r.grade, r.className, r.entry)).length;
     const allRatingItems = [...tpl.ratingGroups[0].items, ...tpl.ratingGroups[1].items];
     const refCount = (tpl.reflections||[]).length || 1;
     const maxAi = refCount * 5;
@@ -1287,6 +1344,10 @@
         <button class="btn danger sm" data-act="delete_all_filtered" ${rows.length===0?'disabled':''}>表示中を全件削除</button>
         <span class="hint" id="pollIndicator" style="align-self:center;">🔴 リアルタイム更新中</span>
       </div>
+      ${legacyCount>0 ? `<div class="row btn-row" style="margin-bottom:12px; align-items:center;">
+        <div class="hint" style="color:var(--red);">⚠ 旧形式の回答が ${legacyCount} 件あります。変換するまでは、その生徒の「二重回答ブロック」が効きません。</div>
+        <button class="btn yellow sm" data-act="migrate_legacy" style="flex:none;">旧形式の回答を変換する</button>
+      </div>` : ''}
       <div style="overflow-x:auto;">
       <table class="mtable">
         <thead><tr>
@@ -1312,10 +1373,12 @@
             <td data-label="AI採点（${maxAi}点満点）">${r.aiScore ? `<span class="mono">${r.aiScore.ai} / ${maxAi}</span>${(r.aiScore.level||'normal')!==curLevel ? `<div class="hint">※「${esc(GRADING_LEVELS[r.aiScore.level||'normal'].label.replace(/^\S+\s/,''))}」で採点</div>` : ''}` : '<span class="pending">未採点</span>'}</td>
             <td class="mono" data-label="文字数B（${maxBonus}点満点）">${r.aiScore ? `${r.aiScore.bonus} / ${maxBonus}` : '-'}</td>
             <td data-label="合計（${maxTotal}点満点）">${renderScoreCell(r, maxTotal)}</td>
-            <td class="mcell-actions" data-label="操作" style="white-space:nowrap;">
-              <span>
+            <td class="mcell-actions" data-label="操作" style="min-width:200px;">
+              <span style="display:flex; gap:6px; flex-wrap:wrap;">
               ${state.r_grading[r.id] ? '<span class="pending">採点中…</span>' :
                 `<button class="btn ghost sm" data-act="grade_one" data-id="${r.id}">${r.aiScore?'再採点':'AI採点'}</button>`}
+              <button class="btn ghost sm" data-act="change_entry_open" data-id="${r.id}">番号変更</button>
+              <button class="btn ghost sm" data-act="reopen_open" data-id="${r.id}">再入力を許可</button>
               <button class="btn danger sm" data-act="delete_one_resp" data-id="${r.id}">削除</button>
               </span>
             </td>
@@ -2011,6 +2074,71 @@ ${GRADING_LEVELS[getGradingLevel(tpl)].rules}
         const shouldSelect = el.checked;
         state.r_visibleIds.forEach(id=>{ state.r_selected[id] = shouldSelect; });
         render(); break;
+      }
+      case 'change_entry_open':
+        state.modal = {kind:'changeEntry', id: el.dataset.id};
+        render(); break;
+      case 'reopen_open':
+        state.modal = {kind:'confirmReopen', id: el.dataset.id};
+        render(); break;
+      case 'modal_confirm_change_entry': {
+        const old = state.r_responses.find(x=>x.id===state.modal.id);
+        const inp = document.getElementById('modalEntrySelect');
+        const newEntry = inp ? (inp.value||'').trim() : '';
+        if(!old || !newEntry){ toast('出席番号を選んでください'); return; }
+        if(newEntry===old.entry){ state.modal = null; render(); break; }
+        const newKey = responseKey(old.grade, old.className, newEntry);
+        try{
+          // 直前にもう一度確認（その間に生徒が送信していないか）
+          const snap = await db.ref('responses/'+state.r_templateId+'/'+newKey).once('value');
+          if(snap.exists()){ toast('その番号はこの種目ですでに回答済みです', 4000); return; }
+          const updates = {};
+          updates[newKey] = Object.assign({}, old, {id:newKey, entry:newEntry});
+          updates[old.id] = null;
+          await db.ref('responses/'+state.r_templateId).update(updates);
+          delete state.r_selected[old.id];
+          state.modal = null;
+          toast(old.entry+'番 → '+newEntry+'番 に変更しました');
+          render();
+        }catch(e){
+          toast('変更に失敗しました。もう一度お試しください');
+        }
+        break;
+      }
+      case 'modal_confirm_reopen': {
+        const id = state.modal.id;
+        try{
+          await deleteResponses(state.r_templateId, [id]);
+          delete state.r_selected[id];
+          state.modal = null;
+          toast('再入力できるようにしました');
+          render();
+        }catch(e){
+          toast('処理に失敗しました。もう一度お試しください');
+        }
+        break;
+      }
+      case 'migrate_legacy': {
+        // 旧形式（ランダムID）の回答を、固定ID（学年|クラス|出席番号）に付け替える
+        const taken = new Set(state.r_responses.map(r=>r.id));
+        const updates = {}; let moved = 0, dup = 0;
+        state.r_responses.slice().sort((a,b)=>(b.submittedAt||0)-(a.submittedAt||0)).forEach(r=>{
+          const k = responseKey(r.grade, r.className, r.entry);
+          if(r.id===k) return;
+          if(taken.has(k)){ dup++; return; } // 同じ生徒の回答が複数ある場合は新しい方だけ変換し、残りはそのまま
+          taken.add(k);
+          updates[k] = Object.assign({}, r, {id:k});
+          updates[r.id] = null;
+          moved++;
+        });
+        if(moved===0 && dup===0){ break; }
+        try{
+          await db.ref('responses/'+state.r_templateId).update(updates);
+          toast(moved+'件を変換しました'+(dup ? '（同じ生徒の重複 '+dup+'件はそのまま残しています。不要なら削除してください）' : ''), dup ? 7000 : 2400);
+        }catch(e){
+          toast('変換に失敗しました。もう一度お試しください');
+        }
+        break;
       }
       case 'delete_one_resp':
         state.modal = {kind:'confirmDeleteResponses', ids:[el.dataset.id], label:'この回答'};
