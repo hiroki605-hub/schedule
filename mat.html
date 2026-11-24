@@ -309,7 +309,7 @@ function initApp(){
       +'<div style="background:#e8f0fe;border:1px solid #c5d8fd;border-radius:8px;padding:8px 12px;margin-bottom:1.5rem;font-size:12px;color:#1a56c4">'
       +'📐 各種目A・B・C評価　接転技群・ほん転技群・平均立ち技群</div>'
       +'<div style="display:flex;flex-direction:column;gap:10px">'
-      +mBtn("👤","生徒モード","自分の評価を自分で入力する（生徒パスワード）","goSLogin()")
+      +mBtn("👤","生徒モード",(isStuLocked()?"🔒 現在ログイン停止中":"自分の評価を自分で入力する（生徒パスワード）"),"goSLogin()")
       +mBtn("📋","教師モード","全生徒の評価を確認・修正する（先生ログイン）","goTLoginOrTeacher()")
       +'</div></div>';
   }
@@ -349,6 +349,7 @@ function initApp(){
       +'<button class="btn-icon" onclick="toggleBulk()">📋</button>'
       +'<button class="btn-icon" onclick="toggleAdd()">＋</button>'
       +'</div></div>'
+      +lockBtn()
       +'<button onclick="openRankingModal()" style="background:#e8f0fe;border:1px solid #c5d8fd;color:#1a56c4;border-radius:8px;padding:7px;font-size:12px;font-weight:700;width:100%;cursor:pointer">📊 最終評価一覧</button>';
     if(S.addOpen){
       sb+='<div style="background:#f5f8ff;border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:6px">'
@@ -407,6 +408,7 @@ function initApp(){
 
   // ─── 生徒ログイン ───
   function vSLogin(){
+    if(isStuLocked())return vLocked();
     var students=getStudents();
     var allCls=uniq(students.map(function(s){return s.cls;})).sort();
     var filtered=S.sFilterCls?students.filter(function(s){return s.cls===S.sFilterCls;}):[];
@@ -762,6 +764,34 @@ function initApp(){
   }
 
   // ─── アクション ───
+  // ─── 生徒ログイン ON/OFF（教師が切り替え） ───
+  function isStuLocked(){return !!(DB.settings&&DB.settings.studentLocked===true);}
+  function lockBtn(){
+    var l=isStuLocked();
+    return '<button onclick="toggleStudentLock()" style="border-radius:8px;padding:7px;font-size:12px;font-weight:700;width:100%;cursor:pointer;'
+      +(l?'background:#fce8e6;border:1px solid #f4b4ae;color:#d93025':'background:#e6f4ea;border:1px solid #a8d5b5;color:#1e7e34')+'">'
+      +(l?'🔒 生徒ログイン：停止中（タップで再開）':'🔓 生徒ログイン：許可中（タップで停止）')+'</button>';
+  }
+  function vLocked(){
+    return '<div style="max-width:380px;margin:0 auto;padding:2rem 1.5rem">'
+      +'<button onclick="goPage(\'home\')" style="border:none;background:none;color:#888;padding:0 0 1.5rem;font-size:13px">← ホームに戻る</button>'
+      +'<div style="text-align:center;padding:2rem 1rem;background:#fce8e6;border:1px solid #f4b4ae;border-radius:12px">'
+      +'<div style="font-size:40px;margin-bottom:8px">🔒</div>'
+      +'<h2 style="font-size:18px;font-weight:700;margin-bottom:6px;color:#d93025">今はログインできません</h2>'
+      +'<p style="font-size:13px;color:#888">先生がログインを停止しています。<br>先生の指示があるまで待ってください。</p>'
+      +'</div></div>';
+  }
+  window.toggleStudentLock=function(){
+    var next=!isStuLocked();
+    var run=function(){
+      dbSet('settings/studentLocked',next,function(err){
+        if(err){uiAlert("⚠️ 切り替えに失敗しました。\n（Firebaseのルールで「"+"mat1"+"/settings」への書き込みを許可しているか確認してください）\n"+err.message);}
+      });
+    };
+    if(next){uiConfirm("生徒のログインを停止しますか？\n（停止中は生徒が新しくログインできなくなります）",run);}
+    else{run();}
+  };
+
   window.goPage=function(p){S.page=p;S.tErr=false;S.sErr="";render();};
   window.goTLoginOrTeacher=function(){
     if(teacherUnlocked){S.page="teacher";render();}
@@ -786,6 +816,7 @@ function initApp(){
     });
   };
   window.doSLogin=function(){
+    if(isStuLocked()){render();return;}
     var selEl=document.getElementById("sName");
     var id=selEl?selEl.value:"";
     var pw=document.getElementById("sPw")?document.getElementById("sPw").value:"";
