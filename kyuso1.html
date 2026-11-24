@@ -103,6 +103,17 @@ function calc(s){
 }
 function students(){return Object.keys(DB.students).map(function(k){return DB.students[k];}).sort(function(a,b){return a.cls.localeCompare(b.cls)||a.number-b.number;});}
 window.S=S;window.render=render;window.set=set;
+// ── 生徒ログイン ON/OFF（教師が切り替え） ──
+function isStuLocked(){return !!(DB.settings&&DB.settings.studentLocked===true);}
+function lockBtn(){var l=isStuLocked();
+  return '<button onclick="toggleStudentLock()" style="font-weight:600;'+(l?'background:#fce8e6;border-color:#f4b4ae;color:#d93025':'background:#e6f4ea;border-color:#a8d5b5;color:#1e7e34')+'">'+(l?'🔒 生徒ログイン：停止中（タップで再開）':'🔓 生徒ログイン：許可中（タップで停止）')+'</button>';}
+function vLocked(){return '<div style="max-width:380px;margin:0 auto;padding:2rem 1.5rem">'+back('← 戻る','home')
+  +'<div style="text-align:center;padding:2rem 1rem;background:#fce8e6;border:1px solid #f4b4ae;border-radius:12px"><div style="font-size:40px;margin-bottom:8px">🔒</div>'
+  +'<h2 style="font-size:18px;margin-bottom:6px;color:#d93025">今はログインできません</h2>'
+  +'<p style="font-size:13px;color:#888;line-height:1.7">先生がログインを停止しています。<br>先生の指示があるまで待ってください。</p></div></div>';}
+window.toggleStudentLock=function(){var next=!isStuLocked();
+  var run=function(){set('settings/studentLocked',next);};
+  if(next)uiConfirm('生徒のログインを停止しますか？\n（停止中は生徒が新しくログインできなくなります）',run);else run();};
 window.goT=function(){go(teacher?'teacher':'tlogin');};
 function genId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
@@ -123,7 +134,7 @@ function back(t,p){return '<button onclick="go(\''+p+'\')" style="border:none;ba
 function vHome(){var c=cfg();
   return '<div style="max-width:440px;margin:0 auto;padding:2rem 1.5rem"><p style="font-size:12px;color:#999">体育</p><h1 style="font-size:22px;margin:4px 0">🏃 持久走 記録アプリ</h1>'
   +'<p style="color:#999;font-size:13px;margin-bottom:18px">トラック '+c.track+'m ／ 男子'+dist('m')+'m・女子'+dist('f')+'m ／ 全'+c.n+'回</p>'
-  +'<button onclick="go(\'slogin\')" style="width:100%;padding:16px;text-align:left;margin-bottom:10px"><b>⏱ 生徒モード</b><div style="font-size:11px;color:#aaa;margin-top:3px">ペアの記録をとる（ログイン）</div></button>'
+  +'<button onclick="go(\'slogin\')" style="width:100%;padding:16px;text-align:left;margin-bottom:10px"><b>⏱ 生徒モード</b><div style="font-size:11px;color:#aaa;margin-top:3px">'+(isStuLocked()?'🔒 現在ログイン停止中':'ペアの記録をとる（ログイン）')+'</div></button>'
   +'<button onclick="goT()" style="width:100%;padding:16px;text-align:left"><b>📋 教師モード</b><div style="font-size:11px;color:#aaa;margin-top:3px">設定・記録の確認と修正・CSV</div></button></div>';}
 function vTLogin(){return '<div style="max-width:360px;margin:0 auto;padding:2rem 1.5rem">'+back('← 戻る','home')+'<h2 style="margin-bottom:14px">教師ログイン</h2><div style="display:flex;flex-direction:column;gap:10px"><input type="email" id="te" placeholder="メールアドレス"><input type="password" id="tp" placeholder="パスワード" onkeydown="if(event.key===\'Enter\')tLogin()">'+(S.tErr?'<p style="color:#d93025;font-size:13px">'+S.tErr+'</p>':'')+'<button class="bp" onclick="tLogin()">ログイン</button></div></div>';}
 window.tLogin=function(){auth.signInWithEmailAndPassword($('te').value.trim(),$('tp').value).then(function(){S.page='teacher';render();}).catch(function(e){S.tErr='ログインに失敗しました';render();});};
@@ -147,7 +158,7 @@ window.selClear=function(){window.selAll(false);};
 function vTeacher(){
   var c=cfg(),cl=DB.classes,list=viewList(),nSel=selIds().length,lab=S.cls||'全クラス';
   function num(k,v,mn,mx,u){return '<div><span class="lbl">'+u+'</span><input type="number" min="'+mn+'" max="'+mx+'" value="'+v+'" style="width:90px" onchange="setS(\''+k+'\',this.value)"></div>';}
-  var h='<div style="padding:12px;max-width:1300px;margin:0 auto"><div class="row" style="margin-bottom:10px"><button onclick="go(\'home\')">← 戻る</button><button onclick="tLogout()" style="color:#d93025">ログアウト</button><button onclick="xlsxDl()" style="margin-left:auto;background:#1e6b2e;color:#fff;border-color:#1e6b2e;font-weight:600">⬇ Excelでダウンロード（色つき）</button></div>'
+  var h='<div style="padding:12px;max-width:1300px;margin:0 auto"><div class="row" style="margin-bottom:10px"><button onclick="go(\'home\')">← 戻る</button><button onclick="tLogout()" style="color:#d93025">ログアウト</button>'+lockBtn()+'<button onclick="xlsxDl()" style="margin-left:auto;background:#1e6b2e;color:#fff;border-color:#1e6b2e;font-weight:600">⬇ Excelでダウンロード（色つき）</button></div>'
   +'<details class="card"'+(S.setOpen?' open':'')+' ontoggle="S.setOpen=this.open"><summary>⚙ 設定（生徒の画面にそのまま反映）</summary><div class="row" style="align-items:flex-end;margin-top:6px">'
   +'<div><span class="lbl">トラック1周</span><select style="width:110px" onchange="setS(\'track\',this.value)"><option value="150"'+(c.track===150?' selected':'')+'>150m（現在の学校）</option><option value="200"'+(c.track===200?' selected':'')+'>200m</option></select></div>'
   +'<div><span class="lbl">評価の厳しさ</span><select style="width:110px" onchange="setLv(this.value)"><option value="easy"'+(c.lv==='easy'?' selected':'')+'>優しい</option><option value="normal"'+(c.lv==='normal'?' selected':'')+'>普通</option><option value="hard"'+(c.lv==='hard'?' selected':'')+'>厳しい</option></select></div>'
@@ -244,13 +255,13 @@ function buildX(){
     a.href=URL.createObjectURL(b);a.download='持久走記録_'+ds+'.xlsx';document.body.appendChild(a);a.click();a.remove();});
 }
 // ── 生徒 ──
-function vSLogin(){var st=students(),cl=uniq(st.map(function(s){return s.cls;})).sort(),f=st.filter(function(s){return s.cls===S.sCls;});
+function vSLogin(){if(isStuLocked())return vLocked();var st=students(),cl=uniq(st.map(function(s){return s.cls;})).sort(),f=st.filter(function(s){return s.cls===S.sCls;});
   return '<div style="max-width:380px;margin:0 auto;padding:2rem 1.5rem">'+back('← 戻る','home')+'<h2 style="margin-bottom:12px">生徒ログイン</h2>'
   +'<span class="lbl">① クラス</span><select onchange="S.sCls=this.value;render()"><option value="">選んでください</option>'+cl.map(function(c){return '<option'+(S.sCls===c?' selected':'')+'>'+c+'</option>';}).join('')+'</select>'
   +'<span class="lbl">② 自分の出席番号</span><select id="sn"><option value="">選んでください</option>'+f.map(function(s){return '<option value="'+s.id+'">'+s.number+'番</option>';}).join('')+'</select>'
   +'<span class="lbl">③ パスワード（初期は出席番号）</span><input type="password" id="sp" onkeydown="if(event.key===\'Enter\')sLogin()">'
   +(S.sErr?'<p style="color:#d93025;font-size:13px;margin-top:8px">'+S.sErr+'</p>':'')+'<button class="bp" style="width:100%;margin-top:14px" onclick="sLogin()">ログイン</button></div>';}
-window.sLogin=function(){var s=DB.students[$('sn').value];if(!s||s.password!==$('sp').value){S.sErr='出席番号またはパスワードが違います';render();return;}S.me=s;S.ses=cfg().cur;S.run='';S.sErr='';S.page='pick';render();};
+window.sLogin=function(){if(isStuLocked()){render();return;}var s=DB.students[$('sn').value];if(!s||s.password!==$('sp').value){S.sErr='出席番号またはパスワードが違います';render();return;}S.me=s;S.ses=cfg().cur;S.run='';S.sErr='';S.page='pick';render();};
 function doneSes(m){var d={};Object.keys(DB.rec).forEach(function(id){var r=DB.rec[id]||{};Object.keys(r).forEach(function(i){if(r[i]&&r[i].by===m.id)d[i]=1;});});return d;} // m が計測を記録した回
 function vPick(){var c=cfg(),mates=students().filter(function(s){return s.cls===S.me.cls;}),dn=doneSes(S.me),left=rg(1,c.n).filter(function(i){return !dn[i];});
   if(left.length&&left.indexOf(S.ses)<0)S.ses=left.filter(function(i){return i>S.ses;})[0]||left[0];
