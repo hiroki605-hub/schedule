@@ -335,6 +335,7 @@
       <div class="hint" style="margin:0;flex:1;min-width:280px;">生徒配布用（B4横で印刷）。学校行事・進路関係のみを表示します（日程入力で「生徒に見せない」とマークした部分は自動的に消えます）。右のボタンで<b>「1か月ずつB4縦」</b>にも切り替えられます。<b>下の表は直接クリックして文字を書き換えられます。</b>書き換えたマスの下に「①の新しい内容を追加」（すでにある行は追加せず、①に新しく増えた行だけを下に足します）と「すべて①に戻す」（自分の書き換えを消して①の内容に戻す）の2つのボタンが出ます。万一同じ行が重複したときは、そのまま文字をクリックして直接消してください。</div>
       <div class="month-switch layout-switch"></div>
       <button class="btn secondary" id="btnB4Student" onclick="toggleB4Preview('student')">🔍 B4 100%表示で確認</button>
+      <button class="btn secondary" id="btnPdfStudent" onclick="downloadStudentPDF()">📥 PDFダウンロード</button>
       <button class="btn" id="btnPrintStudent" onclick="printPanel('student')">🖨 このページを印刷（B4横）</button>
     </div>
     <div class="rte-toolbar" id="stuToolbar">
@@ -1980,10 +1981,14 @@ function loadScriptOnce(src){
     document.head.appendChild(sc);
   });
 }
-async function downloadStaffPDF(){
-  const btn = document.getElementById('btnPdfStaff');
+function downloadStaffPDF(){ return downloadSheetPDF('staff'); }
+function downloadStudentPDF(){ return downloadSheetPDF('student'); }
+async function downloadSheetPDF(which){
+  const isStaff = (which==='staff');
+  const btn = document.getElementById(isStaff ? 'btnPdfStaff' : 'btnPdfStudent');
   const label = btn.textContent;
-  const sheetEl = document.getElementById('staffSheet');
+  const sheetEl = document.getElementById(isStaff ? 'staffSheet' : 'studentSheet');
+  const fileName = `${schoolYear}年度_進路${isStaff ? '関係予定_職員用' : '日程_生徒配布用'}.pdf`;
   const wasB4 = sheetEl.classList.contains('b4-preview');
   btn.disabled = true; btn.textContent = '⏳ PDF作成中…';
   try{
@@ -1992,12 +1997,19 @@ async function downloadStaffPDF(){
   }catch(e){
     btn.disabled = false; btn.textContent = label;
     alert('PDF作成用の部品を読み込めませんでした（インターネット接続が必要です）。\n\n代わりに印刷画面を開きます。送信先で「PDFに保存」を選んでください。');
-    printPanel('staff');
+    printPanel(which);
     return;
   }
+  // 撮影中だけ、印刷時と同じ見た目にする（編集枠・「①に戻す」ボタン・行高ボタンを消す）
+  const capStyle = document.createElement('style'); capStyle.id = 'pdfCaptureStyle';
+  capStyle.textContent =
+    '.rowh-inline,.col-resize-handle,.override-actions,.reset-override{display:none !important;}'+
+    '.rte-mini{border-color:transparent !important;background:transparent !important;min-height:0 !important;}'+
+    '.print-page{box-shadow:none !important;margin:0 !important;}';
   try{
     // 印刷と同じB4の大きさ・文字サイズに揃えてから撮影する
     if(!wasB4) sheetEl.classList.add('b4-preview');
+    document.head.appendChild(capStyle);
     fitPrintPages(sheetEl);
     await new Promise(r=>requestAnimationFrame(()=>setTimeout(r,80)));
     const pages = Array.from(sheetEl.querySelectorAll('.print-page'));
@@ -2006,26 +2018,20 @@ async function downloadStaffPDF(){
     for(let i=0;i<pages.length;i++){
       const page = pages[i];
       const wMM = page.offsetWidth*PX2MM, hMM = page.offsetHeight*PX2MM;
-      const canvas = await html2canvas(page, {
-        scale: 2, backgroundColor:'#ffffff', useCORS:true, logging:false,
-        onclone: doc=>{
-          const st = doc.createElement('style');
-          st.textContent = '.rowh-inline,.col-resize-handle{display:none !important;} .print-page{box-shadow:none !important;margin:0 !important;}';
-          doc.head.appendChild(st);
-        }
-      });
+      const canvas = await html2canvas(page, { scale: 2, backgroundColor:'#ffffff', useCORS:true, logging:false });
       const img = canvas.toDataURL('image/jpeg', 0.92);
       const orient = wMM >= hMM ? 'landscape' : 'portrait';
       if(!pdf){ pdf = new window.jspdf.jsPDF({orientation:orient, unit:'mm', format:[wMM,hMM]}); }
       else { pdf.addPage([wMM,hMM], orient); }
       pdf.addImage(img, 'JPEG', 0, 0, wMM, hMM);
     }
-    if(pdf) pdf.save(`${schoolYear}年度_進路関係予定_職員用.pdf`);
+    if(pdf) pdf.save(fileName);
   }catch(e){
     console.error(e);
     alert('PDFの作成に失敗しました。印刷画面を開きます。送信先で「PDFに保存」を選んでください。');
-    printPanel('staff');
+    printPanel(which);
   }finally{
+    capStyle.remove();
     if(!wasB4){ resetPrintScale(sheetEl); sheetEl.classList.remove('b4-preview'); }
     btn.disabled = false; btn.textContent = label;
   }
