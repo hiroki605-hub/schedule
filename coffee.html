@@ -290,7 +290,7 @@
   <!-- 2. 履歴・集計タブ -->
   <section class="panel top-round" id="panel-history" style="display:none;">
     <div id="history-content"></div>
-    <button class="reset-all" id="csv-download-btn" style="border-color: var(--chive); color: var(--chive-dark);">📄 CSVでダウンロード（商品別集計・購入者別）</button>
+    <button class="reset-all" id="csv-download-btn" style="border-color: var(--chive); color: var(--chive-dark);">📄 CSVでダウンロード（注文明細・購入者別）</button>
     <button class="reset-all" id="csv-paper-download-btn" style="border-color: var(--accent); color: var(--accent);">🧾 注文書と同じ並びでCSVダウンロード</button>
   </section>
 
@@ -344,25 +344,34 @@
 <script>
 // ベースのメニュー（固定）
 const MENU = [
-  { category: "ブレンドコーヒー (100g)", items: [
-    { id: "jamaica", name: "ジャマイカリッチブレンド", desc: "高品質な豆を使用したまろやかで香り高いブレンド", unit: "100g", price: 650 },
-    { id: "peru_blend", name: "ペルーブレンド", desc: "コクのあるブレンド イチオシのコーヒーです", unit: "100g", price: 670 },
-    { id: "mild", name: "マイルドブレンド", desc: "バランスが良くまろやかでクセのないブレンド", unit: "100g", price: 600 },
-    { id: "original", name: "オリジナルブレンド", desc: "まろやかで飲みやすい お求めやすいブレンド", unit: "100g", price: 580 },
-    { id: "strong", name: "ストロングブレンド", desc: "苦味がしっかりきいた味 カフェオレ等にも", unit: "100g", price: 680 },
-    { id: "european", name: "ヨーロピアンブレンド", desc: "コク、苦味、香りがある喫茶店の味", unit: "100g", price: 600 },
+  { category: "ストレートコーヒー (100g)", items: [
+    { id: "brazil", name: "ブラジルサントス", desc: "さわやかな酸味があり、とてもバランスが良い", unit: "100g", price: 700 },
+    { id: "mocha", name: "モカグジプラス", desc: "エチオピア産 芳醇で甘くフルーティーな香り", unit: "100g", price: 720 },
+    { id: "tanzania", name: "タンザニアエーデルワイス", desc: "バランスが良くすっきりとした後味", unit: "100g", price: 720 },
+    { id: "guatemala", name: "グァテマラカフェピューマ", desc: "独特の香りを持ち、とても濃厚な味", unit: "100g", price: 850 },
+    { id: "sumatra", name: "スマトラマンデリン", desc: "深いコクとほろ苦さのバランスが良い", unit: "100g", price: 800 },
+    { id: "brazil_choco", name: "ブラジルアロマショコラ", desc: "", unit: "100g", price: 750 },
+    { id: "malawi", name: "マラウイAA", desc: "", unit: "100g", price: 800 },
+    { id: "peru", name: "ペルーチャンチャマヨ", desc: "後味さっぱりのコーヒー", unit: "100g", price: 720 },
+    { id: "haiti", name: "ハイチ モン・ラセル", desc: "スペシャリティ", unit: "100g", price: 1100 },
+    { id: "bluemountain", name: "ブルーマウンテンNo1", desc: "", unit: "100g", price: 3000 },
+    { id: "decaf_peru", name: "カフェインレスペルー", desc: "", unit: "100g", price: 900 },
   ]},
-  { category: "ストレート・その他 (100g)", items: [
-    { id: "sumatra", name: "スマトラマンデリン", desc: "深いコクとほろ苦さのバランスが良い", unit: "100g", price: 750 },
-    { id: "haiti", name: "ハイチフレンチブルー", desc: "ジャマイカ産に近いテイスト スペシャリティ", unit: "100g", price: 800 },
-    { id: "peru", name: "ペルー (有機栽培珈琲豆)", desc: "後味さっぱりのコーヒー", unit: "100g", price: 680 },
-    { id: "tanzania", name: "タンザニア (キリマンジャロ)", desc: "バランスが良くすっきりとした後味", unit: "100g", price: 720 },
-    { id: "guatemala", name: "グァテマラカフェピューマ", desc: "独特の香りを持ち、とても濃厚な味", unit: "100g", price: 750 },
-    { id: "brazil", name: "ブラジルサントス", desc: "さわやかな酸味があり、とてもバランスが良い", unit: "100g", price: 650 },
-    { id: "mocha", name: "モカ", desc: "エチオピア産 芳醇で甘くフルーティーな香り", unit: "100g", price: 650 },
+  { category: "ブレンドコーヒー (100g)", items: [
+    { id: "bm30", name: "ブルーマウンテン30%ブレンド", desc: "", unit: "100g", price: 1400 },
+    { id: "jamaica", name: "ジャマイカリッチブレンド", desc: "高品質な豆を使用したまろやかで香り高いブレンド", unit: "100g", price: 750 },
+    { id: "original", name: "オリジナルブレンド", desc: "まろやかで飲みやすい お求めやすいブレンド", unit: "100g", price: 650 },
+    { id: "mild", name: "マイルドブレンド", desc: "バランスが良くまろやかでクセのないブレンド", unit: "100g", price: 700 },
+    { id: "european", name: "ヨーロピアンブレンド", desc: "コク、苦味、香りがある喫茶店の味", unit: "100g", price: 700 },
+    { id: "strong", name: "ストロングブレンド", desc: "苦味がしっかりきいた味 カフェオレ等にも", unit: "100g", price: 720 },
+  ]},
+  { category: "大容量", items: [
+    { id: "peru_g1_300", name: "ペルーG1 300g", desc: "", unit: "300g", price: 1800 },
+    { id: "tropical_300", name: "トロピカルマウンテン 300g", desc: "", unit: "300g", price: 1950 },
+    { id: "sonotoki_400", name: "その時ブレンド 400g", desc: "", unit: "400g", price: 2000 },
   ]}
 ];
-const PAPER_ORDER = ["jamaica","sumatra","haiti","peru","peru_blend","mild","original","tanzania","guatemala","brazil","mocha","strong","european"];
+const PAPER_ORDER = ["brazil","mocha","tanzania","guatemala","sumatra","brazil_choco","malawi","peru","haiti","bluemountain","decaf_peru","bm30","jamaica","original","mild","european","strong","peru_g1_300","tropical_300","sonotoki_400"];
 
 // === Firebase 設定（キムチや餃子と同じもの） ===
 const firebaseConfig = {
@@ -782,28 +791,27 @@ window.togglePaid = async function(id, isPaid) {
   }
 };
 
-// ----- CSVダウンロード：商品別集計（注文があった商品のみ） -----
+// ----- CSVダウンロード：注文明細・購入者別 -----
 document.getElementById('csv-download-btn').addEventListener('click', () => {
   if (orders.length === 0) return showToast('注文データがありません');
 
-  // 商品名（豆のまま／挽く（粉）の表記込み）ごとに数量・金額を合算
-  const byItem = {}; // name -> { qty, price, subtotal }
-  orders.forEach(o => {
+  const rows = [];
+  rows.push(['注文日時', '購入者', '商品名', '数量', '単価', '小計', '集金状況']);
+
+  const sorted = [...orders].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+  sorted.forEach(o => {
     o.items.forEach(i => {
-      if (!byItem[i.name]) byItem[i.name] = { qty: 0, price: i.price, subtotal: 0 };
-      byItem[i.name].qty += i.qty;
-      byItem[i.name].subtotal += i.subtotal;
+      rows.push([
+        new Date(o.timestamp).toLocaleString('ja-JP'),
+        o.teacher,
+        i.name,
+        i.qty,
+        i.price,
+        i.subtotal,
+        o.paid ? '集金済み' : '未集金'
+      ]);
     });
   });
-
-  const rows = [];
-  rows.push(['商品名', '数量', '単価', '小計']);
-  Object.keys(byItem).forEach(name => {
-    const d = byItem[name];
-    rows.push([name, d.qty, d.price, d.subtotal]);
-  });
-  const grandTotal = Object.values(byItem).reduce((s, d) => s + d.subtotal, 0);
-  rows.push(['合計', '', '', grandTotal]);
 
   rows.push([]);
   rows.push(['購入者別 集計']);
@@ -812,7 +820,7 @@ document.getElementById('csv-download-btn').addEventListener('click', () => {
   orders.forEach(o => { byTeacher[o.teacher] = (byTeacher[o.teacher] || 0) + o.total; });
   Object.keys(byTeacher).forEach(t => rows.push([t, byTeacher[t]]));
 
-  downloadCsv(`コーヒー注文集計_${todayStr()}.csv`, rows);
+  downloadCsv(`コーヒー注文明細_${todayStr()}.csv`, rows);
 });
 
 // ----- CSVダウンロード：注文書と同じ並び（先生×商品のマトリクス） -----
