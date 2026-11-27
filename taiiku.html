@@ -630,6 +630,25 @@
       if(n>0) db.ref('answered/'+templateId).update(updates).catch(()=>{});
     }catch(e){}
   }
+  // 先生側：全種目の既存の回答をまとめて「回答済み」に反映する（過去の回答の取り込み）
+  async function syncAllAnswered(){
+    let total = 0;
+    const tpls = (state.config && state.config.templates) || [];
+    for(const t of tpls){
+      const snap = await db.ref('responses/'+t.id).once('value');
+      const val = snap.exists() ? snap.val() : null;
+      if(!val) continue;
+      const updates = {};
+      Object.values(val).forEach(r=>{
+        if(!r) return;
+        updates[answeredKey(r.grade, r.className, r.entry)] = true;
+        if(r.id) syncedAnsweredIds.add(r.id);
+        total++;
+      });
+      await db.ref('answered/'+t.id).update(updates);
+    }
+    return total;
+  }
   async function saveResponses(templateId, arr){
     const obj = {};
     arr.forEach(r=>{ obj[r.id] = r; });
@@ -1340,6 +1359,7 @@
         <div><strong>${rows.length}</strong> 件の回答（未採点 ${ungraded} 件・選択中 ${selectedCount} 件）</div>
         <button class="btn yellow sm" data-act="grade_all" ${ungraded===0?'disabled':''}>未採点をまとめてAI採点</button>
         <button class="btn ghost sm" data-act="export_csv">CSVダウンロード</button>
+        <button class="btn ghost sm" data-act="sync_answered">過去の回答を回答済みに反映</button>
         <button class="btn danger sm" data-act="delete_selected" ${selectedCount===0?'disabled':''}>選択した回答を削除</button>
         <button class="btn danger sm" data-act="delete_all_filtered" ${rows.length===0?'disabled':''}>表示中を全件削除</button>
         <span class="hint" id="pollIndicator" style="align-self:center;">🔴 リアルタイム更新中</span>
@@ -2075,6 +2095,15 @@ ${GRADING_LEVELS[getGradingLevel(tpl)].rules}
       case 'delete_one_resp':
         state.modal = {kind:'confirmDeleteResponses', ids:[el.dataset.id], label:'この回答'};
         render(); break;
+      case 'sync_answered': {
+        try{
+          const n = await syncAllAnswered();
+          toast(n+'件の回答を「回答済み」に反映しました');
+        }catch(e){
+          toast('反映に失敗しました。Firebaseのルールに answered を追加したか確認してください');
+        }
+        break;
+      }
       case 'delete_selected': {
         const ids = state.r_visibleIds.filter(id=>state.r_selected[id]);
         if(ids.length===0){ toast('削除する回答を選択してください'); return; }
@@ -2206,6 +2235,8 @@ ${GRADING_LEVELS[getGradingLevel(tpl)].rules}
         state.teacherUnlocked = !!user;
         if(user){
           await loadSecure();
+          // ログインのたびに、過去の回答も「回答済み」に反映しておく（裏で実行）
+          syncAllAnswered().catch(()=>{});
         } else {
           state.secure = null;
         }
